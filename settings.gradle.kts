@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "TPStreamsAndroidPlayer"
 include(":app")
+include(":tpstreams-android-player")
