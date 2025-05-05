@@ -11,6 +11,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -20,6 +21,7 @@ import org.json.JSONObject
 
 class TPStreamsPlayer private constructor(
     private val exoPlayer: ExoPlayer,
+    private val trackSelector: DefaultTrackSelector,
     assetId: String,
     accessToken: String,
     private val shouldAutoPlay: Boolean = true
@@ -94,6 +96,8 @@ class TPStreamsPlayer private constructor(
     override fun pause() = exoPlayer.pause()
     override fun release() = exoPlayer.release()
 
+    fun getTrackSelector(): DefaultTrackSelector = trackSelector
+
     companion object {
         private var organizationId: String? = null
 
@@ -102,7 +106,13 @@ class TPStreamsPlayer private constructor(
         }
 
         @OptIn(UnstableApi::class)
-        private fun createExoPlayer(context: Context): ExoPlayer {
+        private fun createExoPlayer(context: Context): Pair<ExoPlayer, DefaultTrackSelector> {
+            val trackSelector = DefaultTrackSelector(context).apply {
+                parameters = DefaultTrackSelector.Parameters.Builder()
+                    .setAllowVideoMixedMimeTypeAdaptiveness(true)
+                    .build()
+            }
+
             val dataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent("TPStreamsPlayer")
                 .setAllowCrossProtocolRedirects(true)
@@ -112,7 +122,8 @@ class TPStreamsPlayer private constructor(
 
             return ExoPlayer.Builder(context)
                 .setMediaSourceFactory(mediaSourceFactory)
-                .build()
+                .setTrackSelector(trackSelector)
+                .build() to trackSelector
         }
 
         fun create(
@@ -121,8 +132,8 @@ class TPStreamsPlayer private constructor(
             accessToken: String,
             shouldAutoPlay: Boolean = true
         ): TPStreamsPlayer {
-            val exo = createExoPlayer(context)
-            return TPStreamsPlayer(exo, assetId, accessToken, shouldAutoPlay)
+            val (exo, trackSelector) = createExoPlayer(context)
+            return TPStreamsPlayer(exo, trackSelector, assetId, accessToken, shouldAutoPlay)
         }
     }
 }

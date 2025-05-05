@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.ui.PlayerView
 import com.tpstreams.player.ui.theme.TPStreamsAndroidPlayerTheme
 
 class MainActivity : ComponentActivity() {
@@ -28,14 +27,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // ✅ Initialize the SDK once
+        // Initialize the SDK once
         TPStreamsPlayer.init("6332n7")
 
         setContent {
             TPStreamsAndroidPlayerTheme {
                 val context = LocalContext.current
 
-                // ✅ Create the player using SDK
+                // Create the player using SDK
                 val player = remember {
                     TPStreamsPlayer.create(
                         context = context,
@@ -55,13 +54,13 @@ class MainActivity : ComponentActivity() {
                             .padding(innerPadding)
                             .fillMaxSize()
                     ) {
-                        // ✅ Show ExoPlayer view
+                        // Show ExoPlayer view
                         AndroidView(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(16 / 9f),
                             factory = {
-                                PlayerView(it).apply {
+                                TPStreamsPlayerView(it).apply {
                                     this.player = player
                                     useController = true
                                 }

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- 🎬 Large center play/pause button -->
+    <ImageButton
+        android:id="@+id/exo_play_pause"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="center"
+        android:background="@android:color/transparent"
+        android:scaleType="centerInside"
+        android:src="@android:drawable/ic_media_play"
+        android:contentDescription="@string/exo_controls_play_description" />
+
+    <!-- 📺 Bottom control bar with seekbar and time -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="#CC000000"
+        android:padding="8dp">
+
+        <!-- ⏱ Time and fullscreen row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/exo_position"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:text="00:00" />
+
+            <TextView
+                android:id="@+id/exo_time_divider"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="/"
+                android:paddingHorizontal="4dp"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/exo_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:text="00:00" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <ImageButton
+                android:id="@+id/exo_fullscreen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:src="@android:drawable/ic_menu_crop"
+                android:contentDescription="@string/exo_controls_fullscreen_enter_description" />
+        </LinearLayout>
+
+        <!-- 🎚 Seekbar -->
+        <androidx.media3.ui.DefaultTimeBar
+            android:id="@+id/exo_progress"
+            android:layout_width="match_parent"
+            android:layout_height="30dp"
+            app:played_color="#FF4081"
+            app:unplayed_color="#80FFFFFF"
+            app:buffered_color="#40FFFFFF"
+            app:scrubber_color="#FF4081"
+            app:scrubber_enabled_size="12dp"
+            app:scrubber_dragged_size="16dp"
+            app:bar_height="3dp"
+            android:layout_marginTop="4dp" />
+    </LinearLayout>
+
+</merge>
