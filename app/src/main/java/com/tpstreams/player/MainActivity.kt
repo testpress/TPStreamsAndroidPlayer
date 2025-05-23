@@ -1,12 +1,10 @@
 package com.tpstreams.player
 
-import android.os.Build
 import android.os.Bundle
-import android.view.WindowInsets
-import android.view.WindowInsetsController
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.lifecycle.lifecycleScope
@@ -14,7 +12,6 @@ import androidx.media3.common.util.UnstableApi
 import com.tpstreams.player.databinding.ActivityMainBinding
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlin.getValue
 
 class MainActivity : AppCompatActivity() {
 
@@ -34,6 +31,26 @@ class MainActivity : AppCompatActivity() {
 
         binding.playerView.player = viewModel.player
         binding.playerView.useController = true
+        
+        // Set up settings menu listener
+        binding.playerView.setSettingsListener(object : PlayerSettingsBottomSheet.SettingsListener {
+            override fun onQualitySelected() {
+                Toast.makeText(this@MainActivity, "Quality selected", Toast.LENGTH_SHORT).show()
+                // Implement quality selection logic
+            }
+
+            override fun onCaptionsSelected() {
+                Toast.makeText(this@MainActivity, "Captions selected", Toast.LENGTH_SHORT).show()
+                // Implement captions selection logic
+            }
+
+            override fun onPlaybackSpeedSelected() {
+                Toast.makeText(this@MainActivity, "Playback speed selected", Toast.LENGTH_SHORT).show()
+                // Implement playback speed selection logic
+            }
+        })
+        
+        // Set up fullscreen functionality
         binding.playerView.setFullscreenButtonState(viewModel.isFullscreen.value)
         binding.playerView.setFullscreenButtonClickListener {
             viewModel.toggleFullscreen()
@@ -44,22 +61,28 @@ class MainActivity : AppCompatActivity() {
     private fun observeFullscreenState() {
         lifecycleScope.launch {
             viewModel.isFullscreen.collectLatest { isFullscreen ->
-
+                Log.d("MainActivity", "Fullscreen state changed: $isFullscreen")
                 val layoutParams = binding.playerView.layoutParams as ConstraintLayout.LayoutParams
+                
                 if (isFullscreen) {
+                    // Fullscreen mode
                     requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                     layoutParams.dimensionRatio = null
                     layoutParams.width = ConstraintLayout.LayoutParams.MATCH_PARENT
                     layoutParams.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+                    layoutParams.setMargins(0, 0, 0, 0)
                     supportActionBar?.hide()
                 } else {
+                    // Normal centered mode
                     requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                     supportActionBar?.show()
-
+                    
+                    // Set back to centered 16:9 ratio with margins
                     layoutParams.dimensionRatio = "16:9"
                     layoutParams.width = 0
                     layoutParams.height = 0
                 }
+                
                 binding.playerView.layoutParams = layoutParams
             }
         }
