@@ -30,7 +30,6 @@
         android:layout_height="@dimen/exo_styled_bottom_bar_height"
         android:layout_marginTop="@dimen/exo_styled_bottom_bar_margin_top"
         android:layout_gravity="bottom"
-        android:background="@color/exo_bottom_bar_background"
         android:layoutDirection="ltr">
 
         <LinearLayout android:id="@id/exo_time"
@@ -103,11 +102,12 @@
 
     </FrameLayout>
 
-    <View android:id="@id/exo_progress_placeholder"
+    <!-- TimeBar at the very bottom -->
+    <androidx.media3.ui.DefaultTimeBar
+        android:id="@id/exo_progress"
         android:layout_width="match_parent"
-        android:layout_height="@dimen/exo_styled_progress_layout_height"
-        android:layout_gravity="bottom"
-        android:layout_marginBottom="@dimen/exo_styled_progress_margin_bottom"/>
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom" />
 
     <LinearLayout android:id="@id/exo_minimal_controls"
         android:layout_width="wrap_content"
