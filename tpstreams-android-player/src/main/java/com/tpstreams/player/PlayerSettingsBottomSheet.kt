@@ -8,6 +8,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.fragment.app.FragmentManager
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -18,6 +20,7 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         fun onQualitySelected()
         fun onCaptionsSelected()
         fun onPlaybackSpeedSelected()
+        fun getCurrentQuality(): String
     }
 
     private var listener: SettingsListener? = null
@@ -59,9 +62,13 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         
         Log.d(TAG, "Setting up click listeners")
         
+        // Update current quality text
+        val currentQualityText = view.findViewById<TextView>(R.id.current_quality_text)
+        currentQualityText.text = listener?.getCurrentQuality() ?: "Auto"
+        
         view.findViewById<LinearLayout>(R.id.quality_option)?.setOnClickListener {
             Log.d(TAG, "Quality option clicked")
-            listener?.onQualitySelected()
+            showQualityOptions()
             dismiss()
         }
         
@@ -75,6 +82,16 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
             Log.d(TAG, "Playback speed option clicked")
             listener?.onPlaybackSpeedSelected()
             dismiss()
+        }
+    }
+    
+    private fun showQualityOptions() {
+        listener?.onQualitySelected()
+    }
+    
+    fun show(fragmentManager: FragmentManager) {
+        if (!isAdded) {
+            show(fragmentManager, TAG)
         }
     }
 

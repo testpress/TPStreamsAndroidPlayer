@@ -4,4 +4,18 @@
     <string name="timer_divider">/</string>
     <string name="default_duration">00:00</string>
     <string name="playback_error">Playback error</string>
+    <string name="quality_title_format">Quality for current video · %1$s</string>
+    
+    <!-- Quality options -->
+    <string name="quality_auto">Auto (recommended)</string>
+    <string name="quality_auto_description">Adjusts to give you the best experience for your conditions</string>
+    <string name="quality_higher">Higher picture quality</string>
+    <string name="quality_higher_description">Uses more data</string>
+    <string name="quality_data_saver">Data saver</string>
+    <string name="quality_data_saver_description">Lower picture quality</string>
+    <string name="quality_advanced">Advanced</string>
+    <string name="quality_advanced_description">Select a specific resolution</string>
+    
+    <!-- Advanced resolution screen -->
+    <string name="select_video_quality">Select video quality</string>
 </resources>

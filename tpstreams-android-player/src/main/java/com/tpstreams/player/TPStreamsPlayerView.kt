@@ -25,7 +25,10 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
-) : PlayerView(context, attrs, defStyleAttr), PlayerSettingsBottomSheet.SettingsListener {
+) : PlayerView(context, attrs, defStyleAttr), 
+    PlayerSettingsBottomSheet.SettingsListener, 
+    QualityOptionsBottomSheet.QualityOptionsListener,
+    AdvancedResolutionBottomSheet.ResolutionSelectionListener {
 
     private var playerControlView: TPStreamsPlayerControlView? = null
     private val settingsBottomSheet: PlayerSettingsBottomSheet by lazy {
@@ -33,6 +36,24 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             setSettingsListener(this@TPStreamsPlayerView)
         }
     }
+    
+    private val qualityOptionsBottomSheet: QualityOptionsBottomSheet by lazy {
+        QualityOptionsBottomSheet().apply {
+            setQualityOptionsListener(this@TPStreamsPlayerView)
+            setCurrentQuality(currentQuality)
+        }
+    }
+    
+    private val advancedResolutionBottomSheet: AdvancedResolutionBottomSheet by lazy {
+        AdvancedResolutionBottomSheet().apply {
+            setResolutionSelectionListener(this@TPStreamsPlayerView)
+            setSelectedResolution(currentQuality)
+        }
+    }
+    
+    // Current quality setting, updated when user changes quality
+    private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
+    private var availableResolutions: List<String> = listOf("2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p")
 
     override fun onFinishInflate() {
         super.onFinishInflate()
@@ -56,10 +77,27 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         Log.d("TPStreamsPlayerView", "Showing settings")
         val activity = getActivity()
         if (activity != null && !settingsBottomSheet.isAdded) {
-            settingsBottomSheet.show(activity.supportFragmentManager, PlayerSettingsBottomSheet.TAG)
+            settingsBottomSheet.show(activity.supportFragmentManager)
         } else {
             Log.e("TPStreamsPlayerView", "Cannot show settings: activity is null or bottom sheet already added")
         }
+    }
+    
+    /**
+     * Set available resolutions for the current video
+     */
+    fun setAvailableResolutions(resolutions: List<String>) {
+        this.availableResolutions = resolutions
+        advancedResolutionBottomSheet.setAvailableResolutions(resolutions)
+    }
+    
+    /**
+     * Set the current quality
+     */
+    fun setCurrentQuality(quality: String) {
+        this.currentQuality = quality
+        qualityOptionsBottomSheet.setCurrentQuality(quality)
+        advancedResolutionBottomSheet.setSelectedResolution(quality)
     }
     
     private fun getActivity(): FragmentActivity? {
@@ -80,7 +118,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     // Implementation of PlayerSettingsBottomSheet.SettingsListener
     override fun onQualitySelected() {
         Log.d("TPStreamsPlayerView", "Quality selected")
-        // Implement quality selection logic
+        val activity = getActivity() ?: return
+        qualityOptionsBottomSheet.show(activity.supportFragmentManager)
     }
 
     override fun onCaptionsSelected() {
@@ -91,5 +130,45 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onPlaybackSpeedSelected() {
         Log.d("TPStreamsPlayerView", "Playback speed selected")
         // Implement playback speed selection logic
+    }
+    
+    override fun getCurrentQuality(): String {
+        return currentQuality
+    }
+    
+    // Implementation of QualityOptionsBottomSheet.QualityOptionsListener
+    override fun onAutoQualitySelected() {
+        Log.d("TPStreamsPlayerView", "Auto quality selected")
+        setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
+        // Implement auto quality selection logic
+    }
+    
+    override fun onHigherQualitySelected() {
+        Log.d("TPStreamsPlayerView", "Higher quality selected")
+        // Select the highest available resolution
+        setCurrentQuality(QualityOptionsBottomSheet.QUALITY_HIGHER)
+        // Implement higher quality selection logic
+    }
+    
+    override fun onDataSaverSelected() {
+        Log.d("TPStreamsPlayerView", "Data saver selected")
+        // Select a lower resolution like 480p
+        setCurrentQuality(QualityOptionsBottomSheet.QUALITY_DATA_SAVER)
+        // Implement data saver selection logic
+    }
+    
+    override fun onAdvancedSelected() {
+        Log.d("TPStreamsPlayerView", "Advanced selected")
+        val activity = getActivity() ?: return
+        advancedResolutionBottomSheet.show(activity.supportFragmentManager)
+    }
+    
+    // Implementation of AdvancedResolutionBottomSheet.ResolutionSelectionListener
+    override fun onResolutionSelected(resolution: String) {
+        Log.d("TPStreamsPlayerView", "Resolution selected: $resolution")
+        // When a specific resolution is selected from the advanced menu,
+        // we should pass the actual resolution value, not a quality preset
+        setCurrentQuality(resolution)
+        // Implement specific resolution selection logic
     }
 }
