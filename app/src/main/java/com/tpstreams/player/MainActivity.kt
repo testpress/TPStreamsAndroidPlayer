@@ -2,7 +2,6 @@ package com.tpstreams.player
 
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
@@ -31,24 +30,6 @@ class MainActivity : AppCompatActivity() {
 
         binding.playerView.player = viewModel.player
         binding.playerView.useController = true
-        
-        // Set up settings menu listener
-        binding.playerView.setSettingsListener(object : PlayerSettingsBottomSheet.SettingsListener {
-            override fun onQualitySelected() {
-                Toast.makeText(this@MainActivity, "Quality selected", Toast.LENGTH_SHORT).show()
-                // Implement quality selection logic
-            }
-
-            override fun onCaptionsSelected() {
-                Toast.makeText(this@MainActivity, "Captions selected", Toast.LENGTH_SHORT).show()
-                // Implement captions selection logic
-            }
-
-            override fun onPlaybackSpeedSelected() {
-                Toast.makeText(this@MainActivity, "Playback speed selected", Toast.LENGTH_SHORT).show()
-                // Implement playback speed selection logic
-            }
-        })
         
         // Set up fullscreen functionality
         binding.playerView.setFullscreenButtonState(viewModel.isFullscreen.value)

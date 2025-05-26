@@ -23,30 +23,9 @@ playerView.player = player
 
 ### Settings Menu
 
-The player includes a settings icon in the top-right corner that opens a bottom sheet with options like Quality, Captions, and Playback Speed.
+The player includes a settings icon in the top-right corner that opens a bottom sheet with options like Quality, Captions, and Playback Speed. The player handles these settings internally, so you don't need to implement any additional code to use this feature.
 
-To implement custom behavior for these settings:
-
-```kotlin
-playerView.setSettingsListener(object : PlayerSettingsBottomSheet.SettingsListener {
-    override fun onQualitySelected() {
-        // Handle quality selection
-        // Example: Show quality options dialog
-    }
-
-    override fun onCaptionsSelected() {
-        // Handle captions selection
-        // Example: Show available subtitle tracks
-    }
-
-    override fun onPlaybackSpeedSelected() {
-        // Handle playback speed selection
-        // Example: Show speed options (0.5x, 1x, 1.5x, 2x)
-    }
-})
-```
-
-You can also trigger the settings menu programmatically:
+If you need to programmatically open the settings menu:
 
 ```kotlin
 playerView.showSettings()
@@ -69,6 +48,34 @@ If you need to adjust the position of the settings icon (for example, to account
 </FrameLayout>
 ```
 
+## Extending Settings Functionality
+
+To extend or customize the settings functionality, you can subclass `TPStreamsPlayerView` and override the settings handler methods:
+
+```kotlin
+class CustomPlayerView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : TPStreamsPlayerView(context, attrs, defStyleAttr) {
+
+    override fun onQualitySelected() {
+        super.onQualitySelected()
+        // Your custom quality selection logic
+    }
+
+    override fun onCaptionsSelected() {
+        super.onCaptionsSelected()
+        // Your custom captions selection logic
+    }
+
+    override fun onPlaybackSpeedSelected() {
+        super.onPlaybackSpeedSelected()
+        // Your custom playback speed selection logic
+    }
+}
+```
+
 ## Troubleshooting
 
 ### Settings Icon Not Working
@@ -83,9 +90,8 @@ If the settings icon click is not working:
 
 If the bottom sheet doesn't appear:
 
-1. Ensure you've set a settings listener on the player view
-2. Check logcat for any error messages
-3. Make sure your activity's theme includes Material Design components
+1. Check logcat for any error messages
+2. Make sure your activity's theme includes Material Design components
 
 ## Features
 
