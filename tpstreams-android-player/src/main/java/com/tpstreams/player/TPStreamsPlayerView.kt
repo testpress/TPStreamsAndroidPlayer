@@ -28,7 +28,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 ) : PlayerView(context, attrs, defStyleAttr), 
     PlayerSettingsBottomSheet.SettingsListener, 
     QualityOptionsBottomSheet.QualityOptionsListener,
-    AdvancedResolutionBottomSheet.ResolutionSelectionListener {
+    AdvancedResolutionBottomSheet.ResolutionSelectionListener,
+    PlaybackSpeedBottomSheet.PlaybackSpeedListener {
 
     private var playerControlView: TPStreamsPlayerControlView? = null
     private val settingsBottomSheet: PlayerSettingsBottomSheet by lazy {
@@ -51,9 +52,19 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
     
+    private val playbackSpeedBottomSheet: PlaybackSpeedBottomSheet by lazy {
+        PlaybackSpeedBottomSheet().apply {
+            setPlaybackSpeedListener(this@TPStreamsPlayerView)
+            setCurrentSpeed(currentPlaybackSpeed)
+        }
+    }
+    
     // Current quality setting, updated when user changes quality
     private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
     private var availableResolutions: List<String> = listOf("2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p")
+    
+    // Current playback speed, updated when user changes speed
+    private var currentPlaybackSpeed: Float = 1.0f
 
     override fun onFinishInflate() {
         super.onFinishInflate()
@@ -100,6 +111,22 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         advancedResolutionBottomSheet.setSelectedResolution(quality)
     }
     
+    /**
+     * Set the current playback speed
+     */
+    fun setPlaybackSpeed(speed: Float) {
+        this.currentPlaybackSpeed = speed
+        playbackSpeedBottomSheet.setCurrentSpeed(speed)
+        player?.setPlaybackSpeed(speed)
+    }
+    
+    /**
+     * Get the current playback speed
+     */
+    fun getPlaybackSpeed(): Float {
+        return currentPlaybackSpeed
+    }
+    
     private fun getActivity(): FragmentActivity? {
         var ctx = context
         while (ctx is Context) {
@@ -129,7 +156,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun onPlaybackSpeedSelected() {
         Log.d("TPStreamsPlayerView", "Playback speed selected")
-        // Implement playback speed selection logic
+        val activity = getActivity() ?: return
+        playbackSpeedBottomSheet.show(activity.supportFragmentManager)
     }
     
     override fun getCurrentQuality(): String {
@@ -170,5 +198,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         // we should pass the actual resolution value, not a quality preset
         setCurrentQuality(resolution)
         // Implement specific resolution selection logic
+    }
+    
+    // Implementation of PlaybackSpeedBottomSheet.PlaybackSpeedListener
+    override fun onSpeedSelected(speed: Float) {
+        Log.d("TPStreamsPlayerView", "Playback speed selected: $speed")
+        setPlaybackSpeed(speed)
     }
 }

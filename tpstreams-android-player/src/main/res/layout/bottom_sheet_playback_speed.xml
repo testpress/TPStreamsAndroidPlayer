@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_bottom_sheet">
+
+    <!-- Drag handle -->
+    <View
+        android:layout_width="32dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="26dp"
+        android:background="#CCCCCC" />
+
+    <!-- Current Speed Display -->
+    <TextView
+        android:id="@+id/current_speed_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/playback_speed_format"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#212121"
+        android:gravity="center"
+        android:layout_marginBottom="6dp" />
+
+    <!-- Speed Increment/Decrement Controls -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="24dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp">
+
+        <ImageButton
+            android:id="@+id/decrease_speed_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_minus"
+            android:background="@drawable/bg_circle_button_ripple"
+            android:contentDescription="@string/decrease_speed"
+            android:padding="8dp" />
+
+        <SeekBar
+            android:id="@+id/speed_seekbar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:max="75"
+            android:progress="15" />
+
+        <ImageButton
+            android:id="@+id/increase_speed_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_plus"
+            android:background="@drawable/bg_circle_button_ripple"
+            android:contentDescription="@string/increase_speed"
+            android:padding="8dp" />
+    </LinearLayout>
+
+    <!-- Preset Speed Buttons -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="24dp">
+
+        <!-- Buttons Row -->
+        <LinearLayout
+            android:id="@+id/preset_buttons_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:weightSum="5">
+
+            <!-- 1.0x Button -->
+            <TextView
+                android:id="@+id/speed_1x_button"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:text="1.0"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#212121"
+                android:gravity="center"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/bg_speed_preset_pill" />
+
+            <!-- 1.25x Button -->
+            <TextView
+                android:id="@+id/speed_1_25x_button"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:text="1.25"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#212121"
+                android:gravity="center"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/bg_speed_preset_pill" />
+
+            <!-- 1.5x Button -->
+            <TextView
+                android:id="@+id/speed_1_5x_button"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:text="1.5"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#212121"
+                android:gravity="center"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/bg_speed_preset_pill" />
+
+            <!-- 2.0x Button -->
+            <TextView
+                android:id="@+id/speed_2x_button"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:text="2.0"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#212121"
+                android:gravity="center"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/bg_speed_preset_pill" />
+
+            <!-- 3.0x Button -->
+            <TextView
+                android:id="@+id/speed_3x_button"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:text="3.0"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#212121"
+                android:gravity="center"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/bg_speed_preset_pill" />
+        </LinearLayout>
+
+        <!-- Normal Label (positioned beneath the first button) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/preset_buttons_row"
+            android:text="@string/playback_speed_normal"
+            android:textSize="12sp"
+            android:textColor="#757575"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="4dp" />
+    </RelativeLayout>
+</LinearLayout> 

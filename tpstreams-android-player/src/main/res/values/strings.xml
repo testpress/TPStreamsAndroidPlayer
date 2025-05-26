@@ -18,4 +18,12 @@
     
     <!-- Advanced resolution screen -->
     <string name="select_video_quality">Select video quality</string>
+    
+    <!-- Playback speed -->
+    <string name="playback_speed">Playback speed</string>
+    <string name="playback_speed_normal">Normal</string>
+    <string name="playback_speed_apply">Apply</string>
+    <string name="playback_speed_format">%.2fx</string>
+    <string name="decrease_speed">Decrease speed</string>
+    <string name="increase_speed">Increase speed</string>
 </resources>
