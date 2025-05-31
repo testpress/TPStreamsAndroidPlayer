@@ -1,10 +1,45 @@
-*.iml
-.gradle
-/local.properties
-.idea/*
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# Gradle files
+.gradle/
+**/build/
+!gradle-wrapper.jar
+build/
 local.properties
+
+# IDE settings
+.idea/
+*.iml
+
+# Keystore files (never commit your signing keys)
+*.jks
+*.keystore
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Generated files
+*.apk
+*.ap_
+*.dex
+*.class
+
+# Cache and temp files
+.cxx/
+.externalNativeBuild/
+captures/
+output.json
+
+# IntelliJ/Android Studio cache
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/caches/
+.idea/libraries/
+
+# NDK / CMake intermediate
+obj/
+
