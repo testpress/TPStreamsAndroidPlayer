@@ -29,6 +29,15 @@ class TPStreamsPlayerControlView @JvmOverloads constructor(
             Log.d("TPStreamsPlayerControlView", "Settings icon clicked")
             onSettingsClickListener?.invoke()
         }
+        
+        // Hide the default settings button
+        hideDefaultSettingsButton()
+    }
+    
+    private fun hideDefaultSettingsButton() {
+        // Find and hide the default ExoPlayer settings button
+        val settingsButton = findViewById<ImageButton>(androidx.media3.ui.R.id.exo_settings)
+        settingsButton?.visibility = View.GONE
     }
 
     /**
