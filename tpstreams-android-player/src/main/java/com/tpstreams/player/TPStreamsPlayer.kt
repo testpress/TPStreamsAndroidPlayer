@@ -18,8 +18,10 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import androidx.media3.common.Format
 
-class TPStreamsPlayer private constructor(
+class TPStreamsPlayer @OptIn(UnstableApi::class)
+private constructor(
     private val exoPlayer: ExoPlayer,
     private val trackSelector: DefaultTrackSelector,
     assetId: String,
@@ -96,7 +98,39 @@ class TPStreamsPlayer private constructor(
     override fun pause() = exoPlayer.pause()
     override fun release() = exoPlayer.release()
 
+    @OptIn(UnstableApi::class)
     fun getTrackSelector(): DefaultTrackSelector = trackSelector
+
+    @OptIn(UnstableApi::class)
+    fun getAvailableVideoResolutions(): List<Int> {
+        val resolutions = mutableSetOf<Int>()
+
+        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return emptyList()
+        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
+            if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_VIDEO) {
+                val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
+                for (groupIndex in 0 until trackGroups.length) {
+                    val group = trackGroups.get(groupIndex)
+                    for (trackIndex in 0 until group.length) {
+                        val format = group.getFormat(trackIndex)
+                        if (format.height != Format.NO_VALUE) {
+                            resolutions.add(format.height)
+                        }
+                    }
+                }
+            }
+        }
+
+        return resolutions.sortedDescending()
+    }
+
+    @OptIn(UnstableApi::class)
+    fun setVideoResolution(height: Int) {
+        Log.d("TPStreamsPlayer", "Setting max video height to $height")
+        val parametersBuilder = trackSelector.buildUponParameters()
+            .setMaxVideoSize(Int.MAX_VALUE, height) // Unlimited width, constrained height
+        trackSelector.parameters = parametersBuilder.build()
+    }
 
     companion object {
         private var organizationId: String? = null
@@ -126,6 +160,7 @@ class TPStreamsPlayer private constructor(
                 .build() to trackSelector
         }
 
+        @OptIn(UnstableApi::class)
         fun create(
             context: Context,
             assetId: String,

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.util.Log
 import androidx.fragment.app.FragmentActivity
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 
@@ -53,7 +54,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     // Current quality setting, updated when user changes quality
     private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
-    private var availableResolutions: List<String> = listOf("2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p")
+    private var availableResolutions: List<String> = emptyList()
     
     // Current playback speed, updated when user changes speed
     private var currentPlaybackSpeed: Float = 1.0f
@@ -84,6 +85,16 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         } else {
             Log.e("TPStreamsPlayerView", "Cannot show settings: activity is null or bottom sheet already added")
         }
+    }
+    
+    /**
+     * Update available resolutions based on the current video tracks
+     */
+    fun updateAvailableResolutions() {
+        val tpPlayer = player as? TPStreamsPlayer ?: return
+        val availableHeights = tpPlayer.getAvailableVideoResolutions()
+        val resolutionStrings = availableHeights.map { "${it}p" }
+        setAvailableResolutions(resolutionStrings)
     }
     
     /**
@@ -160,21 +171,44 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onAutoQualitySelected() {
         Log.d("TPStreamsPlayerView", "Auto quality selected")
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
-        // Implement auto quality selection logic
+    
+        // Let the trackSelector handle it automatically (no constraints)
+        val player = player as? TPStreamsPlayer
+        val params = player?.getTrackSelector()?.buildUponParameters()
+            ?.clearVideoSizeConstraints()
+            ?.build()
+        if (params != null) player.getTrackSelector().parameters = params
     }
     
     override fun onHigherQualitySelected() {
         Log.d("TPStreamsPlayerView", "Higher quality selected")
-        // Select the highest available resolution
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_HIGHER)
-        // Implement higher quality selection logic
+        
+        // Get the highest available resolution
+        val highestResolution = availableResolutions.firstOrNull()?.dropLast(1)?.toIntOrNull()
+        if (highestResolution != null) {
+            (player as? TPStreamsPlayer)?.setVideoResolution(highestResolution)
+            Log.d("TPStreamsPlayerView", "Setting highest available resolution: ${highestResolution}p")
+        } else {
+            Log.w("TPStreamsPlayerView", "No resolutions available, defaulting to auto")
+            onAutoQualitySelected()
+        }
     }
     
     override fun onDataSaverSelected() {
         Log.d("TPStreamsPlayerView", "Data saver selected")
-        // Select a lower resolution like 480p
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_DATA_SAVER)
-        // Implement data saver selection logic
+        
+        // Get the lowest available resolution
+        val lowestResolution = availableResolutions.lastOrNull()?.dropLast(1)?.toIntOrNull()
+        if (lowestResolution != null) {
+            (player as? TPStreamsPlayer)?.setVideoResolution(lowestResolution)
+            Log.d("TPStreamsPlayerView", "Setting lowest available resolution: ${lowestResolution}p")
+        } else {
+            // If no resolutions available, default to a low value
+            Log.w("TPStreamsPlayerView", "No resolutions available, defaulting to auto")
+            onAutoQualitySelected()
+        }
     }
     
     override fun onAdvancedSelected() {
@@ -186,15 +220,32 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     // Implementation of AdvancedResolutionBottomSheet.ResolutionSelectionListener
     override fun onResolutionSelected(resolution: String) {
         Log.d("TPStreamsPlayerView", "Resolution selected: $resolution")
-        // When a specific resolution is selected from the advanced menu,
-        // we should pass the actual resolution value, not a quality preset
         setCurrentQuality(resolution)
-        // Implement specific resolution selection logic
+    
+        val height = resolution.dropLast(1).toIntOrNull()
+        if (height != null) {
+            (player as? TPStreamsPlayer)?.setVideoResolution(height)
+        } else {
+            Log.w("TPStreamsPlayerView", "Invalid resolution format: $resolution")
+        }
     }
     
     // Implementation of PlaybackSpeedBottomSheet.PlaybackSpeedListener
     override fun onSpeedSelected(speed: Float) {
         Log.d("TPStreamsPlayerView", "Playback speed selected: $speed")
         setPlaybackSpeed(speed)
+    }
+
+    override fun setPlayer(player: Player?) {
+        super.setPlayer(player)
+        
+        if (player is TPStreamsPlayer) {
+            // Add a listener to update resolutions when tracks become available
+            player.addListener(object : Player.Listener {
+                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                    updateAvailableResolutions()
+                }
+            })
+        }
     }
 }
