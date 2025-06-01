@@ -21,6 +21,7 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         fun onCaptionsSelected()
         fun onPlaybackSpeedSelected()
         fun getCurrentQuality(): String
+        fun getCurrentCaptionStatus(): String
     }
 
     private var listener: SettingsListener? = null
@@ -65,6 +66,10 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         // Update current quality text
         val currentQualityText = view.findViewById<TextView>(R.id.current_quality_text)
         currentQualityText.text = listener?.getCurrentQuality() ?: "Auto"
+        
+        // Update current caption text
+        val currentCaptionText = view.findViewById<TextView>(R.id.current_caption_text)
+        currentCaptionText.text = listener?.getCurrentCaptionStatus() ?: "Off"
         
         view.findViewById<LinearLayout>(R.id.quality_option)?.setOnClickListener {
             Log.d(TAG, "Quality option clicked")

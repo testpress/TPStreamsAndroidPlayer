@@ -7,6 +7,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import java.util.Locale
 
 @UnstableApi
 class TPStreamsPlayerView @JvmOverloads constructor(
@@ -17,7 +18,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     PlayerSettingsBottomSheet.SettingsListener, 
     QualityOptionsBottomSheet.QualityOptionsListener,
     AdvancedResolutionBottomSheet.ResolutionSelectionListener,
-    PlaybackSpeedBottomSheet.PlaybackSpeedListener {
+    PlaybackSpeedBottomSheet.PlaybackSpeedListener,
+    CaptionsOptionsBottomSheet.CaptionsOptionsListener {
 
     private var playerControlView: TPStreamsPlayerControlView? = null
     
@@ -52,12 +54,23 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
     
+    private val captionsOptionsBottomSheet: CaptionsOptionsBottomSheet by lazy {
+        CaptionsOptionsBottomSheet().apply {
+            setCaptionsOptionsListener(this@TPStreamsPlayerView)
+            setCurrentLanguage(currentCaptionLanguage)
+        }
+    }
+    
     // Current quality setting, updated when user changes quality
     private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
     private var availableResolutions: List<String> = emptyList()
     
     // Current playback speed, updated when user changes speed
     private var currentPlaybackSpeed: Float = 1.0f
+    
+    // Captions state
+    private var currentCaptionLanguage: String? = null
+    private var availableCaptions: List<Pair<String, String>> = emptyList()
 
     override fun onFinishInflate() {
         super.onFinishInflate()
@@ -91,8 +104,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      * Update available resolutions based on the current video tracks
      */
     fun updateAvailableResolutions() {
-        val tpPlayer = player as? TPStreamsPlayer ?: return
-        val availableHeights = tpPlayer.getAvailableVideoResolutions()
+        val TPSPlayer = player as? TPStreamsPlayer ?: return
+        val availableHeights = TPSPlayer.getAvailableVideoResolutions()
         val resolutionStrings = availableHeights.map { "${it}p" }
         setAvailableResolutions(resolutionStrings)
     }
@@ -154,7 +167,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun onCaptionsSelected() {
         Log.d("TPStreamsPlayerView", "Captions selected")
-        // Implement captions selection logic
+        val activity = getActivity() ?: return
+        updateAvailableCaptions()
+        captionsOptionsBottomSheet.show(activity.supportFragmentManager)
     }
 
     override fun onPlaybackSpeedSelected() {
@@ -165,6 +180,40 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     override fun getCurrentQuality(): String {
         return currentQuality
+    }
+    
+    override fun getCurrentCaptionStatus(): String {
+        val TPSPlayer = player as? TPStreamsPlayer
+        val activeTrack = TPSPlayer?.getActiveTextTrack()
+        
+        if (activeTrack != null) {
+            return getLanguageName(activeTrack.first)
+        }
+
+        return if (currentCaptionLanguage == null) {
+            "Off"
+        } else {
+            getLanguageName(currentCaptionLanguage!!)
+        }
+    }
+    
+    /**
+     * Convert ISO language code to full language name using Java Locale
+     */
+    private fun getLanguageName(languageCode: String): String {
+        try {
+            val locale = Locale(languageCode)
+            val displayLanguage = locale.getDisplayLanguage(Locale.ENGLISH)
+            
+            if (displayLanguage.equals(languageCode, ignoreCase = true) || displayLanguage.isEmpty()) {
+                return languageCode.replaceFirstChar { it.uppercase() }
+            }
+            
+            return displayLanguage
+        } catch (e: Exception) {
+            Log.e("TPStreamsPlayerView", "Error getting language name for $languageCode", e)
+            return languageCode.replaceFirstChar { it.uppercase() }
+        }
     }
     
     // Implementation of QualityOptionsBottomSheet.QualityOptionsListener
@@ -240,12 +289,93 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         super.setPlayer(player)
         
         if (player is TPStreamsPlayer) {
-            // Add a listener to update resolutions when tracks become available
+            // Add a listener to update resolutions and captions when tracks become available
             player.addListener(object : Player.Listener {
                 override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                    Log.d("TPStreamsPlayerView", "Tracks changed, updating resolutions and captions")
                     updateAvailableResolutions()
+                    updateAvailableCaptions()
+                }
+                
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        Log.d("TPStreamsPlayerView", "Playback ready, updating captions")
+                        updateAvailableCaptions()
+                    }
                 }
             })
+            
+            updateAvailableCaptions()
         }
+    }
+
+    /**
+     * Update available captions based on the current video tracks
+     */
+    fun updateAvailableCaptions() {
+        val TPSPlayer = player as? TPStreamsPlayer ?: return
+        
+        val textTracks = TPSPlayer.getAvailableTextTracks()
+        
+        if (textTracks.isNotEmpty()) {
+            Log.d("TPStreamsPlayerView", "Updating available captions with ${textTracks.size} tracks")
+            availableCaptions = textTracks
+            captionsOptionsBottomSheet.setAvailableCaptions(textTracks)
+            
+            val activeTrack = TPSPlayer.getActiveTextTrack()
+            if (activeTrack != null) {
+                Log.d("TPStreamsPlayerView", "Active caption track found: ${activeTrack.second} (${activeTrack.first})")
+                currentCaptionLanguage = activeTrack.first
+                captionsOptionsBottomSheet.setCurrentLanguage(activeTrack.first)
+            }
+            
+            textTracks.forEach { (language, label) ->
+                Log.d("TPStreamsPlayerView", "Caption available: $label ($language)")
+            }
+        } else {
+            Log.d("TPStreamsPlayerView", "No caption tracks available")
+            availableCaptions = emptyList()
+            captionsOptionsBottomSheet.setAvailableCaptions(emptyList())
+        }
+    }
+    
+    /**
+     * Set the current caption language
+     */
+    fun setCurrentCaptionLanguage(language: String?) {
+        if (this.currentCaptionLanguage == language) {
+            Log.d("TPStreamsPlayerView", "Caption language unchanged: $language")
+            return
+        }
+        
+        Log.d("TPStreamsPlayerView", "Setting caption language: $language")
+        this.currentCaptionLanguage = language
+        captionsOptionsBottomSheet.setCurrentLanguage(language)
+        
+        (player as? TPStreamsPlayer)?.setTextTrackByLanguage(language)
+        
+        val activity = getActivity()
+        if (activity != null && settingsBottomSheet.isAdded) {
+            settingsBottomSheet.dismiss()
+            settingsBottomSheet.show(activity.supportFragmentManager)
+        }
+    }
+
+    override fun onCaptionsDisabled() {
+        Log.d("TPStreamsPlayerView", "Captions disabled")
+        setCurrentCaptionLanguage(null)
+    }
+    
+    override fun onCaptionLanguageSelected(language: String) {
+        Log.d("TPStreamsPlayerView", "Caption language selected: $language")
+        setCurrentCaptionLanguage(language)
+    }
+    
+    override fun getCurrentCaptionLanguage(): String? {
+        return currentCaptionLanguage
+    }
+
+    override fun getPlayer(): TPStreamsPlayer? {
+        return super.getPlayer() as? TPStreamsPlayer
     }
 }
