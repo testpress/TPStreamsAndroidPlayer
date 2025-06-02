@@ -1,12 +1,19 @@
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     id("maven-publish")
+    id("signing")
+    id("com.vanniktech.maven.publish") version "0.31.0"
 }
 
 android {
-    namespace = "com.tpstreams.player"
+    namespace = "com.tpstreams"
     compileSdk = 35
+    version = "0.0.1"
+    group = "com.tpstreams"
 
     defaultConfig {
         minSdk = 21
@@ -62,6 +69,34 @@ dependencies {
             repositories {
                 mavenLocal()
             }
+        }
+    }
+}
+
+mavenPublishing {
+
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+
+    signAllPublications()
+
+    coordinates(group.toString(), "tpstreams-player", version.toString())
+
+    pom {
+        name.set("TPStreamsAndroidPlayer")
+        description.set("An android sdk for TPStreams Player")
+        url.set("https://github.com/testpress/TPStreamsAndroidPlayer")
+
+        licenses {
+            license {
+                name.set("The Apache License, Version 2.0")
+                url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+            }
+        }
+
+        scm {
+            url.set("https://github.com/testpress/TPStreamsAndroidPlayer")
+            connection.set("scm:git:git://github.com:testpress/TPStreamsAndroidPlayer.git")
+            developerConnection.set("scm:git:ssh://gitgithub.com:testpress/TPStreamsAndroidPlayer.git")
         }
     }
 }
