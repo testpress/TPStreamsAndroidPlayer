@@ -96,7 +96,7 @@ mavenPublishing {
         scm {
             url.set("https://github.com/testpress/TPStreamsAndroidPlayer")
             connection.set("scm:git:git://github.com:testpress/TPStreamsAndroidPlayer.git")
-            developerConnection.set("scm:git:ssh://gitgithub.com:testpress/TPStreamsAndroidPlayer.git")
+            developerConnection.set("scm:git:ssh://github.com:testpress/TPStreamsAndroidPlayer.git")
         }
     }
 }
