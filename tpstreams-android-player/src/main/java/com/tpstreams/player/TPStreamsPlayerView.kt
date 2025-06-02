@@ -139,8 +139,14 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     /**
      * Get the current playback speed
      */
-    fun getPlaybackSpeed(): Float {
-        return currentPlaybackSpeed
+    override fun getPlaybackSpeed(): Float {
+        // Get the actual current speed from the player
+        val player = player
+        return if (player != null) {
+            player.playbackParameters.speed
+        } else {
+            currentPlaybackSpeed
+        }
     }
     
     private fun getActivity(): FragmentActivity? {

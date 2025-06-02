@@ -23,6 +23,7 @@ class PlaybackSpeedBottomSheet : BottomSheetDialogFragment() {
 
     interface PlaybackSpeedListener {
         fun onSpeedSelected(speed: Float)
+        fun getPlaybackSpeed(): Float
     }
 
     private var listener: PlaybackSpeedListener? = null
@@ -80,6 +81,11 @@ class PlaybackSpeedBottomSheet : BottomSheetDialogFragment() {
     
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        
+        // Sync with player's current speed when shown
+        listener?.let {
+            currentSpeed = it.getPlaybackSpeed()
+        }
         
         // Initialize UI components
         currentSpeedText = view.findViewById(R.id.current_speed_text)
@@ -160,6 +166,15 @@ class PlaybackSpeedBottomSheet : BottomSheetDialogFragment() {
         
         // Update the preset buttons state
         updatePresetButtonsState()
+    }
+    
+    // Add method to sync with current player speed
+    override fun show(fragmentManager: FragmentManager, tag: String?) {
+        // Get the latest speed from the player before showing
+        listener?.let {
+            currentSpeed = it.getPlaybackSpeed()
+        }
+        super.show(fragmentManager, tag)
     }
     
     private fun updateSpeedText() {

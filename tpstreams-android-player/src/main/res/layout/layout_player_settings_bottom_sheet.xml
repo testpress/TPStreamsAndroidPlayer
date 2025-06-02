@@ -124,12 +124,30 @@
             android:layout_gravity="center_vertical" />
 
         <TextView
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="Playback Speed"
             android:textSize="16sp"
             android:textColor="#212121"
             android:layout_marginStart="16dp"
             android:layout_gravity="center_vertical" />
+            
+        <TextView
+            android:id="@+id/current_speed_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1.00x"
+            android:textSize="14sp"
+            android:textColor="#757575"
+            android:layout_gravity="center_vertical"
+            android:layout_marginEnd="8dp" />
+            
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_chevron_right"
+            android:layout_gravity="center_vertical"
+            android:tint="#757575" />
     </LinearLayout>
 </LinearLayout> 
