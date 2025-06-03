@@ -54,7 +54,7 @@ dependencies {
                 create<MavenPublication>("release") {
                     groupId = "com.tpstreams"
                     artifactId = "tpstreams-player"
-                    version = "1.0.1"
+                    version = "1.0.2"
 
                     from(components["release"])
                 }
