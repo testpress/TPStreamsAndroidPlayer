@@ -22,6 +22,8 @@ import androidx.media3.common.Format
 import android.net.Uri
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Tracks
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -43,6 +45,30 @@ private constructor(
             override fun onTracksChanged(tracks: Tracks) {
                 val textTracks = getAvailableTextTracks()
                 Log.d("TPStreamsPlayer", "Tracks changed. Text tracks available: ${textTracks.size}")
+            }
+            
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
+            }
+            
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                Log.d("TPStreamsPlayer", "Play when ready changed: $playWhenReady, reason=$reason")
+            }
+            
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                Log.d("TPStreamsPlayer", "Is playing changed: $isPlaying")
+            }
+            
+            override fun onPlayerError(error: PlaybackException) {
+                Log.e("TPStreamsPlayer", "Player error: ${error.message}", error)
+            }
+            
+            override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+                Log.d("TPStreamsPlayer", "Playback parameters changed: speed=${playbackParameters.speed}")
+            }
+            
+            override fun onIsLoadingChanged(isLoading: Boolean) {
+                Log.d("TPStreamsPlayer", "Is loading changed: $isLoading")
             }
         })
 
@@ -157,6 +183,51 @@ private constructor(
     }
 
     override fun pause() = exoPlayer.pause()
+
+    /**
+     * Seeks to a specific position in the current media item.
+     * @param positionMs The position in milliseconds to seek to
+     */
+    override fun seekTo(positionMs: Long) = exoPlayer.seekTo(positionMs)
+
+    /**
+     * Returns whether the player is currently playing.
+     * @return True if the player is playing, false otherwise
+     */
+    override fun isPlaying(): Boolean = exoPlayer.isPlaying
+
+    /**
+     * Returns the current playback position in milliseconds.
+     * @return The current position in milliseconds
+     */
+    override fun getCurrentPosition(): Long = exoPlayer.currentPosition
+
+    /**
+     * Returns the duration of the current media item in milliseconds.
+     * @return The duration in milliseconds, or C.TIME_UNSET if unknown
+     */
+    override fun getDuration(): Long = exoPlayer.duration
+
+    /**
+     * Sets the playback speed for the player.
+     * @param speed The playback speed factor (1.0f is normal speed)
+     */
+    override fun setPlaybackSpeed(speed: Float) {
+        exoPlayer.setPlaybackSpeed(speed)
+    }
+
+    /**
+     * Gets the current playback speed.
+     * @return The current playback speed factor
+     */
+    fun getPlaybackSpeed(): Float = exoPlayer.playbackParameters.speed
+
+    /**
+     * Gets the current playback state.
+     * @return One of the Player.STATE_* constants
+     */
+    override fun getPlaybackState(): Int = exoPlayer.playbackState
+
     override fun release() = exoPlayer.release()
 
     @OptIn(UnstableApi::class)
