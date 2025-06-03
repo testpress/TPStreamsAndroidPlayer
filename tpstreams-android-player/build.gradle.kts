@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    id("maven-publish")
 }
 
 android {
@@ -48,20 +47,5 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
-    afterEvaluate {
-        publishing {
-            publications {
-                create<MavenPublication>("release") {
-                    groupId = "com.tpstreams"
-                    artifactId = "tpstreams-player"
-                    version = "1.0.1"
-
-                    from(components["release"])
-                }
-            }
-            repositories {
-                mavenLocal()
-            }
-        }
-    }
 }
+apply(from = rootProject.file("gradle/gradle-mvn-build-packages.gradle"))
