@@ -75,7 +75,8 @@
                 style="@style/ExoStyledControls.Button.Bottom.Settings"/>
 
             <ImageButton android:id="@id/exo_fullscreen"
-                style="@style/ExoStyledControls.Button.Bottom.FullScreen"/>
+                style="@style/ExoStyledControls.Button.Bottom.FullScreen"
+                android:visibility="visible"/>
 
             <ImageButton android:id="@id/exo_overflow_show"
                 style="@style/ExoStyledControls.Button.Bottom.OverflowShow"/>

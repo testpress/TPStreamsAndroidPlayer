@@ -1,8 +1,15 @@
 package com.tpstreams.player
 
 import android.content.Context
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
+import android.graphics.Color
 import android.util.AttributeSet
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -23,8 +30,27 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     private var playerControlView: TPStreamsPlayerControlView? = null
     
+    // Fullscreen related variables
+    private var isFullscreen = false
+    private var previousOrientation: Int? = null
+    private var previousSystemUiVisibility: Int? = null
+    private var originalParent: ViewGroup? = null
+    private var originalLayoutParams: ViewGroup.LayoutParams? = null
+    private var backCallback: OnBackPressedCallback? = null
+    private var fullscreenButtonClickListener: (() -> Unit)? = null
+    private var orientationEventListener: OrientationListener? = null
+    private var autoFullscreenEnabled = false
+    
     init {
         onFinishInflate()
+    }
+    
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        Log.d("TPStreamsPlayerView", "onAttachedToWindow")
+        post {
+            enableAutoFullscreenOnRotate()
+        }
     }
 
     private val settingsBottomSheet: PlayerSettingsBottomSheet by lazy {
@@ -79,11 +105,157 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         
         // Set up the settings icon click listener
         setupSettingsButton()
+        
+        // Set up fullscreen button click listener
+        setupFullscreenButton()
+        
+        // Make sure fullscreen button is visible
+        showFullscreenButton()
     }
     
     private fun setupSettingsButton() {
         playerControlView?.setOnSettingsClickListener {
             showSettings()
+        }
+    }
+    
+    private fun setupFullscreenButton() {
+        playerControlView?.setOnFullscreenClickListener {
+            toggleFullscreen()
+        }
+    }
+    
+    /**
+     * Set a listener for fullscreen button clicks
+     */
+    fun setFullscreenButtonClickListener(listener: () -> Unit) {
+        fullscreenButtonClickListener = listener
+        playerControlView?.setOnFullscreenClickListener {
+            listener.invoke()
+        }
+    }
+    
+    /**
+     * Set the state of the fullscreen button
+     */
+    override fun setFullscreenButtonState(isFullscreen: Boolean) {
+        playerControlView?.setFullscreenState(isFullscreen)
+    }
+    
+    fun toggleFullscreen() {
+        if (fullscreenButtonClickListener != null) {
+            fullscreenButtonClickListener?.invoke()
+        } else {
+            if (!isFullscreen) enterFullscreen() else exitFullscreen()
+        }
+    }
+    
+    fun enterFullscreen() {
+        Log.d("TPStreamsPlayerView", "enterFullscreen: Start")
+        val activity = getActivity() as? ComponentActivity ?: return
+        if (isFullscreen) return
+
+        val decorView = activity.window.decorView as ViewGroup
+
+        previousOrientation = activity.requestedOrientation
+        previousSystemUiVisibility = decorView.systemUiVisibility
+        Log.d("TPStreamsPlayerView", "Previous orientation: $previousOrientation")
+
+        originalParent = this.parent as? ViewGroup
+        originalLayoutParams = this.layoutParams
+
+        originalParent?.removeView(this)
+        this.setBackgroundColor(Color.BLACK)
+
+        decorView.addView(
+            this,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        hideSystemUI(activity)
+
+        isFullscreen = true
+        setFullscreenButtonState(true)
+
+        backCallback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (isFullscreen) {
+                    exitFullscreen()
+                } else {
+                    isEnabled = false
+                    activity.onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        }
+        activity.onBackPressedDispatcher.addCallback(activity, backCallback!!)
+        Log.d("TPStreamsPlayerView", "enterFullscreen: end")
+    }
+
+    fun exitFullscreen() {
+        Log.d("TPStreamsPlayerView", "exitFullscreen: start")
+        val activity = getActivity() as? ComponentActivity ?: return
+        if (!isFullscreen) return
+
+        val decorView = activity.window.decorView as ViewGroup
+
+        decorView.removeView(this)
+
+        this.setBackgroundColor(Color.BLACK)
+
+        originalParent?.addView(this, originalLayoutParams)
+
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+
+        showSystemUI(activity)
+
+        backCallback?.remove()
+        backCallback = null
+        isFullscreen = false
+        setFullscreenButtonState(false)
+        Log.d("TPStreamsPlayerView", "exitFullscreen: end")
+    }
+
+    private fun hideSystemUI(activity: ComponentActivity) {
+        activity.window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+    }
+
+    private fun showSystemUI(activity: ComponentActivity) {
+        activity.window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d("TPStreamsPlayerView", "onConfigurationChanged: ${newConfig.orientation}")
+        
+        if (fullscreenButtonClickListener == null && !autoFullscreenEnabled) {
+            post {
+                when (newConfig.orientation) {
+                    Configuration.ORIENTATION_LANDSCAPE -> {
+                        Log.d("TPStreamsPlayerView", "Orientation changed to LANDSCAPE")
+                        setFullscreenButtonState(true)
+                        enterFullscreen()
+                    }
+                    Configuration.ORIENTATION_PORTRAIT -> {
+                        Log.d("TPStreamsPlayerView", "Orientation changed to PORTRAIT")
+                        setFullscreenButtonState(false)
+                        exitFullscreen()
+                    }
+                    else -> {
+                        Log.d("TPStreamsPlayerView", "Orientation changed to UNKNOWN")
+                    }
+                }
+            }
         }
     }
 
@@ -383,5 +555,69 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun getPlayer(): TPStreamsPlayer? {
         return super.getPlayer() as? TPStreamsPlayer
+    }
+    
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        Log.d("TPStreamsPlayerView", "onDetachedFromWindow")
+        
+        if (!isFullscreen) {
+            backCallback?.remove()
+            backCallback = null
+        }
+        
+        // Ensure we disable the orientation listener to prevent leaks
+        disableAutoFullscreenOnRotate()
+    }
+
+    /**
+     * Make sure the fullscreen button is visible
+     */
+    fun showFullscreenButton() {
+        Log.d("TPStreamsPlayerView", "Showing fullscreen button")
+        playerControlView?.findViewById<View>(androidx.media3.ui.R.id.exo_fullscreen)?.visibility = View.VISIBLE
+    }
+
+    /**
+     * Enable auto fullscreen on device rotation
+     */
+    fun enableAutoFullscreenOnRotate() {
+        Log.d("TPStreamsPlayerView", "Enabling auto fullscreen on rotate")
+        
+        // Stop any existing listener first
+        disableAutoFullscreenOnRotate()
+        
+        // Create and start a new listener
+        orientationEventListener = OrientationListener(context).apply {
+            setOnChangeListener { isLandscape ->
+                post {
+                    Log.d("TPStreamsPlayerView", "Orientation listener triggered: isLandscape=$isLandscape")
+                    if (isLandscape) {
+                        if (!isFullscreen) {
+                            Log.d("TPStreamsPlayerView", "Auto entering fullscreen")
+                            enterFullscreen()
+                        }
+                    } else {
+                        if (isFullscreen) {
+                            Log.d("TPStreamsPlayerView", "Auto exiting fullscreen")
+                            exitFullscreen()
+                        }
+                    }
+                }
+            }
+            start()
+        }
+        
+        autoFullscreenEnabled = true
+    }
+
+    /**
+     * Disable auto fullscreen on device rotation
+     */
+    fun disableAutoFullscreenOnRotate() {
+        Log.d("TPStreamsPlayerView", "Disabling auto fullscreen on rotate")
+        orientationEventListener?.stop()
+        orientationEventListener = null
+        autoFullscreenEnabled = false
     }
 }
