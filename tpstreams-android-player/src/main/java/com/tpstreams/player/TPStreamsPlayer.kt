@@ -94,16 +94,20 @@ private constructor(
                 val body = response.body?.string() ?: return@launch
                 
                 val json = JSONObject(body)
-                val dashUrl = json.getJSONObject("video").getString("dash_url")
-                val licenseUrl =
-                    "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
+                val videoObj = json.getJSONObject("video")
+                val enableDrm = videoObj.optBoolean("enable_drm", false)
+                val mediaUrl = if (enableDrm) {
+                    videoObj.getString("dash_url")
+                } else {
+                    videoObj.getString("playback_url")
+                }
 
                 // Extract subtitle tracks from metadata
                 val subtitleConfigurations = mutableListOf<MediaItem.SubtitleConfiguration>()
                 val subtitleMetadata = mutableMapOf<String, Boolean>()
                 
-                if (json.getJSONObject("video").has("tracks")) {
-                    val tracks = json.getJSONObject("video").getJSONArray("tracks")
+                if (videoObj.has("tracks")) {
+                    val tracks = videoObj.getJSONArray("tracks")
                     for (i in 0 until tracks.length()) {
                         val track = tracks.getJSONObject(i)
                         if (track.getString("type") == "Subtitle") {
@@ -141,18 +145,24 @@ private constructor(
                 
                 setSubtitleMetadata(subtitleMetadata)
 
-                val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")
-
-                val drmConfig = DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                    .setLicenseUri(licenseUrl)
-                    .setLicenseRequestHeaders(drmHeaders)
-                    .setMultiSession(true)
-                    .build()
-
-                // Create the MediaItem with DASH URL, DRM config, and subtitle tracks
+                // Create the MediaItem builder
                 val mediaItemBuilder = MediaItem.Builder()
-                    .setUri(dashUrl)
-                    .setDrmConfiguration(drmConfig)
+                    .setUri(mediaUrl)
+
+                // Add DRM configuration only if DRM is enabled
+                if (enableDrm) {
+                    val licenseUrl =
+                        "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
+                    val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")
+
+                    val drmConfig = DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                        .setLicenseUri(licenseUrl)
+                        .setLicenseRequestHeaders(drmHeaders)
+                        .setMultiSession(true)
+                        .build()
+                    
+                    mediaItemBuilder.setDrmConfiguration(drmConfig)
+                }
                 
                 if (subtitleConfigurations.isNotEmpty()) {
                     mediaItemBuilder.setSubtitleConfigurations(subtitleConfigurations)
