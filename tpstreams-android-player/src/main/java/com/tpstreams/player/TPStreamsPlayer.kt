@@ -278,6 +278,9 @@ private constructor(
                 for (i in 0 until group.length) {
                     if (group.isTrackSupported(i)) {
                         val format = group.getTrackFormat(i)
+                        if (format.sampleMimeType == MimeTypes.APPLICATION_CEA608) {
+                            continue
+                        }
                         val language = format.language ?: "unknown"
                         val label = format.label ?: language
                         tracks.add(Pair(language, label))
@@ -396,3 +399,4 @@ private constructor(
         }
     }
 }
+
