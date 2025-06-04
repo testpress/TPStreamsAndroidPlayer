@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.LifecycleOwner
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
@@ -38,14 +39,22 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var orientationEventListener: OrientationListener? = null
     private var autoFullscreenEnabled = false
     
+    // Lifecycle management
+    private var lifecycleManager: PlayerLifecycleManager? = null
+    
     init {
         onFinishInflate()
+        // Automatically register with lifecycle when created
+        post {
+            registerWithLifecycle()
+        }
     }
     
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         post {
             enableAutoFullscreenOnRotate()
+            registerWithLifecycle()
         }
     }
 
@@ -130,59 +139,63 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         val activity = getActivity() as? ComponentActivity ?: return
         if (isFullscreen) return
 
-        val decorView = activity.window.decorView as ViewGroup
+        lifecycleManager?.preservePlaybackStateAcrossTransition {
+            val decorView = activity.window.decorView as ViewGroup
 
-        originalParent = this.parent as? ViewGroup
-        originalLayoutParams = this.layoutParams
+            originalParent = this.parent as? ViewGroup
+            originalLayoutParams = this.layoutParams
 
-        originalParent?.removeView(this)
-        this.setBackgroundColor(Color.BLACK)
-        decorView.addView(
-            this,
-            ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+            originalParent?.removeView(this)
+            this.setBackgroundColor(Color.BLACK)
+            decorView.addView(
+                this,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
             )
-        )
 
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        
-        hideSystemUI(activity)
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            
+            hideSystemUI(activity)
 
-        isFullscreen = true
-        setFullscreenButtonState(true)
+            isFullscreen = true
+            setFullscreenButtonState(true)
 
-        backCallback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (isFullscreen) {
-                    exitFullscreen()
-                } else {
-                    isEnabled = false
-                    activity.onBackPressedDispatcher.onBackPressed()
+            backCallback = object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (isFullscreen) {
+                        exitFullscreen()
+                    } else {
+                        isEnabled = false
+                        activity.onBackPressedDispatcher.onBackPressed()
+                    }
                 }
             }
+            activity.onBackPressedDispatcher.addCallback(activity, backCallback!!)
         }
-        activity.onBackPressedDispatcher.addCallback(activity, backCallback!!)
     }
 
     fun exitFullscreen() {
         val activity = getActivity() as? ComponentActivity ?: return
         if (!isFullscreen) return
 
-        val decorView = activity.window.decorView as ViewGroup
+        lifecycleManager?.preservePlaybackStateAcrossTransition {
+            val decorView = activity.window.decorView as ViewGroup
 
-        decorView.removeView(this)
-        
-        originalParent?.addView(this, originalLayoutParams)
+            decorView.removeView(this)
+            
+            originalParent?.addView(this, originalLayoutParams)
 
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
 
-        showSystemUI(activity)
+            showSystemUI(activity)
 
-        backCallback?.remove()
-        backCallback = null
-        isFullscreen = false
-        setFullscreenButtonState(false)
+            backCallback?.remove()
+            backCallback = null
+            isFullscreen = false
+            setFullscreenButtonState(false)
+        }
     }
     
     private fun hideSystemUI(activity: ComponentActivity) {
@@ -204,6 +217,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         super.onConfigurationChanged(newConfig)
         
         if (!autoFullscreenEnabled) {
+            val wasPlayingBefore = player?.isPlaying ?: false
+            
+            lifecycleManager?.setInTransition(true)
             post {
                 when (newConfig.orientation) {
                     Configuration.ORIENTATION_LANDSCAPE -> {
@@ -214,6 +230,16 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                         setFullscreenButtonState(false)
                         exitFullscreen()
                     }
+                }
+                
+                // After orientation change, restore previous playing state
+                post {
+                    if (wasPlayingBefore && player?.isPlaying == false) {
+                        player?.play()
+                    } else if (!wasPlayingBefore && player?.isPlaying == true) {
+                        player?.pause()
+                    }
+                    lifecycleManager?.setInTransition(false)
                 }
             }
         }
@@ -407,6 +433,17 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun setPlayer(player: Player?) {
         super.setPlayer(player)
         
+        // Create new lifecycle manager for the player
+        lifecycleManager = player?.let { PlayerLifecycleManager(it) }
+        registerWithLifecycle()
+        
+        // Listen for player events
+        player?.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                lifecycleManager?.onPlaybackStateChanged(isPlaying)
+            }
+        })
+        
         if (player is TPStreamsPlayer) {
             // Add a listener to update resolutions and captions when tracks become available
             player.addListener(object : Player.Listener {
@@ -488,6 +525,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         
+        // Remove lifecycle observer when detached
+        unregisterFromLifecycle()
+        
         if (!isFullscreen) {
             backCallback?.remove()
             backCallback = null
@@ -539,5 +579,29 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         orientationEventListener?.stop()
         orientationEventListener = null
         autoFullscreenEnabled = false
+    }
+
+    private fun getLifecycleOwner(): LifecycleOwner? {
+        val activity = getActivity()
+        return when {
+            activity is LifecycleOwner -> activity
+            else -> null
+        }
+    }
+    
+    private fun registerWithLifecycle() {
+        val lifecycleOwner = getLifecycleOwner()
+        if (lifecycleOwner != null && lifecycleManager != null) {
+            Log.d("TPStreamsPlayerView", "Registering with lifecycle")
+            lifecycleOwner.lifecycle.addObserver(lifecycleManager!!)
+        }
+    }
+    
+    private fun unregisterFromLifecycle() {
+        val lifecycleOwner = getLifecycleOwner()
+        if (lifecycleOwner != null && lifecycleManager != null) {
+            Log.d("TPStreamsPlayerView", "Unregistering from lifecycle")
+            lifecycleOwner.lifecycle.removeObserver(lifecycleManager!!)
+        }
     }
 }
