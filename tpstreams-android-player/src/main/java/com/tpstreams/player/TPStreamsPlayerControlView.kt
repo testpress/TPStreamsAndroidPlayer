@@ -3,7 +3,6 @@ package com.tpstreams.player
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
-import android.util.Log
 import android.view.View
 import android.widget.ImageButton
 import androidx.media3.common.Player
@@ -23,50 +22,24 @@ class TPStreamsPlayerControlView @JvmOverloads constructor(
     private var onFullscreenClickListener: (() -> Unit)? = null
     private var isFullscreen = false
 
-    @SuppressLint("LongLogTag")
     override fun onFinishInflate() {
         super.onFinishInflate()
         
-        // Find and set up the settings icon
+        // Set up settings icon
         settingsIcon = findViewById(R.id.exo_settings_icon)
-        Log.d("TPStreamsPlayerControlView", "Settings icon found: ${settingsIcon != null}")
-        
         settingsIcon?.setOnClickListener {
-            Log.d("TPStreamsPlayerControlView", "Settings icon clicked")
             onSettingsClickListener?.invoke()
         }
         
-        // Find and set up the fullscreen button
+        // Set up fullscreen button
         fullscreenButton = findViewById(androidx.media3.ui.R.id.exo_fullscreen)
-        Log.d("TPStreamsPlayerControlView", "Fullscreen button found: ${fullscreenButton != null}")
-        
-        if (fullscreenButton != null) {
-            Log.d("TPStreamsPlayerControlView", "Fullscreen button visibility: ${
-                when(fullscreenButton!!.visibility) {
-                    View.VISIBLE -> "VISIBLE"
-                    View.INVISIBLE -> "INVISIBLE"
-                    View.GONE -> "GONE"
-                    else -> "UNKNOWN"
-                }
-            }")
-            
-            // Make sure it's visible
-            fullscreenButton!!.visibility = View.VISIBLE
-            
-            fullscreenButton?.setOnClickListener {
-                Log.d("TPStreamsPlayerControlView", "Fullscreen button clicked")
-                onFullscreenClickListener?.invoke()
-            }
+        fullscreenButton?.visibility = View.VISIBLE
+        fullscreenButton?.setOnClickListener {
+            onFullscreenClickListener?.invoke()
         }
         
-        // Hide the default settings button
-        hideDefaultSettingsButton()
-    }
-    
-    private fun hideDefaultSettingsButton() {
-        // Find and hide the default ExoPlayer settings button
-        val settingsButton = findViewById<ImageButton>(androidx.media3.ui.R.id.exo_settings)
-        settingsButton?.visibility = View.GONE
+        // Hide default settings button
+        findViewById<ImageButton>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
     }
 
     /**

@@ -32,12 +32,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     // Fullscreen related variables
     private var isFullscreen = false
-    private var previousOrientation: Int? = null
-    private var previousSystemUiVisibility: Int? = null
     private var originalParent: ViewGroup? = null
     private var originalLayoutParams: ViewGroup.LayoutParams? = null
     private var backCallback: OnBackPressedCallback? = null
-    private var fullscreenButtonClickListener: (() -> Unit)? = null
     private var orientationEventListener: OrientationListener? = null
     private var autoFullscreenEnabled = false
     
@@ -47,7 +44,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        Log.d("TPStreamsPlayerView", "onAttachedToWindow")
         post {
             enableAutoFullscreenOnRotate()
         }
@@ -101,15 +97,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onFinishInflate() {
         super.onFinishInflate()
         playerControlView = findViewById(androidx.media3.ui.R.id.exo_controller) as? TPStreamsPlayerControlView
-        Log.d("TPStreamsPlayerView", "PlayerControlView found: ${playerControlView != null}")
         
-        // Set up the settings icon click listener
         setupSettingsButton()
-        
-        // Set up fullscreen button click listener
         setupFullscreenButton()
-        
-        // Make sure fullscreen button is visible
         showFullscreenButton()
     }
     
@@ -126,16 +116,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
     
     /**
-     * Set a listener for fullscreen button clicks
-     */
-    fun setFullscreenButtonClickListener(listener: () -> Unit) {
-        fullscreenButtonClickListener = listener
-        playerControlView?.setOnFullscreenClickListener {
-            listener.invoke()
-        }
-    }
-    
-    /**
      * Set the state of the fullscreen button
      */
     override fun setFullscreenButtonState(isFullscreen: Boolean) {
@@ -143,30 +123,20 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
     
     fun toggleFullscreen() {
-        if (fullscreenButtonClickListener != null) {
-            fullscreenButtonClickListener?.invoke()
-        } else {
-            if (!isFullscreen) enterFullscreen() else exitFullscreen()
-        }
+        if (!isFullscreen) enterFullscreen() else exitFullscreen()
     }
     
     fun enterFullscreen() {
-        Log.d("TPStreamsPlayerView", "enterFullscreen: Start")
         val activity = getActivity() as? ComponentActivity ?: return
         if (isFullscreen) return
 
         val decorView = activity.window.decorView as ViewGroup
-
-        previousOrientation = activity.requestedOrientation
-        previousSystemUiVisibility = decorView.systemUiVisibility
-        Log.d("TPStreamsPlayerView", "Previous orientation: $previousOrientation")
 
         originalParent = this.parent as? ViewGroup
         originalLayoutParams = this.layoutParams
 
         originalParent?.removeView(this)
         this.setBackgroundColor(Color.BLACK)
-
         decorView.addView(
             this,
             ViewGroup.LayoutParams(
@@ -176,6 +146,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         )
 
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        
         hideSystemUI(activity)
 
         isFullscreen = true
@@ -192,20 +163,16 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             }
         }
         activity.onBackPressedDispatcher.addCallback(activity, backCallback!!)
-        Log.d("TPStreamsPlayerView", "enterFullscreen: end")
     }
 
     fun exitFullscreen() {
-        Log.d("TPStreamsPlayerView", "exitFullscreen: start")
         val activity = getActivity() as? ComponentActivity ?: return
         if (!isFullscreen) return
 
         val decorView = activity.window.decorView as ViewGroup
 
         decorView.removeView(this)
-
-        this.setBackgroundColor(Color.BLACK)
-
+        
         originalParent?.addView(this, originalLayoutParams)
 
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
@@ -216,9 +183,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         backCallback = null
         isFullscreen = false
         setFullscreenButtonState(false)
-        Log.d("TPStreamsPlayerView", "exitFullscreen: end")
     }
-
+    
     private fun hideSystemUI(activity: ComponentActivity) {
         activity.window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
@@ -236,23 +202,17 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        Log.d("TPStreamsPlayerView", "onConfigurationChanged: ${newConfig.orientation}")
         
-        if (fullscreenButtonClickListener == null && !autoFullscreenEnabled) {
+        if (!autoFullscreenEnabled) {
             post {
                 when (newConfig.orientation) {
                     Configuration.ORIENTATION_LANDSCAPE -> {
-                        Log.d("TPStreamsPlayerView", "Orientation changed to LANDSCAPE")
                         setFullscreenButtonState(true)
                         enterFullscreen()
                     }
                     Configuration.ORIENTATION_PORTRAIT -> {
-                        Log.d("TPStreamsPlayerView", "Orientation changed to PORTRAIT")
                         setFullscreenButtonState(false)
                         exitFullscreen()
-                    }
-                    else -> {
-                        Log.d("TPStreamsPlayerView", "Orientation changed to UNKNOWN")
                     }
                 }
             }
@@ -263,12 +223,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      * Show the settings bottom sheet
      */
     fun showSettings() {
-        Log.d("TPStreamsPlayerView", "Showing settings")
         val activity = getActivity()
         if (activity != null && !settingsBottomSheet.isAdded) {
             settingsBottomSheet.show(activity.supportFragmentManager)
-        } else {
-            Log.e("TPStreamsPlayerView", "Cannot show settings: activity is null or bottom sheet already added")
         }
     }
     
@@ -338,20 +295,17 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     // Implementation of PlayerSettingsBottomSheet.SettingsListener
     override fun onQualitySelected() {
-        Log.d("TPStreamsPlayerView", "Quality selected")
         val activity = getActivity() ?: return
         qualityOptionsBottomSheet.show(activity.supportFragmentManager)
     }
 
     override fun onCaptionsSelected() {
-        Log.d("TPStreamsPlayerView", "Captions selected")
         val activity = getActivity() ?: return
         updateAvailableCaptions()
         captionsOptionsBottomSheet.show(activity.supportFragmentManager)
     }
 
     override fun onPlaybackSpeedSelected() {
-        Log.d("TPStreamsPlayerView", "Playback speed selected")
         val activity = getActivity() ?: return
         playbackSpeedBottomSheet.show(activity.supportFragmentManager)
     }
@@ -396,7 +350,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     // Implementation of QualityOptionsBottomSheet.QualityOptionsListener
     override fun onAutoQualitySelected() {
-        Log.d("TPStreamsPlayerView", "Auto quality selected")
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
     
         // Let the trackSelector handle it automatically (no constraints)
@@ -408,58 +361,46 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
     
     override fun onHigherQualitySelected() {
-        Log.d("TPStreamsPlayerView", "Higher quality selected")
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_HIGHER)
         
         // Get the highest available resolution
         val highestResolution = availableResolutions.firstOrNull()?.dropLast(1)?.toIntOrNull()
         if (highestResolution != null) {
             (player as? TPStreamsPlayer)?.setVideoResolution(highestResolution)
-            Log.d("TPStreamsPlayerView", "Setting highest available resolution: ${highestResolution}p")
         } else {
-            Log.w("TPStreamsPlayerView", "No resolutions available, defaulting to auto")
             onAutoQualitySelected()
         }
     }
     
     override fun onDataSaverSelected() {
-        Log.d("TPStreamsPlayerView", "Data saver selected")
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_DATA_SAVER)
         
         // Get the lowest available resolution
         val lowestResolution = availableResolutions.lastOrNull()?.dropLast(1)?.toIntOrNull()
         if (lowestResolution != null) {
             (player as? TPStreamsPlayer)?.setVideoResolution(lowestResolution)
-            Log.d("TPStreamsPlayerView", "Setting lowest available resolution: ${lowestResolution}p")
         } else {
-            // If no resolutions available, default to a low value
-            Log.w("TPStreamsPlayerView", "No resolutions available, defaulting to auto")
             onAutoQualitySelected()
         }
     }
     
     override fun onAdvancedSelected() {
-        Log.d("TPStreamsPlayerView", "Advanced selected")
         val activity = getActivity() ?: return
         advancedResolutionBottomSheet.show(activity.supportFragmentManager)
     }
     
     // Implementation of AdvancedResolutionBottomSheet.ResolutionSelectionListener
     override fun onResolutionSelected(resolution: String) {
-        Log.d("TPStreamsPlayerView", "Resolution selected: $resolution")
         setCurrentQuality(resolution)
     
         val height = resolution.dropLast(1).toIntOrNull()
         if (height != null) {
             (player as? TPStreamsPlayer)?.setVideoResolution(height)
-        } else {
-            Log.w("TPStreamsPlayerView", "Invalid resolution format: $resolution")
         }
     }
     
     // Implementation of PlaybackSpeedBottomSheet.PlaybackSpeedListener
     override fun onSpeedSelected(speed: Float) {
-        Log.d("TPStreamsPlayerView", "Playback speed selected: $speed")
         setPlaybackSpeed(speed)
     }
 
@@ -470,14 +411,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             // Add a listener to update resolutions and captions when tracks become available
             player.addListener(object : Player.Listener {
                 override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                    Log.d("TPStreamsPlayerView", "Tracks changed, updating resolutions and captions")
                     updateAvailableResolutions()
                     updateAvailableCaptions()
                 }
                 
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_READY) {
-                        Log.d("TPStreamsPlayerView", "Playback ready, updating captions")
                         updateAvailableCaptions()
                     }
                 }
@@ -496,22 +435,15 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         val textTracks = TPSPlayer.getAvailableTextTracks()
         
         if (textTracks.isNotEmpty()) {
-            Log.d("TPStreamsPlayerView", "Updating available captions with ${textTracks.size} tracks")
             availableCaptions = textTracks
             captionsOptionsBottomSheet.setAvailableCaptions(textTracks)
             
             val activeTrack = TPSPlayer.getActiveTextTrack()
             if (activeTrack != null) {
-                Log.d("TPStreamsPlayerView", "Active caption track found: ${activeTrack.second} (${activeTrack.first})")
                 currentCaptionLanguage = activeTrack.first
                 captionsOptionsBottomSheet.setCurrentLanguage(activeTrack.first)
             }
-            
-            textTracks.forEach { (language, label) ->
-                Log.d("TPStreamsPlayerView", "Caption available: $label ($language)")
-            }
         } else {
-            Log.d("TPStreamsPlayerView", "No caption tracks available")
             availableCaptions = emptyList()
             captionsOptionsBottomSheet.setAvailableCaptions(emptyList())
         }
@@ -522,11 +454,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      */
     fun setCurrentCaptionLanguage(language: String?) {
         if (this.currentCaptionLanguage == language) {
-            Log.d("TPStreamsPlayerView", "Caption language unchanged: $language")
             return
         }
         
-        Log.d("TPStreamsPlayerView", "Setting caption language: $language")
         this.currentCaptionLanguage = language
         captionsOptionsBottomSheet.setCurrentLanguage(language)
         
@@ -540,12 +470,10 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     override fun onCaptionsDisabled() {
-        Log.d("TPStreamsPlayerView", "Captions disabled")
         setCurrentCaptionLanguage(null)
     }
     
     override fun onCaptionLanguageSelected(language: String) {
-        Log.d("TPStreamsPlayerView", "Caption language selected: $language")
         setCurrentCaptionLanguage(language)
     }
     
@@ -559,7 +487,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        Log.d("TPStreamsPlayerView", "onDetachedFromWindow")
         
         if (!isFullscreen) {
             backCallback?.remove()
@@ -574,7 +501,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      * Make sure the fullscreen button is visible
      */
     fun showFullscreenButton() {
-        Log.d("TPStreamsPlayerView", "Showing fullscreen button")
         playerControlView?.findViewById<View>(androidx.media3.ui.R.id.exo_fullscreen)?.visibility = View.VISIBLE
     }
 
@@ -582,8 +508,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      * Enable auto fullscreen on device rotation
      */
     fun enableAutoFullscreenOnRotate() {
-        Log.d("TPStreamsPlayerView", "Enabling auto fullscreen on rotate")
-        
         // Stop any existing listener first
         disableAutoFullscreenOnRotate()
         
@@ -591,15 +515,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         orientationEventListener = OrientationListener(context).apply {
             setOnChangeListener { isLandscape ->
                 post {
-                    Log.d("TPStreamsPlayerView", "Orientation listener triggered: isLandscape=$isLandscape")
                     if (isLandscape) {
                         if (!isFullscreen) {
-                            Log.d("TPStreamsPlayerView", "Auto entering fullscreen")
                             enterFullscreen()
                         }
                     } else {
                         if (isFullscreen) {
-                            Log.d("TPStreamsPlayerView", "Auto exiting fullscreen")
                             exitFullscreen()
                         }
                     }
@@ -615,7 +536,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      * Disable auto fullscreen on device rotation
      */
     fun disableAutoFullscreenOnRotate() {
-        Log.d("TPStreamsPlayerView", "Disabling auto fullscreen on rotate")
         orientationEventListener?.stop()
         orientationEventListener = null
         autoFullscreenEnabled = false
