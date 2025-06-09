@@ -4,16 +4,53 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
-    <com.tpstreams.player.TPStreamsPlayerView
-        android:id="@+id/player_view"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintDimensionRatio="16:9"
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="16dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TPStreams Player"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="32dp"/>
+
+        <Button
+            android:id="@+id/drm_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="DRM Content"
+            android:layout_marginHorizontal="32dp"
+            android:layout_marginVertical="8dp" />
+
+        <Button
+            android:id="@+id/non_drm_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Non-DRM Content"
+            android:layout_marginHorizontal="32dp"
+            android:layout_marginVertical="8dp" />
+
+        <Button
+            android:id="@+id/downloads_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Downloads"
+            android:layout_marginHorizontal="32dp"
+            android:layout_marginVertical="8dp" />
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout> 

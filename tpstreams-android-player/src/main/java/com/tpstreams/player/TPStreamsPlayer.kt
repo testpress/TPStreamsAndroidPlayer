@@ -24,18 +24,26 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.Tracks
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.datasource.cache.NoOpCacheEvictor
+import androidx.media3.datasource.cache.Cache
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.database.StandaloneDatabaseProvider
+import java.io.File
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
-    private val exoPlayer: ExoPlayer,
+    internal val exoPlayer: ExoPlayer,
     private val trackSelector: DefaultTrackSelector,
-    assetId: String,
-    accessToken: String,
-    private val shouldAutoPlay: Boolean = true
+    private val context: Context,
+    private var currentAssetId: String,
+    private var accessToken: String,
+    private var shouldAutoPlay: Boolean
 ) : Player by exoPlayer {
 
     private var isPrepared = false
     private var requestedPlay = false
+    private var videoUrl: String = ""
 
     private var subtitleMetadata = mapOf<String, Boolean>()
     
@@ -74,10 +82,11 @@ private constructor(
 
         val org = organizationId
             ?: throw IllegalStateException("TPStreamsPlayer.init(organizationId) must be called before using the player.")
-        fetchAndPrepare(org, assetId, accessToken)
+        fetchAndPrepare(org, currentAssetId, accessToken)
     }
 
     private fun fetchAndPrepare(orgId: String, assetId: String, accessToken: String) {
+        Log.d("TPStreamsPlayer", "Starting fetchAndPrepare for assetId: $assetId")
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val assetApiUrl =
@@ -101,6 +110,11 @@ private constructor(
                 } else {
                     videoObj.getString("playback_url")
                 }
+                
+                // Store the video URL for download functionality
+                videoUrl = mediaUrl
+                Log.d("TPStreamsPlayer", "Video URL set: $videoUrl")
+                Log.d("TPStreamsPlayer", "Asset ID: $currentAssetId")
 
                 // Extract subtitle tracks from metadata
                 val subtitleConfigurations = mutableListOf<MediaItem.SubtitleConfiguration>()
@@ -359,11 +373,133 @@ private constructor(
         return subtitleMetadata[language] ?: false
     }
 
+    /**
+     * Get the current video URL for downloading
+     * @return The URL of the current video
+     */
+    fun getVideoUrl(): String {
+        Log.d("TPStreamsPlayer", "getVideoUrl called, returning: $videoUrl")
+        return videoUrl
+    }
+    
+    /**
+     * Get the current asset ID
+     * @return The ID of the current asset
+     */
+    fun getAssetId(): String {
+        Log.d("TPStreamsPlayer", "getAssetId called, returning: $currentAssetId")
+        return currentAssetId
+    }
+
+    /**
+     * Get the player context
+     * @return The context
+     */
+    fun getContext(): Context {
+        return context
+    }
+
+    /**
+     * Get the ExoPlayer instance
+     * @return The ExoPlayer instance
+     */
+    fun getExoPlayer(): androidx.media3.exoplayer.ExoPlayer {
+        return exoPlayer
+    }
+
+    /**
+     * Play offline content using its content ID
+     * @param contentId The unique identifier of the content
+     * @param context The context to use for accessing the download manager
+     * @return true if successful
+     */
+    @OptIn(UnstableApi::class)
+    fun playOfflineContent(contentId: String, context: Context? = null): Boolean {
+        try {
+            Log.d("TPStreamsPlayer", "Playing offline content: $contentId")
+            
+            // Get the download from the download manager
+            val appContext = context ?: this.context
+            val downloads = com.tpstreams.player.offline.VideoDownloadManager.getDownloads(appContext)
+            val download = downloads.find { it.request.id == contentId }
+            
+            if (download == null) {
+                Log.e("TPStreamsPlayer", "Download not found for contentId: $contentId")
+                return false
+            }
+            
+            // Get the URI from the download request
+            val uri = download.request.uri
+            
+            // Create a media source factory with the cache
+            val cache = com.tpstreams.player.offline.SharedCacheUtil.getCache(appContext)
+            val httpDataSourceFactory = com.tpstreams.player.offline.VideoDownloadManager.getHttpDataSourceFactory(appContext)
+            
+            val dataSourceFactory = androidx.media3.datasource.cache.CacheDataSource.Factory()
+                .setCache(cache)
+                .setUpstreamDataSourceFactory(httpDataSourceFactory)
+                .setCacheWriteDataSinkFactory(null) // Disable writing to cache during playback
+                .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+            
+            // Create a media source based on the content type
+            val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSourceFactory)
+            
+            // Create a media item with the content ID
+            val mediaItemBuilder = androidx.media3.common.MediaItem.Builder()
+                .setMediaId(contentId)
+                .setUri(uri)
+                
+            // Add DRM configuration only for DRM content
+            val uriString = uri.toString()
+            if (uriString.endsWith(".mpd") || uriString.contains(".mpd?")) {
+                // DASH content is likely DRM-protected
+                mediaItemBuilder.setDrmConfiguration(
+                    androidx.media3.common.MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                        .setForceDefaultLicenseUri(false)
+                        .build()
+                )
+            }
+                
+            val mediaItem = mediaItemBuilder.build()
+            
+            // Create the media source directly
+            val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
+            
+            // Set the media source and prepare the player
+            exoPlayer.setMediaSource(mediaSource)
+            exoPlayer.prepare()
+            isPrepared = true
+            
+            // Update current asset ID for tracking
+            currentAssetId = contentId
+            videoUrl = uri.toString()
+            
+            if (shouldAutoPlay) {
+                exoPlayer.play()
+            }
+            
+            return true
+        } catch (e: Exception) {
+            Log.e("TPStreamsPlayer", "Error playing offline content: ${e.message}", e)
+            return false
+        }
+    }
+
     companion object {
         private var organizationId: String? = null
 
-        fun init(orgId: String) {
+        fun init(orgId: String, context: Context? = null) {
             organizationId = orgId
+            
+            // Initialize download manager if context is provided
+            if (context != null) {
+                try {
+                    Log.d("TPStreamsPlayer", "Automatically initializing download manager")
+                    com.tpstreams.player.offline.VideoDownloadManager.initialize(context)
+                } catch (e: Exception) {
+                    Log.e("TPStreamsPlayer", "Failed to initialize download manager", e)
+                }
+            }
         }
 
         @OptIn(UnstableApi::class)
@@ -374,9 +510,25 @@ private constructor(
                     .build()
             }
 
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
+            // Create HTTP data source factory with cross-protocol redirects enabled
+            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent("TPStreamsPlayer")
                 .setAllowCrossProtocolRedirects(true)
+
+            // Use cache data source factory for offline playback support
+            val dataSourceFactory = try {
+                // Get the shared cache instance
+                val cache = com.tpstreams.player.offline.SharedCacheUtil.getCache(context)
+                
+                CacheDataSource.Factory()
+                    .setCache(cache)
+                    .setUpstreamDataSourceFactory(httpDataSourceFactory)
+                    .setCacheWriteDataSinkFactory(null) // Disable writing to cache during playback
+                    .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+            } catch (e: Exception) {
+                Log.e("TPStreamsPlayer", "Error creating cache data source, falling back to HTTP", e)
+                httpDataSourceFactory
+            }
 
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(dataSourceFactory)
@@ -395,7 +547,7 @@ private constructor(
             shouldAutoPlay: Boolean = true
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context)
-            return TPStreamsPlayer(exo, trackSelector, assetId, accessToken, shouldAutoPlay)
+            return TPStreamsPlayer(exo, trackSelector, context, assetId, accessToken, shouldAutoPlay)
         }
     }
 }
