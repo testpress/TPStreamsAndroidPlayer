@@ -85,7 +85,11 @@ private constructor(
 
                 val request = Request.Builder().url(assetApiUrl).build()
                 val response = OkHttpClient().newCall(request).execute()
-
+                val url = response.request.url.toString()
+                val orgId = url.substringAfter("/api/v1/").substringBefore("/assets/")
+                val videoId = url.substringAfter("/assets/").substringBefore("/?access_token")
+                val accessToken = url.substringAfter("access_token=")
+                Log.d("TPStreamsPlayer", "org-id = $orgId, video-id = $videoId, access-token = $accessToken")
                 if (!response.isSuccessful) {
                     Log.e("TPStreamsPlayer", "Failed to fetch asset metadata: ${response.code}")
                     return@launch
