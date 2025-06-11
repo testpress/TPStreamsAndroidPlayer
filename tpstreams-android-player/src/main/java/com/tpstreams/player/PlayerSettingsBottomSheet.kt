@@ -20,6 +20,7 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         fun onQualitySelected()
         fun onCaptionsSelected()
         fun onPlaybackSpeedSelected()
+        fun onDownloadSelected()
         fun getCurrentQuality(): String
         fun getCurrentCaptionStatus(): String
         fun getPlaybackSpeed(): Float
@@ -92,6 +93,12 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         view.findViewById<LinearLayout>(R.id.playback_speed_option)?.setOnClickListener {
             Log.d(TAG, "Playback speed option clicked")
             listener?.onPlaybackSpeedSelected()
+            dismiss()
+        }
+        
+        view.findViewById<LinearLayout>(R.id.download_option)?.setOnClickListener {
+            Log.d(TAG, "Download option clicked")
+            listener?.onDownloadSelected()
             dismiss()
         }
     }

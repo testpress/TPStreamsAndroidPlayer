@@ -27,7 +27,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     QualityOptionsBottomSheet.QualityOptionsListener,
     AdvancedResolutionBottomSheet.ResolutionSelectionListener,
     PlaybackSpeedBottomSheet.PlaybackSpeedListener,
-    CaptionsOptionsBottomSheet.CaptionsOptionsListener {
+    CaptionsOptionsBottomSheet.CaptionsOptionsListener,
+    DownloadOptionsBottomSheet.DownloadSelectionListener {
 
     private var playerControlView: TPStreamsPlayerControlView? = null
     
@@ -89,6 +90,13 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         CaptionsOptionsBottomSheet().apply {
             setCaptionsOptionsListener(this@TPStreamsPlayerView)
             setCurrentLanguage(currentCaptionLanguage)
+        }
+    }
+    
+    private val downloadOptionsBottomSheet: DownloadOptionsBottomSheet by lazy {
+        DownloadOptionsBottomSheet().apply {
+            setDownloadSelectionListener(this@TPStreamsPlayerView)
+            setAvailableResolutions(availableResolutions)
         }
     }
     
@@ -334,6 +342,19 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onPlaybackSpeedSelected() {
         val activity = getActivity() ?: return
         playbackSpeedBottomSheet.show(activity.supportFragmentManager)
+    }
+    
+    override fun onDownloadSelected() {
+        val activity = getActivity() ?: return
+        
+        // Make sure we have the latest resolutions
+        updateAvailableResolutions()
+        
+        // Set the available resolutions to the download options bottom sheet
+        downloadOptionsBottomSheet.setAvailableResolutions(availableResolutions)
+        
+        // Show the download options bottom sheet
+        downloadOptionsBottomSheet.show(activity.supportFragmentManager)
     }
     
     override fun getCurrentQuality(): String {
@@ -603,5 +624,29 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             Log.d("TPStreamsPlayerView", "Unregistering from lifecycle")
             lifecycleOwner.lifecycle.removeObserver(lifecycleManager!!)
         }
+    }
+
+    // Implementation of DownloadOptionsBottomSheet.DownloadSelectionListener
+    override fun onDownloadResolutionSelected(resolution: String) {
+        Log.d(TAG, "Download requested for resolution: $resolution")
+        // Here you would implement the actual download functionality
+        // For example, using a DownloadService or similar
+        
+        // Example implementation:
+        // val player = player as? TPStreamsPlayer ?: return
+        // val currentUrl = player.getCurrentMediaUrl()
+        // val downloadManager = TPStreamsDownloadManager.getInstance(context)
+        // downloadManager.downloadVideo(currentUrl, resolution)
+        
+        // Show a toast or notification to the user
+        android.widget.Toast.makeText(
+            context,
+            "Starting download for $resolution",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    companion object {
+        private const val TAG = "TPStreamsPlayerView"
     }
 }
