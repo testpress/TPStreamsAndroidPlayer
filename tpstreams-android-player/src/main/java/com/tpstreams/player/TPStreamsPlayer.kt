@@ -24,9 +24,14 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.Tracks
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
+import com.tpstreams.player.download.DownloadController
+import com.tpstreams.player.download.DownloadTracker
+import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.datasource.cache.CacheDataSource
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
+    private val context: Context,
     private val exoPlayer: ExoPlayer,
     private val trackSelector: DefaultTrackSelector,
     assetId: String,
@@ -79,10 +84,12 @@ private constructor(
 
     private fun fetchAndPrepare(orgId: String, assetId: String, accessToken: String) {
         CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val assetApiUrl =
-                    "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/?access_token=$accessToken"
 
+            if (playFromDownload(assetId)) return@launch
+            
+            try {
+                val assetApiUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/?access_token=$accessToken"
+                
                 val request = Request.Builder().url(assetApiUrl).build()
                 val response = OkHttpClient().newCall(request).execute()
 
@@ -145,30 +152,29 @@ private constructor(
                 
                 setSubtitleMetadata(subtitleMetadata)
 
-                // Create the MediaItem builder
-                val mediaItemBuilder = MediaItem.Builder()
+                // Create the MediaItem builder 
+                val mediaItem = MediaItem.Builder()
                     .setUri(mediaUrl)
-
-                // Add DRM configuration only if DRM is enabled
-                if (enableDrm) {
-                    val licenseUrl =
-                        "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
-                    val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")
-
-                    val drmConfig = DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                        .setLicenseUri(licenseUrl)
-                        .setLicenseRequestHeaders(drmHeaders)
-                        .setMultiSession(true)
-                        .build()
-                    
-                    mediaItemBuilder.setDrmConfiguration(drmConfig)
-                }
-                
-                if (subtitleConfigurations.isNotEmpty()) {
-                    mediaItemBuilder.setSubtitleConfigurations(subtitleConfigurations)
-                }
-                
-                val mediaItem = mediaItemBuilder.build()
+                    .setMediaId(assetId)
+                    .apply {
+                        if (enableDrm) {
+                            val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
+                            val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")
+                            
+                            val drmConfig = DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                                .setLicenseUri(licenseUrl)
+                                .setLicenseRequestHeaders(drmHeaders)
+                                .setMultiSession(true)
+                                .build()
+                            
+                            setDrmConfiguration(drmConfig)
+                        }
+                        
+                        if (subtitleConfigurations.isNotEmpty()) {
+                            setSubtitleConfigurations(subtitleConfigurations)
+                        }
+                    }
+                    .build()
 
                 launch(Dispatchers.Main) {
                     exoPlayer.setMediaItem(mediaItem)
@@ -182,6 +188,36 @@ private constructor(
                 Log.e("TPStreamsPlayer", "Error preparing video: ${e.message}", e)
             }
         }
+    }
+    
+    private fun playFromDownload(assetId: String): Boolean {
+        try {
+            val downloadTracker = DownloadTracker.getInstance(context)
+            val downloads = downloadTracker.getAllDownloads()
+            
+            val matchingDownload = downloads.firstOrNull { download ->
+                download.request.id.contains(assetId)
+            }
+            
+            if (matchingDownload != null) {
+                Log.d("TPStreamsPlayer", "Found downloaded content for $assetId, using local version")
+                val downloadedMediaItem = matchingDownload.request.toMediaItem()
+                
+                CoroutineScope(Dispatchers.Main).launch {
+                    exoPlayer.setMediaItem(downloadedMediaItem)
+                    exoPlayer.prepare()
+                    isPrepared = true
+                    if (shouldAutoPlay || requestedPlay) {
+                        exoPlayer.play()
+                    }
+                }
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e("TPStreamsPlayer", "Error checking for downloads: ${e.message}", e)
+        }
+        
+        return false
     }
 
     override fun play() {
@@ -264,6 +300,31 @@ private constructor(
         }
 
         return resolutions.sortedDescending()
+    }
+
+    @OptIn(UnstableApi::class)
+    fun getVideoTrackBitrates(): Map<String, Int> {
+        val bitrates = mutableMapOf<String, Int>()
+        
+        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return emptyMap()
+        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
+            if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_VIDEO) {
+                val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
+                for (groupIndex in 0 until trackGroups.length) {
+                    val group = trackGroups.get(groupIndex)
+                    for (trackIndex in 0 until group.length) {
+                        val format = group.getFormat(trackIndex)
+                        if (format.height != Format.NO_VALUE && format.bitrate != Format.NO_VALUE) {
+                            val resolution = "${format.height}p"
+                            bitrates[resolution] = format.bitrate
+                            Log.d("TPStreamsPlayer", "Track bitrate for $resolution: ${format.bitrate} bps")
+                        }
+                    }
+                }
+            }
+        }
+        
+        return bitrates
     }
 
     @OptIn(UnstableApi::class)
@@ -374,12 +435,15 @@ private constructor(
                     .build()
             }
 
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent("TPStreamsPlayer")
-                .setAllowCrossProtocolRedirects(true)
+            DownloadController.initialize(context)
 
+            val cacheDataSourceFactory = CacheDataSource.Factory()
+                .setCache(DownloadController.downloadCache)
+                .setUpstreamDataSourceFactory(DownloadController.httpDataSourceFactory)
+                .setCacheWriteDataSinkFactory(null)
+            
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
-                .setDataSourceFactory(dataSourceFactory)
+                .setDataSourceFactory(cacheDataSourceFactory)
 
             return ExoPlayer.Builder(context)
                 .setMediaSourceFactory(mediaSourceFactory)
@@ -395,7 +459,7 @@ private constructor(
             shouldAutoPlay: Boolean = true
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context)
-            return TPStreamsPlayer(exo, trackSelector, assetId, accessToken, shouldAutoPlay)
+            return TPStreamsPlayer(context,exo, trackSelector, assetId, accessToken, shouldAutoPlay)
         }
     }
 }

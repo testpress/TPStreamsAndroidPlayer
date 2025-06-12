@@ -2,8 +2,10 @@ package com.tpstreams.player
 
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
+import android.os.Build
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
@@ -14,7 +16,12 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleOwner
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.MediaItem
 import androidx.media3.ui.PlayerView
+import androidx.media3.exoplayer.offline.Download
+import com.tpstreams.player.download.DownloadController
+import com.tpstreams.player.download.DownloadPermissionHandler
+import com.tpstreams.player.download.DownloadTracker
 import java.util.Locale
 
 @UnstableApi
@@ -97,6 +104,28 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         DownloadOptionsBottomSheet().apply {
             setDownloadSelectionListener(this@TPStreamsPlayerView)
             setAvailableResolutions(availableResolutions)
+        }
+    }
+    
+    private val downloadActionBottomSheet: DownloadActionBottomSheet by lazy {
+        DownloadActionBottomSheet().apply {
+            setDownloadActionListener(object : DownloadActionBottomSheet.DownloadActionListener {
+                override fun onDeleteDownloadConfirmed() {
+                    deleteCurrentDownload()
+                }
+                
+                override fun onPauseDownloadConfirmed() {
+                    pauseCurrentDownload()
+                }
+                
+                override fun onResumeDownloadConfirmed() {
+                    resumeCurrentDownload()
+                }
+                
+                override fun onCancelDownloadConfirmed() {
+                    deleteCurrentDownload()
+                }
+            })
         }
     }
     
@@ -345,16 +374,69 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
     
     override fun onDownloadSelected() {
+        val tpsPlayer = player as? TPStreamsPlayer ?: return
+        val mediaItem = tpsPlayer.currentMediaItem ?: return
+        val uri = mediaItem.localConfiguration?.uri ?: return
+        
         val activity = getActivity() ?: return
+        val downloadTracker = DownloadTracker.getInstance(context)
         
-        // Make sure we have the latest resolutions
-        updateAvailableResolutions()
+        if (uri != null) {
+            when {
+                downloadTracker.isDownloaded(uri) -> {
+                    downloadActionBottomSheet.setDownloadUri(uri)
+                    downloadActionBottomSheet.setDownloadState(Download.STATE_COMPLETED)
+                    downloadActionBottomSheet.show(activity.supportFragmentManager)
+                }
+                downloadTracker.isDownloading(uri) -> {
+                    downloadActionBottomSheet.setDownloadUri(uri)
+                    downloadActionBottomSheet.setDownloadState(Download.STATE_DOWNLOADING)
+                    downloadActionBottomSheet.show(activity.supportFragmentManager)
+                }
+                downloadTracker.isPaused(uri) -> {
+                    downloadActionBottomSheet.setDownloadUri(uri)
+                    downloadActionBottomSheet.setDownloadState(Download.STATE_STOPPED)
+                    downloadActionBottomSheet.show(activity.supportFragmentManager)
+                }
+                else -> {
+                    downloadOptionsBottomSheet.setDownloadSelectionListener(this)
+                    
+                    // Get available resolutions
+                    val availableHeights = tpsPlayer.getAvailableVideoResolutions()
+                    val resolutionStrings = availableHeights.map { "${it}p" }
+                    downloadOptionsBottomSheet.setAvailableResolutions(resolutionStrings)
+                    downloadOptionsBottomSheet.setMediaItem(mediaItem, tpsPlayer.duration)
+                    downloadOptionsBottomSheet.show(activity.supportFragmentManager)
+                    
+                    val trackBitrates = tpsPlayer.getVideoTrackBitrates()
+                    downloadOptionsBottomSheet.setTrackBitrates(trackBitrates)
+                }
+            }
+        }
+    }
+    
+    private fun deleteCurrentDownload() {
+        val tpsPlayer = player as? TPStreamsPlayer ?: return
+        val mediaItem = tpsPlayer.currentMediaItem ?: return
+        val uri = mediaItem.localConfiguration?.uri ?: return
         
-        // Set the available resolutions to the download options bottom sheet
-        downloadOptionsBottomSheet.setAvailableResolutions(availableResolutions)
+        DownloadTracker.getInstance(context).removeDownload(uri)
+    }
+    
+    private fun pauseCurrentDownload() {
+        val tpsPlayer = player as? TPStreamsPlayer ?: return
+        val mediaItem = tpsPlayer.currentMediaItem ?: return
+        val uri = mediaItem.localConfiguration?.uri ?: return
         
-        // Show the download options bottom sheet
-        downloadOptionsBottomSheet.show(activity.supportFragmentManager)
+        DownloadTracker.getInstance(context).pauseDownload(uri)
+    }
+    
+    private fun resumeCurrentDownload() {
+        val tpsPlayer = player as? TPStreamsPlayer ?: return
+        val mediaItem = tpsPlayer.currentMediaItem ?: return
+        val uri = mediaItem.localConfiguration?.uri ?: return
+        
+        DownloadTracker.getInstance(context).resumeDownload(uri)
     }
     
     override fun getCurrentQuality(): String {
@@ -629,21 +711,56 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     // Implementation of DownloadOptionsBottomSheet.DownloadSelectionListener
     override fun onDownloadResolutionSelected(resolution: String) {
         Log.d(TAG, "Download requested for resolution: $resolution")
-        // Here you would implement the actual download functionality
-        // For example, using a DownloadService or similar
         
-        // Example implementation:
-        // val player = player as? TPStreamsPlayer ?: return
-        // val currentUrl = player.getCurrentMediaUrl()
-        // val downloadManager = TPStreamsDownloadManager.getInstance(context)
-        // downloadManager.downloadVideo(currentUrl, resolution)
+        val tpsPlayer = player as? TPStreamsPlayer ?: return
+        val mediaItem = tpsPlayer.currentMediaItem ?: return
         
-        // Show a toast or notification to the user
+        val activity = getActivity()
+        if (activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (!DownloadPermissionHandler.hasNotificationPermission(context)) {
+                DownloadPermissionHandler.requestNotificationPermission(activity)
+            }
+        }
+        startDownload(mediaItem, resolution)
+    }
+    
+    private fun startDownload(mediaItem: MediaItem, resolution: String) {
+        val downloadTracker = DownloadTracker.getInstance(context)
+        downloadTracker.startDownload(mediaItem, resolution)
+        
         android.widget.Toast.makeText(
             context,
             "Starting download for $resolution",
             android.widget.Toast.LENGTH_SHORT
         ).show()
+    }
+
+    override fun getCurrentDownloadStatus(): String {
+        val tpsPlayer = player as? TPStreamsPlayer ?: return "Download"
+        val mediaItem = tpsPlayer.currentMediaItem ?: return "Download"
+        val uri = mediaItem.localConfiguration?.uri ?: return "Download"
+        
+        val downloadTracker = DownloadTracker.getInstance(context)
+        return when {
+            downloadTracker.isDownloaded(uri) -> "Downloaded"
+            downloadTracker.isDownloading(uri) -> "Downloading"
+            downloadTracker.isPaused(uri) -> "Paused"
+            else -> "Download"
+        }
+    }
+    
+    override fun getDownloadIcon(): Int {
+        val tpsPlayer = player as? TPStreamsPlayer ?: return R.drawable.ic_download
+        val mediaItem = tpsPlayer.currentMediaItem ?: return R.drawable.ic_download
+        val uri = mediaItem.localConfiguration?.uri ?: return R.drawable.ic_download
+        
+        val downloadTracker = DownloadTracker.getInstance(context)
+        return when {
+            downloadTracker.isDownloaded(uri) -> R.drawable.ic_download_done
+            downloadTracker.isDownloading(uri) -> R.drawable.ic_download_progress
+            downloadTracker.isPaused(uri) -> R.drawable.ic_download_progress
+            else -> R.drawable.ic_download
+        }
     }
 
     companion object {

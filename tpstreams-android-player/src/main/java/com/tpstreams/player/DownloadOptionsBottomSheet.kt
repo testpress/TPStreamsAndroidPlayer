@@ -2,6 +2,7 @@ package com.tpstreams.player
 
 import android.app.Dialog
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -9,12 +10,15 @@ import android.widget.FrameLayout
 import android.widget.RadioButton
 import android.widget.TextView
 import androidx.fragment.app.FragmentManager
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.button.MaterialButton
+import kotlin.math.roundToInt
 
 class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
 
@@ -28,6 +32,17 @@ class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
     private var selectedResolution: String? = null
     private var downloadSizeText: TextView? = null
     private var downloadButton: MaterialButton? = null
+    private var mediaItem: MediaItem? = null
+    private var videoDurationMs: Long = 0
+    private var trackBitrates = mutableMapOf<String, Int>()
+    
+    fun setMediaItem(mediaItem: MediaItem, durationMs: Long) {
+        this.mediaItem = mediaItem
+        this.videoDurationMs = durationMs
+        if (::adapter.isInitialized) {
+            adapter.notifyDataSetChanged()
+        }
+    }
 
     fun setDownloadSelectionListener(listener: DownloadSelectionListener) {
         this.listener = listener
@@ -42,6 +57,18 @@ class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
         // If no resolution is selected yet, select the highest quality by default
         if (selectedResolution == null && resolutions.isNotEmpty()) {
             selectedResolution = resolutions.first()
+            updateDownloadSize()
+        }
+    }
+    
+    fun setTrackBitrates(bitrates: Map<String, Int>) {
+        this.trackBitrates.clear()
+        this.trackBitrates.putAll(bitrates)
+        if (::adapter.isInitialized) {
+            adapter.notifyDataSetChanged()
+        }
+        // Only call updateDownloadSize if the fragment is attached
+        if (isAdded) {
             updateDownloadSize()
         }
     }
@@ -97,28 +124,46 @@ class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
             }
         }
         
-        // Hide the estimated size text as it's not needed anymore
-        downloadSizeText?.visibility = View.GONE
+        // Make size text visible to show calculated size
+        downloadSizeText?.visibility = View.VISIBLE
+        updateDownloadSize()
     }
     
     private fun updateDownloadSize() {
+        // Only update if fragment is attached to prevent IllegalStateException
+        if (!isAdded) return
+        
         val downloadSize = getDownloadSize(selectedResolution)
         downloadSizeText?.text = getString(R.string.download_size, downloadSize)
     }
     
     private fun getDownloadSize(resolution: String?): String {
-        // This is just an example. In a real implementation, you would calculate the size
-        // based on the video duration, bitrate, etc.
-        return when(resolution) {
-            "2160p" -> "1.2 GB"
-            "1440p" -> "800 MB"
-            "1080p" -> "500 MB"
-            "720p" -> "250 MB"
-            "480p" -> "150 MB"
-            "360p" -> "100 MB"
-            "240p" -> "60 MB"
-            "144p" -> "30 MB"
-            else -> "Unknown"
+        if (resolution == null || videoDurationMs <= 0) return "Unknown"
+        
+        // Check if we have actual bitrate information from the player
+        val actualBitrate = trackBitrates[resolution]
+        if (actualBitrate == null) return "Unknown"
+        
+        // Calculate size in bytes (bitrate * duration in seconds / 8 bits per byte)
+        // Add 10% for audio and other streams
+        val durationSeconds = videoDurationMs / 1000.0
+        val videoSizeBytes = (actualBitrate * durationSeconds / 8.0).roundToInt()
+        val totalSizeBytes = (videoSizeBytes * 1.1).toLong() // Add 10% for audio
+        
+        return formatFileSize(totalSizeBytes)
+    }
+    
+    private fun formatFileSize(sizeBytes: Long): String {
+        if (sizeBytes <= 0) return "Unknown"
+        
+        val kilobyte = 1024L
+        val megabyte = kilobyte * 1024
+        val gigabyte = megabyte * 1024
+        
+        return when {
+            sizeBytes < megabyte -> String.format("%.1f MB", sizeBytes.toFloat() / kilobyte)
+            sizeBytes < gigabyte -> String.format("%.1f MB", sizeBytes.toFloat() / megabyte)
+            else -> String.format("%.2f GB", sizeBytes.toFloat() / gigabyte)
         }
     }
     
