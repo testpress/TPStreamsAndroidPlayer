@@ -132,7 +132,6 @@ private constructor(
                                     .setLanguage(language)
                                     .setLabel(name)
                                     .setMimeType(MimeTypes.TEXT_VTT)
-                                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                                     .build()
                                 
                                 subtitleConfigurations.add(subtitleConfig)
@@ -299,7 +298,6 @@ private constructor(
         if (language == null) {
             parametersBuilder.setPreferredTextLanguage(null)
             parametersBuilder.setSelectUndeterminedTextLanguage(false)
-            parametersBuilder.setDisabledTextTrackSelectionFlags(C.SELECTION_FLAG_DEFAULT)
             Log.d("TPStreamsPlayer", "Disabling text tracks")
         } else {
             parametersBuilder.setPreferredTextLanguage(language)
