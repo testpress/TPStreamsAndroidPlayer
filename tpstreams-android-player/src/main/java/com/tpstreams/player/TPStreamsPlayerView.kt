@@ -4,17 +4,22 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
+import android.os.Bundle
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.LifecycleOwner
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import com.tpstreams.player.offline.DownloadQualityBottomSheet
+import com.tpstreams.player.offline.TPStreamsPlayerDownloadExt
 import java.util.Locale
 
 @UnstableApi
@@ -27,7 +32,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     QualityOptionsBottomSheet.QualityOptionsListener,
     AdvancedResolutionBottomSheet.ResolutionSelectionListener,
     PlaybackSpeedBottomSheet.PlaybackSpeedListener,
-    CaptionsOptionsBottomSheet.CaptionsOptionsListener {
+    CaptionsOptionsBottomSheet.CaptionsOptionsListener,
+    DownloadQualityBottomSheet.DownloadQualityListener {
 
     private var playerControlView: TPStreamsPlayerControlView? = null
     
@@ -92,6 +98,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
     
+    private val downloadQualityBottomSheet: DownloadQualityBottomSheet by lazy {
+        DownloadQualityBottomSheet().apply {
+            setDownloadQualityListener(this@TPStreamsPlayerView)
+        }
+    }
+    
     // Current quality setting, updated when user changes quality
     private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
     private var availableResolutions: List<String> = emptyList()
@@ -102,6 +114,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     // Captions state
     private var currentCaptionLanguage: String? = null
     private var availableCaptions: List<Pair<String, String>> = emptyList()
+
+    // Current video URL and content ID
+    private var currentVideoUrl: String = ""
+    private var currentContentId: String = ""
+    private var isDownloaded: Boolean = false
 
     override fun onFinishInflate() {
         super.onFinishInflate()
@@ -455,11 +472,34 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_READY) {
                         updateAvailableCaptions()
+                        
+                        // Update video info when playback is ready
+                        updateVideoInfo()
                     }
                 }
             })
             
             updateAvailableCaptions()
+            
+            // Set video info for download functionality
+            updateVideoInfo()
+        }
+    }
+
+    /**
+     * Update video info from the player for download functionality
+     */
+    private fun updateVideoInfo() {
+        val tpsPlayer = player as? TPStreamsPlayer ?: return
+        val videoUrl = tpsPlayer.getVideoUrl()
+        val contentId = tpsPlayer.getAssetId()
+        
+        Log.d("TPStreamsPlayerView", "Updating video info - URL: $videoUrl, ID: $contentId")
+        
+        if (videoUrl.isNotEmpty() && contentId.isNotEmpty()) {
+            setVideoInfo(videoUrl, contentId)
+        } else {
+            Log.w("TPStreamsPlayerView", "Video URL or content ID is empty")
         }
     }
 
@@ -603,5 +643,114 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             Log.d("TPStreamsPlayerView", "Unregistering from lifecycle")
             lifecycleOwner.lifecycle.removeObserver(lifecycleManager!!)
         }
+    }
+
+    /**
+     * Set the current video URL and content ID for download functionality
+     */
+    fun setVideoInfo(videoUrl: String, contentId: String) {
+        this.currentVideoUrl = videoUrl
+        this.currentContentId = contentId
+        
+        // Check if this video is already downloaded
+        checkDownloadStatus()
+    }
+    
+    /**
+     * Check if the current video is downloaded
+     */
+    private fun checkDownloadStatus() {
+        if (currentContentId.isEmpty()) {
+            Log.d("TPStreamsPlayerView", "Cannot check download status: Content ID is empty")
+            return
+        }
+        
+        try {
+            // Initialize the download manager first to ensure it's ready
+            TPStreamsPlayerDownloadExt.initializeDownloadManager(context)
+            
+            isDownloaded = TPStreamsPlayerDownloadExt.isDownloaded(context, currentContentId)
+            Log.d("TPStreamsPlayerView", "Checked download status for $currentContentId: $isDownloaded")
+        } catch (e: Exception) {
+            Log.e("TPStreamsPlayerView", "Error checking download status", e)
+            isDownloaded = false
+        }
+    }
+
+    // Implementation of PlayerSettingsBottomSheet.SettingsListener
+    override fun onDownloadSelected() {
+        val activity = getActivity() ?: return
+        
+        if (currentVideoUrl.isEmpty() || currentContentId.isEmpty()) {
+            Log.e("TPStreamsPlayerView", "Cannot download: Video URL or Content ID is empty")
+            Toast.makeText(context, "Cannot download this video", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Check if this is a DRM-protected DASH stream
+        if (currentVideoUrl.endsWith(".mpd") || currentVideoUrl.contains(".mpd?")) {
+            Log.e("TPStreamsPlayerView", "Cannot download DRM-protected content: $currentVideoUrl")
+            Toast.makeText(context, "DRM-protected content cannot be downloaded", Toast.LENGTH_LONG).show()
+            return
+        }
+        
+        try {
+            // Initialize the download manager if needed
+            TPStreamsPlayerDownloadExt.initializeDownloadManager(context)
+            
+            if (isDownloaded) {
+                // If already downloaded, delete it directly
+                TPStreamsPlayerDownloadExt.removeDownload(context, currentContentId)
+                isDownloaded = false
+                Toast.makeText(context, "Download removed", Toast.LENGTH_SHORT).show()
+            } else {
+                // Show the download quality selection bottom sheet
+                downloadQualityBottomSheet.show(activity.supportFragmentManager)
+            }
+        } catch (e: Exception) {
+            Log.e("TPStreamsPlayerView", "Error in download selection", e)
+            Toast.makeText(context, "Download functionality unavailable", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    override fun isVideoDownloaded(): Boolean {
+        checkDownloadStatus() // Refresh status
+        return isDownloaded
+    }
+
+    // Implementation of DownloadQualityBottomSheet.DownloadQualityListener
+    override fun onDownloadQualitySelected(videoUrl: String, contentId: String, quality: String) {
+        Log.d("TPStreamsPlayerView", "Starting download: $videoUrl, $contentId, $quality")
+        TPStreamsPlayerDownloadExt.startDownload(
+            context, 
+            videoUrl, 
+            contentId,
+            selectedQuality = quality
+        )
+        
+        // Update download status after a delay to allow download to start
+        postDelayed({
+            checkDownloadStatus()
+        }, 1000)
+    }
+    
+    override fun getAvailableQualities(): List<String> {
+        // Use the same resolutions as available for playback
+        return availableResolutions.ifEmpty { listOf("Auto") }
+    }
+    
+    override fun getVideoUrl(): String = currentVideoUrl
+    
+    override fun getContentId(): String = currentContentId
+
+    /**
+     * Manually set video info for download functionality
+     * This can be used when the automatic detection fails
+     * @param videoUrl The URL of the video to download
+     * @param contentId A unique identifier for the content
+     */
+    fun manuallySetVideoInfo(videoUrl: String, contentId: String) {
+        Log.d("TPStreamsPlayerView", "Manually setting video info - URL: $videoUrl, ID: $contentId")
+        setVideoInfo(videoUrl, contentId)
     }
 }

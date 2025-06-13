@@ -9,13 +9,26 @@ const val TAG = "PlayerUIViewModel"
 class PlayerUIViewModel(application: Application) : AndroidViewModel(application) {
 
     // Use application context to avoid memory leaks
-    val player: TPStreamsPlayer by lazy {
-        TPStreamsPlayer.create(
+    var player: TPStreamsPlayer = createDefaultPlayer(application)
+    
+    private fun createDefaultPlayer(application: Application): TPStreamsPlayer {
+        // Initialize the SDK with the correct organization ID
+        TPStreamsPlayer.init("9q94nm", application.applicationContext)
+        
+        return TPStreamsPlayer.create(
             context = application.applicationContext,
-            assetId = "8rEx9apZHFF",
-            accessToken = "19aa0055-d965-4654-8fce-b804e70a46b0",
+            assetId = "ACGhHuD7DEa",  // Non-DRM content ID
+            accessToken = "5bea276d-7882-4f8f-951a-c628622817e0",
             shouldAutoPlay = false
         )
+    }
+    
+    fun updatePlayer(newPlayer: TPStreamsPlayer) {
+        // Release the old player
+        player.release()
+        
+        // Update with the new player
+        player = newPlayer
     }
 
     override fun onCleared() {

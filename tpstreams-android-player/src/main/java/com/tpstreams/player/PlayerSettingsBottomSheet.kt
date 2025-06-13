@@ -1,28 +1,35 @@
 package com.tpstreams.player
 
 import android.app.Dialog
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.FragmentManager
+import androidx.media3.common.util.UnstableApi
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.tpstreams.player.offline.DownloadListActivity
 
+@UnstableApi
 class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
 
     interface SettingsListener {
         fun onQualitySelected()
         fun onCaptionsSelected()
         fun onPlaybackSpeedSelected()
+        fun onDownloadSelected()
         fun getCurrentQuality(): String
         fun getCurrentCaptionStatus(): String
         fun getPlaybackSpeed(): Float
+        fun isVideoDownloaded(): Boolean
     }
 
     private var listener: SettingsListener? = null
@@ -77,6 +84,23 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         val currentSpeed = listener?.getPlaybackSpeed() ?: 1.0f
         currentSpeedText.text = String.format("%.2fx", currentSpeed)
         
+        // Update download option visibility based on download status
+        val isDownloaded = listener?.isVideoDownloaded() ?: false
+        val downloadOption = view.findViewById<LinearLayout>(R.id.download_option)
+        val currentDownloadText = view.findViewById<TextView>(R.id.current_download_text)
+        val downloadChevron = view.findViewById<ImageView>(R.id.download_chevron)
+        
+        if (isDownloaded) {
+            currentDownloadText.text = "Downloaded"
+            downloadChevron.visibility = View.GONE
+        } else {
+            currentDownloadText.text = ""
+            downloadChevron.visibility = View.VISIBLE
+        }
+        
+        // Hide the view downloads option
+        view.findViewById<LinearLayout>(R.id.view_downloads_option)?.visibility = View.GONE
+        
         view.findViewById<LinearLayout>(R.id.quality_option)?.setOnClickListener {
             Log.d(TAG, "Quality option clicked")
             showQualityOptions()
@@ -92,6 +116,12 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         view.findViewById<LinearLayout>(R.id.playback_speed_option)?.setOnClickListener {
             Log.d(TAG, "Playback speed option clicked")
             listener?.onPlaybackSpeedSelected()
+            dismiss()
+        }
+        
+        view.findViewById<LinearLayout>(R.id.download_option)?.setOnClickListener {
+            Log.d(TAG, "Download option clicked")
+            listener?.onDownloadSelected()
             dismiss()
         }
     }
