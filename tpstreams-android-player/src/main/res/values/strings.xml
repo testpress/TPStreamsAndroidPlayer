@@ -28,16 +28,16 @@
     <string name="download_notification_channel_description">Video download notifications</string>
     <string name="delete_download_title">Delete Download</string>
     <string name="delete_download_message">Are you sure you want to delete this downloaded video?</string>
-    <string name="delete">DELETE</string>
+    <string name="delete">Delete</string>
     <string name="downloading_title">Downloading</string>
     <string name="downloading_message">Your video is currently downloading</string>
     <string name="paused_download_title">Download Paused</string>
     <string name="paused_download_message">Your download has been paused</string>
     <string name="download_status_title">Download Status</string>
     <string name="download_status_message">Manage your download</string>
-    <string name="pause_download">PAUSE</string>
-    <string name="resume_download">RESUME</string>
-    <string name="cancel_download">CANCEL</string>
+    <string name="pause_download">Pause</string>
+    <string name="resume_download">Resume</string>
+    <string name="cancel_download">Cancel</string>
     
     <!-- Playback speed -->
     <string name="playback_speed">Playback speed</string>

@@ -15,6 +15,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.button.MaterialButton
 import com.tpstreams.player.download.DownloadTracker
 import androidx.media3.exoplayer.offline.Download
+import android.widget.ImageView
 
 class DownloadActionBottomSheet : BottomSheetDialogFragment() {
 
@@ -63,9 +64,13 @@ class DownloadActionBottomSheet : BottomSheetDialogFragment() {
                 downloadedLayout.visibility = View.GONE
                 downloadingLayout.visibility = View.VISIBLE
                 
-                val pauseResumeButton = view.findViewById<MaterialButton>(R.id.pause_resume_button)
-                pauseResumeButton.text = getString(R.string.pause_download)
-                pauseResumeButton.setOnClickListener {
+                val pauseResumeContainer = view.findViewById<LinearLayout>(R.id.pause_resume_container)
+                val pauseResumeIcon = view.findViewById<ImageView>(R.id.pause_resume_icon)
+                val pauseResumeText = view.findViewById<TextView>(R.id.pause_resume_text)
+                
+                pauseResumeIcon.setImageResource(R.drawable.ic_pause_download)
+                pauseResumeText.text = getString(R.string.pause_download)
+                pauseResumeContainer.setOnClickListener {
                     listener?.onPauseDownloadConfirmed()
                     dismiss()
                 }
@@ -76,9 +81,13 @@ class DownloadActionBottomSheet : BottomSheetDialogFragment() {
                 downloadedLayout.visibility = View.GONE
                 downloadingLayout.visibility = View.VISIBLE
                 
-                val pauseResumeButton = view.findViewById<MaterialButton>(R.id.pause_resume_button)
-                pauseResumeButton.text = getString(R.string.resume_download)
-                pauseResumeButton.setOnClickListener {
+                val pauseResumeContainer = view.findViewById<LinearLayout>(R.id.pause_resume_container)
+                val pauseResumeIcon = view.findViewById<ImageView>(R.id.pause_resume_icon)
+                val pauseResumeText = view.findViewById<TextView>(R.id.pause_resume_text)
+                
+                pauseResumeIcon.setImageResource(R.drawable.ic_resume_download)
+                pauseResumeText.text = getString(R.string.resume_download)
+                pauseResumeContainer.setOnClickListener {
                     listener?.onResumeDownloadConfirmed()
                     dismiss()
                 }
@@ -129,9 +138,8 @@ class DownloadActionBottomSheet : BottomSheetDialogFragment() {
             dismiss()
         }
         
-        // Setup cancel button for downloading content
-        val cancelButton = view.findViewById<MaterialButton>(R.id.cancel_button)
-        cancelButton.setOnClickListener {
+        val deleteContainer = view.findViewById<LinearLayout>(R.id.delete_container)
+        deleteContainer.setOnClickListener {
             listener?.onCancelDownloadConfirmed()
             dismiss()
         }
