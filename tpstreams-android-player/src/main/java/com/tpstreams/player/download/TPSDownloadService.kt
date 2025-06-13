@@ -118,14 +118,6 @@ class TPSDownloadService : DownloadService(
         downloads: List<Download>,
         notMetRequirements: Int
     ): Notification {
-        // Log download progress
-        if (downloads.isNotEmpty()) {
-            for (download in downloads) {
-                val progressPercent = calculateProgressPercent(download)
-                Log.d(TAG, "Download ${download.request.id}: $progressPercent% complete")
-            }
-        }
-        
         return notificationHelper!!.buildProgressNotification(
             this,
             R.drawable.ic_download,

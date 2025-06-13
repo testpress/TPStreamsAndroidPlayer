@@ -144,13 +144,10 @@ class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
         val actualBitrate = trackBitrates[resolution]
         if (actualBitrate == null) return "Unknown"
         
-        // Calculate size in bytes (bitrate * duration in seconds / 8 bits per byte)
-        // Add 10% for audio and other streams
         val durationSeconds = videoDurationMs / 1000.0
-        val videoSizeBytes = (actualBitrate * durationSeconds / 8.0).roundToInt()
-        val totalSizeBytes = (videoSizeBytes * 1.1).toLong() // Add 10% for audio
+        val videoSizeBytes = (actualBitrate.toLong() * durationSeconds / 8.0 * 1.1).toLong()
         
-        return formatFileSize(totalSizeBytes)
+        return formatFileSize(videoSizeBytes)
     }
     
     private fun formatFileSize(sizeBytes: Long): String {
@@ -161,7 +158,8 @@ class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
         val gigabyte = megabyte * 1024
         
         return when {
-            sizeBytes < megabyte -> String.format("%.1f MB", sizeBytes.toFloat() / kilobyte)
+            sizeBytes < kilobyte -> String.format("%.1f B", sizeBytes.toFloat())
+            sizeBytes < megabyte -> String.format("%.1f KB", sizeBytes.toFloat() / kilobyte)
             sizeBytes < gigabyte -> String.format("%.1f MB", sizeBytes.toFloat() / megabyte)
             else -> String.format("%.2f GB", sizeBytes.toFloat() / gigabyte)
         }

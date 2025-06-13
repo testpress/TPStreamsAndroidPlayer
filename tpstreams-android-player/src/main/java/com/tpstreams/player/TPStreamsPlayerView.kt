@@ -719,6 +719,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         if (activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (!DownloadPermissionHandler.hasNotificationPermission(context)) {
                 DownloadPermissionHandler.requestNotificationPermission(activity)
+                return
             }
         }
         startDownload(mediaItem, resolution)

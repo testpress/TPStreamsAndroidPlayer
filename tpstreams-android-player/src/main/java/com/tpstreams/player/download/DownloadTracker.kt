@@ -10,6 +10,7 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import java.io.File
 import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.ConcurrentHashMap
 
 @UnstableApi
 class DownloadTracker private constructor(private val context: Context) {
@@ -19,7 +20,7 @@ class DownloadTracker private constructor(private val context: Context) {
     }
     
     private val listeners = CopyOnWriteArraySet<Listener>()
-    private val downloads = mutableMapOf<Uri, Download>()
+    private val downloads = ConcurrentHashMap<Uri, Download>()
     private var downloadManager: DownloadManager? = null
     
     init {
@@ -29,15 +30,16 @@ class DownloadTracker private constructor(private val context: Context) {
     }
     
     private fun loadDownloads() {
-        val downloadCursor = downloadManager?.downloadIndex?.getDownloads() ?: return
-        downloads.clear()
-        
-        while (downloadCursor.moveToNext()) {
-            val download = downloadCursor.download
-            downloads[download.request.uri] = download
+        downloadManager?.downloadIndex?.getDownloads()?.use { downloadCursor ->
+            downloads.clear()
+            
+            while (downloadCursor.moveToNext()) {
+                val download = downloadCursor.download
+                downloads[download.request.uri] = download
+            }
+            
+            notifyListeners()
         }
-        
-        notifyListeners()
     }
     
     fun addListener(listener: Listener) {

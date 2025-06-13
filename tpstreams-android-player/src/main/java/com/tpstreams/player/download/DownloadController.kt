@@ -26,6 +26,7 @@ import com.tpstreams.player.R
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executors
+import java.util.concurrent.ExecutorService
 
 
 @UnstableApi
@@ -52,6 +53,7 @@ object DownloadController {
     
     private var isInitialized = false
     private lateinit var notificationHelper: DownloadNotificationHelper
+    private var downloadExecutor: ExecutorService? = null
     
     @Synchronized
     fun initialize(context: Context) {
@@ -63,9 +65,18 @@ object DownloadController {
         
         databaseProvider = StandaloneDatabaseProvider(appContext)
 
-        val downloadContentDirectory = File(appContext.getExternalFilesDir(null), DOWNLOAD_CONTENT_DIRECTORY)
+        val baseDir = appContext.getExternalFilesDir(null)
+        if (baseDir == null) {
+            Log.e(TAG, "External storage unavailable, cannot initialize downloads")
+            throw IllegalStateException("External storage unavailable")
+        }
+        
+        val downloadContentDirectory = File(baseDir, DOWNLOAD_CONTENT_DIRECTORY)
         if (!downloadContentDirectory.exists()) {
-            downloadContentDirectory.mkdirs()
+            if (!downloadContentDirectory.mkdirs()) {
+                Log.e(TAG, "Failed to create download directory")
+                throw IllegalStateException("Failed to create download directory")
+            }
         }
         
         downloadCache = SimpleCache(
@@ -82,13 +93,15 @@ object DownloadController {
             appContext,
             DOWNLOAD_NOTIFICATION_CHANNEL_ID
         )
+
+        downloadExecutor = Executors.newFixedThreadPool(6)
         
         downloadManager = DownloadManager(
             appContext,
             databaseProvider,
             downloadCache,
             DefaultDataSource.Factory(appContext, httpDataSourceFactory),
-            Executors.newFixedThreadPool(6)
+            downloadExecutor!!
         ).apply {
             maxParallelDownloads = 3
         }
@@ -100,6 +113,38 @@ object DownloadController {
                 finalException: Exception?
             ) {
                 Log.d(TAG, "Download state changed: ${getStateString(download.state)}")
+
+                val notificationId = download.request.id.hashCode()
+                val notificationManager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                val channelId = "download_channel"
+
+                val notification = when (download.state) {
+                    Download.STATE_COMPLETED -> {
+                        Log.d(TAG, "Download completed notification sent for: ${download.request.id}")
+                        notificationHelper.buildDownloadCompletedNotification(
+                            appContext,
+                            R.drawable.ic_download_done,
+                            null,
+                            null
+                        )
+                    }
+
+                    Download.STATE_FAILED -> {
+                        Log.e(TAG, "Download failed notification sent for: ${download.request.id}, Error: ${finalException?.message}")
+                        notificationHelper.buildDownloadFailedNotification(
+                            appContext,
+                            R.drawable.ic_download,
+                            null,
+                            null
+                        )
+                    }
+
+                    else -> null
+                }
+
+                notification?.let {
+                    notificationManager.notify(notificationId, it)
+                }
             }
         })
         
@@ -167,15 +212,23 @@ object DownloadController {
         
         helper.prepare(object : DownloadHelper.Callback {
             override fun onPrepared(helper: DownloadHelper) {
-                Log.d(TAG, "Download prepared for: ${mediaItem.mediaId}")
-                val request = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
-                
-                TPSDownloadService.sendDownload(context, request, true)
-                Log.d(TAG, "Download started for: ${mediaItem.mediaId}, resolution: $resolution")
+                try {
+                    Log.d(TAG, "Download prepared for: ${mediaItem.mediaId}")
+                    val request = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
+                    
+                    TPSDownloadService.sendDownload(context, request, true)
+                    Log.d(TAG, "Download started for: ${mediaItem.mediaId}, resolution: $resolution")
+                } finally {
+                    helper.release()
+                }
             }
             
             override fun onPrepareError(helper: DownloadHelper, e: IOException) {
-                Log.e(TAG, "Error preparing download: ${e.message}", e)
+                try {
+                    Log.e(TAG, "Error preparing download: ${e.message}", e)
+                } finally {
+                    helper.release()
+                }
             }
         })
     }
@@ -212,7 +265,7 @@ object DownloadController {
         
         downloadManager.release()
         downloadCache.release()
-        
+        downloadExecutor?.shutdownNow()
         isInitialized = false
         Log.d(TAG, "Download resources released")
     }
