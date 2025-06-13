@@ -16,7 +16,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import android.util.Log
 import java.util.Locale
 
-class CaptionsOptionsBottomSheet : BottomSheetDialogFragment() {
+class CaptionsBottomSheet : BottomSheetDialogFragment() {
     
     private var captionsListener: CaptionsOptionsListener? = null
     private var availableCaptions: List<Pair<String, String>> = emptyList()

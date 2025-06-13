@@ -2,7 +2,6 @@ package com.tpstreams.player
 
 import android.content.Context
 import android.content.pm.ActivityInfo
-import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
@@ -19,7 +18,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.MediaItem
 import androidx.media3.ui.PlayerView
 import androidx.media3.exoplayer.offline.Download
-import com.tpstreams.player.download.DownloadController
 import com.tpstreams.player.download.DownloadPermissionHandler
 import com.tpstreams.player.download.DownloadTracker
 import java.util.Locale
@@ -34,7 +32,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     QualityOptionsBottomSheet.QualityOptionsListener,
     AdvancedResolutionBottomSheet.ResolutionSelectionListener,
     PlaybackSpeedBottomSheet.PlaybackSpeedListener,
-    CaptionsOptionsBottomSheet.CaptionsOptionsListener,
+    CaptionsBottomSheet.CaptionsOptionsListener,
     DownloadOptionsBottomSheet.DownloadSelectionListener {
 
     private var playerControlView: TPStreamsPlayerControlView? = null
@@ -93,8 +91,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
     
-    private val captionsOptionsBottomSheet: CaptionsOptionsBottomSheet by lazy {
-        CaptionsOptionsBottomSheet().apply {
+    private val captionsBottomSheet: CaptionsBottomSheet by lazy {
+        CaptionsBottomSheet().apply {
             setCaptionsOptionsListener(this@TPStreamsPlayerView)
             setCurrentLanguage(currentCaptionLanguage)
         }
@@ -365,7 +363,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onCaptionsSelected() {
         val activity = getActivity() ?: return
         updateAvailableCaptions()
-        captionsOptionsBottomSheet.show(activity.supportFragmentManager)
+        captionsBottomSheet.show(activity.supportFragmentManager)
     }
 
     override fun onPlaybackSpeedSelected() {
@@ -576,16 +574,16 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         
         if (textTracks.isNotEmpty()) {
             availableCaptions = textTracks
-            captionsOptionsBottomSheet.setAvailableCaptions(textTracks)
+            captionsBottomSheet.setAvailableCaptions(textTracks)
             
             val activeTrack = TPSPlayer.getActiveTextTrack()
             if (activeTrack != null) {
                 currentCaptionLanguage = activeTrack.first
-                captionsOptionsBottomSheet.setCurrentLanguage(activeTrack.first)
+                captionsBottomSheet.setCurrentLanguage(activeTrack.first)
             }
         } else {
             availableCaptions = emptyList()
-            captionsOptionsBottomSheet.setAvailableCaptions(emptyList())
+            captionsBottomSheet.setAvailableCaptions(emptyList())
         }
     }
     
@@ -598,7 +596,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
         
         this.currentCaptionLanguage = language
-        captionsOptionsBottomSheet.setCurrentLanguage(language)
+        captionsBottomSheet.setCurrentLanguage(language)
         
         (player as? TPStreamsPlayer)?.setTextTrackByLanguage(language)
         
