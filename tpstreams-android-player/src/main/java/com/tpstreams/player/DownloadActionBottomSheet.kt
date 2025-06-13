@@ -131,13 +131,14 @@ class DownloadActionBottomSheet : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        // Setup delete button for downloaded content
-        val deleteButton = view.findViewById<MaterialButton>(R.id.delete_button)
-        deleteButton.setOnClickListener {
+        // Setup delete container for downloaded content
+        val downloadedDeleteContainer = view.findViewById<LinearLayout>(R.id.downloaded_delete_container)
+        downloadedDeleteContainer.setOnClickListener {
             listener?.onDeleteDownloadConfirmed()
             dismiss()
         }
         
+        // Setup delete container for downloading content
         val deleteContainer = view.findViewById<LinearLayout>(R.id.delete_container)
         deleteContainer.setOnClickListener {
             listener?.onCancelDownloadConfirmed()
