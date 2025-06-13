@@ -169,46 +169,59 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     fun toggleFullscreen() {
         if (!isFullscreen) enterFullscreen() else exitFullscreen()
     }
-    
+
     fun enterFullscreen() {
         val activity = getActivity() as? ComponentActivity ?: return
         if (isFullscreen) return
-
+    
         lifecycleManager?.preservePlaybackStateAcrossTransition {
-            val decorView = activity.window.decorView as ViewGroup
-
-            originalParent = this.parent as? ViewGroup
-            originalLayoutParams = this.layoutParams
-
-            originalParent?.removeView(this)
-            this.setBackgroundColor(Color.BLACK)
-            decorView.addView(
-                this,
-                ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            )
-
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            
+            moveToDecorView(activity)
+            switchToLandscape(activity)
             hideSystemUI(activity)
-
-            isFullscreen = true
-            setFullscreenButtonState(true)
-
-            backCallback = object : OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() {
-                    if (isFullscreen) {
-                        exitFullscreen()
-                    } else {
-                        isEnabled = false
-                        activity.onBackPressedDispatcher.onBackPressed()
-                    }
+            updateFullscreenState()
+            registerBackPressHandler(activity)
+        }
+    }
+    
+    private fun moveToDecorView(activity: ComponentActivity) {
+        val decorView = activity.window.decorView as ViewGroup
+    
+        originalParent = this.parent as? ViewGroup
+        originalLayoutParams = this.layoutParams
+    
+        originalParent?.removeView(this)
+        setBackgroundColor(Color.BLACK)
+    
+        decorView.addView(
+            this,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+    }
+    
+    private fun switchToLandscape(activity: ComponentActivity) {
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    }
+    
+    private fun updateFullscreenState() {
+        isFullscreen = true
+        setFullscreenButtonState(true)
+    }
+    
+    private fun registerBackPressHandler(activity: ComponentActivity) {
+        backCallback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (isFullscreen) {
+                    exitFullscreen()
+                } else {
+                    isEnabled = false
+                    activity.onBackPressedDispatcher.onBackPressed()
                 }
             }
-            activity.onBackPressedDispatcher.addCallback(activity, backCallback!!)
         }
+        activity.onBackPressedDispatcher.addCallback(activity, backCallback!!)
     }
 
     fun exitFullscreen() {
@@ -216,22 +229,34 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         if (!isFullscreen) return
 
         lifecycleManager?.preservePlaybackStateAcrossTransition {
-            val decorView = activity.window.decorView as ViewGroup
-
-            decorView.removeView(this)
-            
-            originalParent?.addView(this, originalLayoutParams)
-
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-
+            restoreOriginalView(activity)
+            switchToPortrait(activity)
             showSystemUI(activity)
-
-            backCallback?.remove()
-            backCallback = null
-            isFullscreen = false
-            setFullscreenButtonState(false)
+            clearBackPressHandler()
+            updateFullscreenState(exiting = true)
         }
     }
+
+    private fun restoreOriginalView(activity: ComponentActivity) {
+        val decorView = activity.window.decorView as ViewGroup
+        decorView.removeView(this)
+        originalParent?.addView(this, originalLayoutParams)
+    }
+
+    private fun switchToPortrait(activity: ComponentActivity) {
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    }
+
+    private fun clearBackPressHandler() {
+        backCallback?.remove()
+        backCallback = null
+    }
+
+    private fun updateFullscreenState(exiting: Boolean) {
+        isFullscreen = !exiting
+        setFullscreenButtonState(!exiting)
+    }
+
     
     private fun hideSystemUI(activity: ComponentActivity) {
         activity.window.decorView.systemUiVisibility =
