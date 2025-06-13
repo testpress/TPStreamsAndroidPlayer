@@ -157,7 +157,7 @@ private constructor(
                     .setMediaId(assetId)
                     .apply {
                         if (enableDrm) {
-                            val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
+                            val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken&download=true"
                             val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")
                             
                             val drmConfig = DrmConfiguration.Builder(C.WIDEVINE_UUID)
@@ -188,7 +188,8 @@ private constructor(
             }
         }
     }
-    
+
+    @OptIn(UnstableApi::class)
     private fun playFromDownload(assetId: String): Boolean {
         try {
             val downloadTracker = DownloadTracker.getInstance(context)
@@ -200,7 +201,24 @@ private constructor(
             
             if (matchingDownload != null) {
                 Log.d("TPStreamsPlayer", "Found downloaded content for $assetId, using local version")
-                val downloadedMediaItem = matchingDownload.request.toMediaItem()
+
+                val request = matchingDownload.request
+                val builder = request.toMediaItem().buildUpon()
+
+                if (request.keySetId != null && request.data != null) {
+                    val licenseUri = String(request.data, Charsets.UTF_8)
+                    Log.d("TPStreamsPlayer", "Applying DRM configuration for $assetId")
+
+                    val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                        .setLicenseUri(licenseUri)
+                        .setKeySetId(request.keySetId)
+                        .setMultiSession(false)
+                        .build()
+
+                    builder.setDrmConfiguration(drmConfig)
+                }
+
+                val downloadedMediaItem = builder.build()
                 
                 CoroutineScope(Dispatchers.Main).launch {
                     exoPlayer.setMediaItem(downloadedMediaItem)

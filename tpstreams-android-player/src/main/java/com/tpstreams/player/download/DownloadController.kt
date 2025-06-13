@@ -22,6 +22,10 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.core.app.NotificationCompat
+import androidx.core.util.component1
+import androidx.core.util.component2
+import androidx.media3.exoplayer.drm.OfflineLicenseHelper
+import androidx.media3.exoplayer.drm.DrmSessionEventListener
 import com.tpstreams.player.R
 import java.io.File
 import java.io.IOException
@@ -202,7 +206,7 @@ object DownloadController {
     
     fun startDownload(context: Context, mediaItem: MediaItem, resolution: String) {
         Log.d(TAG, "Preparing download for: ${mediaItem.mediaId}")
-        
+
         val helper = DownloadHelper.forMediaItem(
             context,
             mediaItem,
@@ -215,7 +219,19 @@ object DownloadController {
                 try {
                     Log.d(TAG, "Download prepared for: ${mediaItem.mediaId}")
                     val request = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
-                    
+                    val drmConfig = mediaItem.localConfiguration?.drmConfiguration
+
+                    if(drmConfig != null) {
+                        val drmRequest = handleDrmDownload(context, drmConfig, helper, request)
+                        if (drmRequest != null) {
+                            TPSDownloadService.sendDownload(context, drmRequest, true)
+                            Log.d(TAG, "DRM download started for: ${mediaItem.mediaId}, resolution: $resolution")
+                            return
+                        } else {
+                            Log.e(TAG, "Failed to handle DRM license, skipping download")
+                            return
+                        }
+                    }
                     TPSDownloadService.sendDownload(context, request, true)
                     Log.d(TAG, "Download started for: ${mediaItem.mediaId}, resolution: $resolution")
                 } finally {
@@ -257,6 +273,56 @@ object DownloadController {
     fun removeAllDownloads(context: Context) {
         Log.d(TAG, "Removing all downloads")
         TPSDownloadService.removeAllDownloads(context)
+    }
+
+    fun handleDrmDownload(
+        context: Context,
+        drmConfig: MediaItem.DrmConfiguration,
+        helper: DownloadHelper,
+        baseRequest: DownloadRequest
+    ): DownloadRequest? {
+        val licenseUri = drmConfig.licenseUri?.toString() ?: return null
+        Log.d(TAG, "DRM license URI: $licenseUri")
+                
+        val trackGroups = helper.getTrackGroups(0)
+
+        val drmFormat = (0 until trackGroups.length).firstNotNullOfOrNull { i ->
+            (0 until trackGroups[i].length).map { j -> trackGroups[i].getFormat(j) }
+                .firstOrNull { it.drmInitData != null }
+        } ?: return null
+
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setUserAgent(Util.getUserAgent(context, "TPStreams Player"))
+            .setDefaultRequestProperties(drmConfig.licenseRequestHeaders)
+
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+
+        return OfflineLicenseHelper.newWidevineInstance(
+            licenseUri,
+            false,
+            dataSourceFactory,
+            DrmSessionEventListener.EventDispatcher()
+        ).run {
+            try {
+                val keySetId = downloadLicense(drmFormat)
+                val licenseData = licenseUri.toByteArray(Charsets.UTF_8)
+                Log.d(TAG, "DRM download started with the KeySetId: ${keySetId?.contentToString()}")
+                
+                DownloadRequest.Builder(baseRequest.id, baseRequest.uri)
+                    .setMimeType(baseRequest.mimeType)
+                    .setStreamKeys(baseRequest.streamKeys)
+                    .setKeySetId(keySetId)
+                    .setData(licenseData)
+                    .setData(baseRequest.data)
+                    .build()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to handle DRM content: ${e.message}", e)
+                null
+            } finally {
+                release()
+            }
+        }
     }
     
     @Synchronized
