@@ -205,17 +205,25 @@ private constructor(
                 val request = matchingDownload.request
                 val builder = request.toMediaItem().buildUpon()
 
-                if (request.keySetId != null && request.data != null) {
+                if (request.keySetId != null && request.data.isNotEmpty()) {
                     val licenseUri = String(request.data, Charsets.UTF_8)
-                    Log.d("TPStreamsPlayer", "Applying DRM configuration for $assetId")
+                    if (licenseUri.isNotEmpty()) {
+                        Log.d("TPStreamsPlayer", "Applying DRM configuration for $assetId")
 
-                    val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                        .setLicenseUri(licenseUri)
-                        .setKeySetId(request.keySetId)
-                        .setMultiSession(false)
-                        .build()
+                        val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                            .setLicenseUri(licenseUri)
+                            .setKeySetId(request.keySetId)
+                            .setMultiSession(false)
+                            .build()
 
-                    builder.setDrmConfiguration(drmConfig)
+                        builder.setDrmConfiguration(drmConfig)
+                    } else {
+                        Log.e("TPStreamsPlayer", "Empty DRM license URI data for $assetId, skipping playback")
+                        return false
+                    }
+                } else if (request.keySetId != null) {
+                    Log.e("TPStreamsPlayer", "Missing DRM license URI data for $assetId, skipping playback")
+                    return false
                 }
 
                 val downloadedMediaItem = builder.build()

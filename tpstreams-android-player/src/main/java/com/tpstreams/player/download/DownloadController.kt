@@ -306,15 +306,13 @@ object DownloadController {
         ).run {
             try {
                 val keySetId = downloadLicense(drmFormat)
-                val licenseData = licenseUri.toByteArray(Charsets.UTF_8)
                 Log.d(TAG, "DRM download started with the KeySetId: ${keySetId?.contentToString()}")
                 
                 DownloadRequest.Builder(baseRequest.id, baseRequest.uri)
                     .setMimeType(baseRequest.mimeType)
                     .setStreamKeys(baseRequest.streamKeys)
                     .setKeySetId(keySetId)
-                    .setData(licenseData)
-                    .setData(baseRequest.data)
+                    .setData(licenseUri.toByteArray(Charsets.UTF_8))
                     .build()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to handle DRM content: ${e.message}", e)
