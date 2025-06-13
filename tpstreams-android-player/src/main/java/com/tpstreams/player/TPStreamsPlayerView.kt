@@ -1,26 +1,13 @@
 package com.tpstreams.player
 
 import android.content.Context
-import android.content.pm.ActivityInfo
 import android.content.res.Configuration
-import android.graphics.Color
-import android.os.Build
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
-import android.view.ViewGroup
-import androidx.activity.ComponentActivity
-import androidx.activity.OnBackPressedCallback
-import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.LifecycleOwner
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.common.MediaItem
 import androidx.media3.ui.PlayerView
-import androidx.media3.exoplayer.offline.Download
-import com.tpstreams.player.download.DownloadPermissionHandler
-import com.tpstreams.player.download.DownloadTracker
-import java.util.Locale
 
 @UnstableApi
 class TPStreamsPlayerView @JvmOverloads constructor(
@@ -35,22 +22,83 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     CaptionsBottomSheet.CaptionsOptionsListener,
     DownloadOptionsBottomSheet.DownloadSelectionListener {
 
-    private var playerControlView: TPStreamsPlayerControlView? = null
+    // Controllers
+    private val fullscreenMode = FullscreenMode(this)
+    private val downloadActions = DownloadActions(this)
+    private val settingsPanel = SettingsPanel(this)
+    private val captions = Captions(this)
+    private val contextAccess = ContextAccess(this)
     
-    // Fullscreen related variables
-    private var isFullscreen = false
-    private var originalParent: ViewGroup? = null
-    private var originalLayoutParams: ViewGroup.LayoutParams? = null
-    private var backCallback: OnBackPressedCallback? = null
+    private var playerControlView: TPStreamsPlayerControlView? = null
     private var orientationEventListener: OrientationListener? = null
     private var autoFullscreenEnabled = false
+    var lifecycleManager: PlayerLifecycleManager? = null
     
-    // Lifecycle management
-    private var lifecycleManager: PlayerLifecycleManager? = null
+    // Bottom sheets
+    val settingsBottomSheet: PlayerSettingsBottomSheet by lazy {
+        PlayerSettingsBottomSheet().apply {
+            setSettingsListener(this@TPStreamsPlayerView)
+        }
+    }
     
+    val qualityOptionsBottomSheet: QualityOptionsBottomSheet by lazy {
+        QualityOptionsBottomSheet().apply {
+            setQualityOptionsListener(this@TPStreamsPlayerView)
+            setCurrentQuality(settingsPanel.getCurrentQuality())
+        }
+    }
+    
+    val advancedResolutionBottomSheet: AdvancedResolutionBottomSheet by lazy {
+        AdvancedResolutionBottomSheet().apply {
+            setResolutionSelectionListener(this@TPStreamsPlayerView)
+            setSelectedResolution(settingsPanel.getCurrentQuality())
+        }
+    }
+    
+    val playbackSpeedBottomSheet: PlaybackSpeedBottomSheet by lazy {
+        PlaybackSpeedBottomSheet().apply {
+            setPlaybackSpeedListener(this@TPStreamsPlayerView)
+            setCurrentSpeed(settingsPanel.getPlaybackSpeed())
+        }
+    }
+    
+    val captionsBottomSheet: CaptionsBottomSheet by lazy {
+        CaptionsBottomSheet().apply {
+            setCaptionsOptionsListener(this@TPStreamsPlayerView)
+            setCurrentLanguage(captions.getCurrentCaptionLanguage())
+        }
+    }
+    
+    val downloadOptionsBottomSheet: DownloadOptionsBottomSheet by lazy {
+        DownloadOptionsBottomSheet().apply {
+            setDownloadSelectionListener(this@TPStreamsPlayerView)
+        }
+    }
+    
+    val downloadActionBottomSheet: DownloadActionBottomSheet by lazy {
+        DownloadActionBottomSheet().apply {
+            setDownloadActionListener(object : DownloadActionBottomSheet.DownloadActionListener {
+                override fun onDeleteDownloadConfirmed() {
+                    downloadActions.deleteCurrentDownload()
+                }
+                
+                override fun onPauseDownloadConfirmed() {
+                    downloadActions.pauseCurrentDownload()
+                }
+                
+                override fun onResumeDownloadConfirmed() {
+                    downloadActions.resumeCurrentDownload()
+                }
+                
+                override fun onCancelDownloadConfirmed() {
+                    downloadActions.deleteCurrentDownload()
+                }
+            })
+        }
+    }
+
     init {
         onFinishInflate()
-        // Automatically register with lifecycle when created
         post {
             registerWithLifecycle()
         }
@@ -64,80 +112,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
 
-    private val settingsBottomSheet: PlayerSettingsBottomSheet by lazy {
-        PlayerSettingsBottomSheet().apply {
-            setSettingsListener(this@TPStreamsPlayerView)
-        }
-    }
-    
-    private val qualityOptionsBottomSheet: QualityOptionsBottomSheet by lazy {
-        QualityOptionsBottomSheet().apply {
-            setQualityOptionsListener(this@TPStreamsPlayerView)
-            setCurrentQuality(currentQuality)
-        }
-    }
-    
-    private val advancedResolutionBottomSheet: AdvancedResolutionBottomSheet by lazy {
-        AdvancedResolutionBottomSheet().apply {
-            setResolutionSelectionListener(this@TPStreamsPlayerView)
-            setSelectedResolution(currentQuality)
-        }
-    }
-    
-    private val playbackSpeedBottomSheet: PlaybackSpeedBottomSheet by lazy {
-        PlaybackSpeedBottomSheet().apply {
-            setPlaybackSpeedListener(this@TPStreamsPlayerView)
-            setCurrentSpeed(currentPlaybackSpeed)
-        }
-    }
-    
-    private val captionsBottomSheet: CaptionsBottomSheet by lazy {
-        CaptionsBottomSheet().apply {
-            setCaptionsOptionsListener(this@TPStreamsPlayerView)
-            setCurrentLanguage(currentCaptionLanguage)
-        }
-    }
-    
-    private val downloadOptionsBottomSheet: DownloadOptionsBottomSheet by lazy {
-        DownloadOptionsBottomSheet().apply {
-            setDownloadSelectionListener(this@TPStreamsPlayerView)
-            setAvailableResolutions(availableResolutions)
-        }
-    }
-    
-    private val downloadActionBottomSheet: DownloadActionBottomSheet by lazy {
-        DownloadActionBottomSheet().apply {
-            setDownloadActionListener(object : DownloadActionBottomSheet.DownloadActionListener {
-                override fun onDeleteDownloadConfirmed() {
-                    deleteCurrentDownload()
-                }
-                
-                override fun onPauseDownloadConfirmed() {
-                    pauseCurrentDownload()
-                }
-                
-                override fun onResumeDownloadConfirmed() {
-                    resumeCurrentDownload()
-                }
-                
-                override fun onCancelDownloadConfirmed() {
-                    deleteCurrentDownload()
-                }
-            })
-        }
-    }
-    
-    // Current quality setting, updated when user changes quality
-    private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
-    private var availableResolutions: List<String> = emptyList()
-    
-    // Current playback speed, updated when user changes speed
-    private var currentPlaybackSpeed: Float = 1.0f
-    
-    // Captions state
-    private var currentCaptionLanguage: String? = null
-    private var availableCaptions: List<Pair<String, String>> = emptyList()
-
     override fun onFinishInflate() {
         super.onFinishInflate()
         playerControlView = findViewById(androidx.media3.ui.R.id.exo_controller) as? TPStreamsPlayerControlView
@@ -149,7 +123,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     private fun setupSettingsButton() {
         playerControlView?.setOnSettingsClickListener {
-            showSettings()
+            settingsPanel.showSettings()
         }
     }
     
@@ -159,118 +133,61 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
     
-    /**
-     * Set the state of the fullscreen button
-     */
     override fun setFullscreenButtonState(isFullscreen: Boolean) {
         playerControlView?.setFullscreenState(isFullscreen)
     }
     
     fun toggleFullscreen() {
-        if (!isFullscreen) enterFullscreen() else exitFullscreen()
+        if (!fullscreenMode.isInFullscreenMode()) fullscreenMode.enterFullscreen() else fullscreenMode.exitFullscreen()
     }
 
-    fun enterFullscreen() {
-        val activity = getActivity() as? ComponentActivity ?: return
-        if (isFullscreen) return
-    
-        lifecycleManager?.preservePlaybackStateAcrossTransition {
-            moveToDecorView(activity)
-            switchToLandscape(activity)
-            hideSystemUI(activity)
-            updateFullscreenState()
-            registerBackPressHandler(activity)
-        }
+    fun showFullscreenButton() {
+        playerControlView?.findViewById<View>(androidx.media3.ui.R.id.exo_fullscreen)?.visibility = View.VISIBLE
     }
-    
-    private fun moveToDecorView(activity: ComponentActivity) {
-        val decorView = activity.window.decorView as ViewGroup
-    
-        originalParent = this.parent as? ViewGroup
-        originalLayoutParams = this.layoutParams
-    
-        originalParent?.removeView(this)
-        setBackgroundColor(Color.BLACK)
-    
-        decorView.addView(
-            this,
-            ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-    }
-    
-    private fun switchToLandscape(activity: ComponentActivity) {
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-    }
-    
-    private fun updateFullscreenState() {
-        isFullscreen = true
-        setFullscreenButtonState(true)
-    }
-    
-    private fun registerBackPressHandler(activity: ComponentActivity) {
-        backCallback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (isFullscreen) {
-                    exitFullscreen()
-                } else {
-                    isEnabled = false
-                    activity.onBackPressedDispatcher.onBackPressed()
+
+    fun enableAutoFullscreenOnRotate() {
+        disableAutoFullscreenOnRotate()
+        
+        orientationEventListener = OrientationListener(context).apply {
+            setOnChangeListener { isLandscape ->
+                post {
+                    if (isLandscape) {
+                        if (!fullscreenMode.isInFullscreenMode()) {
+                            fullscreenMode.enterFullscreen()
+                        }
+                    } else {
+                        if (fullscreenMode.isInFullscreenMode()) {
+                            fullscreenMode.exitFullscreen()
+                        }
+                    }
                 }
             }
+            start()
         }
-        activity.onBackPressedDispatcher.addCallback(activity, backCallback!!)
+        
+        autoFullscreenEnabled = true
     }
 
-    fun exitFullscreen() {
-        val activity = getActivity() as? ComponentActivity ?: return
-        if (!isFullscreen) return
+    fun disableAutoFullscreenOnRotate() {
+        orientationEventListener?.stop()
+        orientationEventListener = null
+        autoFullscreenEnabled = false
+    }
 
-        lifecycleManager?.preservePlaybackStateAcrossTransition {
-            restoreOriginalView(activity)
-            switchToPortrait(activity)
-            showSystemUI(activity)
-            clearBackPressHandler()
-            updateFullscreenState(exiting = true)
+    private fun registerWithLifecycle() {
+        val lifecycleOwner = contextAccess.getLifecycleOwner()
+        if (lifecycleOwner != null && lifecycleManager != null) {
+            Log.d(TAG, "Registering with lifecycle")
+            lifecycleOwner.lifecycle.addObserver(lifecycleManager!!)
         }
     }
-
-    private fun restoreOriginalView(activity: ComponentActivity) {
-        val decorView = activity.window.decorView as ViewGroup
-        decorView.removeView(this)
-        originalParent?.addView(this, originalLayoutParams)
-    }
-
-    private fun switchToPortrait(activity: ComponentActivity) {
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-    }
-
-    private fun clearBackPressHandler() {
-        backCallback?.remove()
-        backCallback = null
-    }
-
-    private fun updateFullscreenState(exiting: Boolean) {
-        isFullscreen = !exiting
-        setFullscreenButtonState(!exiting)
-    }
-
     
-    private fun hideSystemUI(activity: ComponentActivity) {
-        activity.window.decorView.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_FULLSCREEN
-    }
-
-    private fun showSystemUI(activity: ComponentActivity) {
-        activity.window.decorView.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+    private fun unregisterFromLifecycle() {
+        val lifecycleOwner = contextAccess.getLifecycleOwner()
+        if (lifecycleOwner != null && lifecycleManager != null) {
+            Log.d(TAG, "Unregistering from lifecycle")
+            lifecycleOwner.lifecycle.removeObserver(lifecycleManager!!)
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -284,15 +201,14 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 when (newConfig.orientation) {
                     Configuration.ORIENTATION_LANDSCAPE -> {
                         setFullscreenButtonState(true)
-                        enterFullscreen()
+                        fullscreenMode.enterFullscreen()
                     }
                     Configuration.ORIENTATION_PORTRAIT -> {
                         setFullscreenButtonState(false)
-                        exitFullscreen()
+                        fullscreenMode.exitFullscreen()
                     }
                 }
                 
-                // After orientation change, restore previous playing state
                 post {
                     if (wasPlayingBefore && player?.isPlaying == false) {
                         player?.play()
@@ -305,265 +221,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Show the settings bottom sheet
-     */
-    fun showSettings() {
-        val activity = getActivity()
-        if (activity != null && !settingsBottomSheet.isAdded) {
-            settingsBottomSheet.show(activity.supportFragmentManager)
-        }
-    }
-    
-    /**
-     * Update available resolutions based on the current video tracks
-     */
-    fun updateAvailableResolutions() {
-        val TPSPlayer = player as? TPStreamsPlayer ?: return
-        val availableHeights = TPSPlayer.getAvailableVideoResolutions()
-        val resolutionStrings = availableHeights.map { "${it}p" }
-        setAvailableResolutions(resolutionStrings)
-    }
-    
-    /**
-     * Set available resolutions for the current video
-     */
-    fun setAvailableResolutions(resolutions: List<String>) {
-        this.availableResolutions = resolutions
-        advancedResolutionBottomSheet.setAvailableResolutions(resolutions)
-    }
-    
-    /**
-     * Set the current quality
-     */
-    fun setCurrentQuality(quality: String) {
-        this.currentQuality = quality
-        qualityOptionsBottomSheet.setCurrentQuality(quality)
-        advancedResolutionBottomSheet.setSelectedResolution(quality)
-    }
-    
-    /**
-     * Set the current playback speed
-     */
-    fun setPlaybackSpeed(speed: Float) {
-        this.currentPlaybackSpeed = speed
-        playbackSpeedBottomSheet.setCurrentSpeed(speed)
-        player?.setPlaybackSpeed(speed)
-    }
-    
-    /**
-     * Get the current playback speed
-     */
-    override fun getPlaybackSpeed(): Float {
-        // Get the actual current speed from the player
-        val player = player
-        return if (player != null) {
-            player.playbackParameters.speed
-        } else {
-            currentPlaybackSpeed
-        }
-    }
-    
-    private fun getActivity(): FragmentActivity? {
-        var ctx = context
-        while (ctx is Context) {
-            if (ctx is FragmentActivity) {
-                return ctx
-            }
-            if (ctx is android.content.ContextWrapper) {
-                ctx = ctx.baseContext
-            } else {
-                break
-            }
-        }
-        return null
-    }
-
-    // Implementation of PlayerSettingsBottomSheet.SettingsListener
-    override fun onQualitySelected() {
-        val activity = getActivity() ?: return
-        qualityOptionsBottomSheet.show(activity.supportFragmentManager)
-    }
-
-    override fun onCaptionsSelected() {
-        val activity = getActivity() ?: return
-        updateAvailableCaptions()
-        captionsBottomSheet.show(activity.supportFragmentManager)
-    }
-
-    override fun onPlaybackSpeedSelected() {
-        val activity = getActivity() ?: return
-        playbackSpeedBottomSheet.show(activity.supportFragmentManager)
-    }
-    
-    override fun onDownloadSelected() {
-        val tpsPlayer = player as? TPStreamsPlayer ?: return
-        val mediaItem = tpsPlayer.currentMediaItem ?: return
-        val uri = mediaItem.localConfiguration?.uri ?: return
-        
-        val activity = getActivity() ?: return
-        val downloadTracker = DownloadTracker.getInstance(context)
-        
-        if (uri != null) {
-            when {
-                downloadTracker.isDownloaded(uri) -> {
-                    downloadActionBottomSheet.setDownloadUri(uri)
-                    downloadActionBottomSheet.setDownloadState(Download.STATE_COMPLETED)
-                    downloadActionBottomSheet.show(activity.supportFragmentManager)
-                }
-                downloadTracker.isDownloading(uri) -> {
-                    downloadActionBottomSheet.setDownloadUri(uri)
-                    downloadActionBottomSheet.setDownloadState(Download.STATE_DOWNLOADING)
-                    downloadActionBottomSheet.show(activity.supportFragmentManager)
-                }
-                downloadTracker.isPaused(uri) -> {
-                    downloadActionBottomSheet.setDownloadUri(uri)
-                    downloadActionBottomSheet.setDownloadState(Download.STATE_STOPPED)
-                    downloadActionBottomSheet.show(activity.supportFragmentManager)
-                }
-                else -> {
-                    downloadOptionsBottomSheet.setDownloadSelectionListener(this)
-                    
-                    // Get available resolutions
-                    val availableHeights = tpsPlayer.getAvailableVideoResolutions()
-                    val resolutionStrings = availableHeights.map { "${it}p" }
-                    downloadOptionsBottomSheet.setAvailableResolutions(resolutionStrings)
-                    downloadOptionsBottomSheet.setMediaItem(mediaItem, tpsPlayer.duration)
-                    downloadOptionsBottomSheet.show(activity.supportFragmentManager)
-                    
-                    val trackBitrates = tpsPlayer.getVideoTrackBitrates()
-                    downloadOptionsBottomSheet.setTrackBitrates(trackBitrates)
-                }
-            }
-        }
-    }
-    
-    private fun deleteCurrentDownload() {
-        val tpsPlayer = player as? TPStreamsPlayer ?: return
-        val mediaItem = tpsPlayer.currentMediaItem ?: return
-        val uri = mediaItem.localConfiguration?.uri ?: return
-        
-        DownloadTracker.getInstance(context).removeDownload(uri)
-    }
-    
-    private fun pauseCurrentDownload() {
-        val tpsPlayer = player as? TPStreamsPlayer ?: return
-        val mediaItem = tpsPlayer.currentMediaItem ?: return
-        val uri = mediaItem.localConfiguration?.uri ?: return
-        
-        DownloadTracker.getInstance(context).pauseDownload(uri)
-    }
-    
-    private fun resumeCurrentDownload() {
-        val tpsPlayer = player as? TPStreamsPlayer ?: return
-        val mediaItem = tpsPlayer.currentMediaItem ?: return
-        val uri = mediaItem.localConfiguration?.uri ?: return
-        
-        DownloadTracker.getInstance(context).resumeDownload(uri)
-    }
-    
-    override fun getCurrentQuality(): String {
-        return currentQuality
-    }
-    
-    override fun getCurrentCaptionStatus(): String {
-        val TPSPlayer = player as? TPStreamsPlayer
-        val activeTrack = TPSPlayer?.getActiveTextTrack()
-        
-        if (activeTrack != null) {
-            return getLanguageName(activeTrack.first)
-        }
-
-        return if (currentCaptionLanguage == null) {
-            "Off"
-        } else {
-            getLanguageName(currentCaptionLanguage!!)
-        }
-    }
-    
-    /**
-     * Convert ISO language code to full language name using Java Locale
-     */
-    private fun getLanguageName(languageCode: String): String {
-        try {
-            val locale = Locale(languageCode)
-            val displayLanguage = locale.getDisplayLanguage(Locale.ENGLISH)
-            
-            if (displayLanguage.equals(languageCode, ignoreCase = true) || displayLanguage.isEmpty()) {
-                return languageCode.replaceFirstChar { it.uppercase() }
-            }
-            
-            return displayLanguage
-        } catch (e: Exception) {
-            Log.e("TPStreamsPlayerView", "Error getting language name for $languageCode", e)
-            return languageCode.replaceFirstChar { it.uppercase() }
-        }
-    }
-    
-    // Implementation of QualityOptionsBottomSheet.QualityOptionsListener
-    override fun onAutoQualitySelected() {
-        setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
-    
-        // Let the trackSelector handle it automatically (no constraints)
-        val player = player as? TPStreamsPlayer
-        val params = player?.getTrackSelector()?.buildUponParameters()
-            ?.clearVideoSizeConstraints()
-            ?.build()
-        if (params != null) player.getTrackSelector().parameters = params
-    }
-    
-    override fun onHigherQualitySelected() {
-        setCurrentQuality(QualityOptionsBottomSheet.QUALITY_HIGHER)
-        
-        // Get the highest available resolution
-        val highestResolution = availableResolutions.firstOrNull()?.dropLast(1)?.toIntOrNull()
-        if (highestResolution != null) {
-            (player as? TPStreamsPlayer)?.setVideoResolution(highestResolution)
-        } else {
-            onAutoQualitySelected()
-        }
-    }
-    
-    override fun onDataSaverSelected() {
-        setCurrentQuality(QualityOptionsBottomSheet.QUALITY_DATA_SAVER)
-        
-        // Get the lowest available resolution
-        val lowestResolution = availableResolutions.lastOrNull()?.dropLast(1)?.toIntOrNull()
-        if (lowestResolution != null) {
-            (player as? TPStreamsPlayer)?.setVideoResolution(lowestResolution)
-        } else {
-            onAutoQualitySelected()
-        }
-    }
-    
-    override fun onAdvancedSelected() {
-        val activity = getActivity() ?: return
-        advancedResolutionBottomSheet.show(activity.supportFragmentManager)
-    }
-    
-    // Implementation of AdvancedResolutionBottomSheet.ResolutionSelectionListener
-    override fun onResolutionSelected(resolution: String) {
-        setCurrentQuality(resolution)
-    
-        val height = resolution.dropLast(1).toIntOrNull()
-        if (height != null) {
-            (player as? TPStreamsPlayer)?.setVideoResolution(height)
-        }
-    }
-    
-    // Implementation of PlaybackSpeedBottomSheet.PlaybackSpeedListener
-    override fun onSpeedSelected(speed: Float) {
-        setPlaybackSpeed(speed)
-    }
-
     override fun setPlayer(player: Player?) {
         super.setPlayer(player)
         
-        // Create new lifecycle manager for the player
         lifecycleManager = player?.let { PlayerLifecycleManager(it) }
         registerWithLifecycle()
         
-        // Listen for player events
         player?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 lifecycleManager?.onPlaybackStateChanged(isPlaying)
@@ -571,221 +234,65 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         })
         
         if (player is TPStreamsPlayer) {
-            // Add a listener to update resolutions and captions when tracks become available
             player.addListener(object : Player.Listener {
                 override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                    updateAvailableResolutions()
-                    updateAvailableCaptions()
+                    settingsPanel.updateAvailableResolutions()
+                    captions.updateAvailableCaptions()
                 }
                 
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_READY) {
-                        updateAvailableCaptions()
+                        captions.updateAvailableCaptions()
                     }
                 }
             })
             
-            updateAvailableCaptions()
+            captions.updateAvailableCaptions()
         }
     }
 
-    /**
-     * Update available captions based on the current video tracks
-     */
-    fun updateAvailableCaptions() {
-        val TPSPlayer = player as? TPStreamsPlayer ?: return
-        
-        val textTracks = TPSPlayer.getAvailableTextTracks()
-        
-        if (textTracks.isNotEmpty()) {
-            availableCaptions = textTracks
-            captionsBottomSheet.setAvailableCaptions(textTracks)
-            
-            val activeTrack = TPSPlayer.getActiveTextTrack()
-            if (activeTrack != null) {
-                currentCaptionLanguage = activeTrack.first
-                captionsBottomSheet.setCurrentLanguage(activeTrack.first)
-            }
-        } else {
-            availableCaptions = emptyList()
-            captionsBottomSheet.setAvailableCaptions(emptyList())
-        }
-    }
-    
-    /**
-     * Set the current caption language
-     */
-    fun setCurrentCaptionLanguage(language: String?) {
-        if (this.currentCaptionLanguage == language) {
-            return
-        }
-        
-        this.currentCaptionLanguage = language
-        captionsBottomSheet.setCurrentLanguage(language)
-        
-        (player as? TPStreamsPlayer)?.setTextTrackByLanguage(language)
-        
-        val activity = getActivity()
-        if (activity != null && settingsBottomSheet.isAdded) {
-            settingsBottomSheet.dismiss()
-            settingsBottomSheet.show(activity.supportFragmentManager)
-        }
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        unregisterFromLifecycle()
+        disableAutoFullscreenOnRotate()
     }
 
-    override fun onCaptionsDisabled() {
-        setCurrentCaptionLanguage(null)
-    }
-    
-    override fun onCaptionLanguageSelected(language: String) {
-        setCurrentCaptionLanguage(language)
-    }
-    
-    override fun getCurrentCaptionLanguage(): String? {
-        return currentCaptionLanguage
-    }
+    // Implementation of PlayerSettingsBottomSheet.SettingsListener
+    override fun onQualitySelected() = settingsPanel.showQualityOptionsBottomSheet()
+    override fun onCaptionsSelected() = captions.showCaptionsBottomSheet()
+    override fun onPlaybackSpeedSelected() = settingsPanel.showPlaybackSpeedBottomSheet()
+    override fun onDownloadSelected() = downloadActions.onDownloadSelected()
+    override fun getCurrentQuality() = settingsPanel.getCurrentQuality()
+    override fun getCurrentCaptionStatus() = captions.getCurrentCaptionStatus()
+    override fun getPlaybackSpeed() = settingsPanel.getPlaybackSpeed()
+    override fun getCurrentDownloadStatus() = downloadActions.getCurrentDownloadStatus()
+    override fun getDownloadIcon() = downloadActions.getDownloadIcon()
+
+    // Implementation of QualityOptionsBottomSheet.QualityOptionsListener
+    override fun onAutoQualitySelected() = settingsPanel.onAutoQualitySelected()
+    override fun onHigherQualitySelected() = settingsPanel.onHigherQualitySelected()
+    override fun onDataSaverSelected() = settingsPanel.onDataSaverSelected()
+    override fun onAdvancedSelected() = settingsPanel.showAdvancedResolutionBottomSheet()
+
+    // Implementation of AdvancedResolutionBottomSheet.ResolutionSelectionListener
+    override fun onResolutionSelected(resolution: String) = settingsPanel.onResolutionSelected(resolution)
+
+    // Implementation of PlaybackSpeedBottomSheet.PlaybackSpeedListener
+    override fun onSpeedSelected(speed: Float) = settingsPanel.onSpeedSelected(speed)
+
+    // Implementation of CaptionsBottomSheet.CaptionsOptionsListener
+    override fun onCaptionsDisabled() = captions.onCaptionsDisabled()
+    override fun onCaptionLanguageSelected(language: String) = captions.onCaptionLanguageSelected(language)
+    override fun getCurrentCaptionLanguage() = captions.getCurrentCaptionLanguage()
+
+    // Implementation of DownloadOptionsBottomSheet.DownloadSelectionListener
+    override fun onDownloadResolutionSelected(resolution: String) = downloadActions.onDownloadResolutionSelected(resolution)
 
     override fun getPlayer(): TPStreamsPlayer? {
         return super.getPlayer() as? TPStreamsPlayer
     }
-    
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        
-        // Remove lifecycle observer when detached
-        unregisterFromLifecycle()
-        
-        if (!isFullscreen) {
-            backCallback?.remove()
-            backCallback = null
-        }
-        
-        // Ensure we disable the orientation listener to prevent leaks
-        disableAutoFullscreenOnRotate()
-    }
 
-    /**
-     * Make sure the fullscreen button is visible
-     */
-    fun showFullscreenButton() {
-        playerControlView?.findViewById<View>(androidx.media3.ui.R.id.exo_fullscreen)?.visibility = View.VISIBLE
-    }
-
-    /**
-     * Enable auto fullscreen on device rotation
-     */
-    fun enableAutoFullscreenOnRotate() {
-        // Stop any existing listener first
-        disableAutoFullscreenOnRotate()
-        
-        // Create and start a new listener
-        orientationEventListener = OrientationListener(context).apply {
-            setOnChangeListener { isLandscape ->
-                post {
-                    if (isLandscape) {
-                        if (!isFullscreen) {
-                            enterFullscreen()
-                        }
-                    } else {
-                        if (isFullscreen) {
-                            exitFullscreen()
-                        }
-                    }
-                }
-            }
-            start()
-        }
-        
-        autoFullscreenEnabled = true
-    }
-
-    /**
-     * Disable auto fullscreen on device rotation
-     */
-    fun disableAutoFullscreenOnRotate() {
-        orientationEventListener?.stop()
-        orientationEventListener = null
-        autoFullscreenEnabled = false
-    }
-
-    private fun getLifecycleOwner(): LifecycleOwner? {
-        val activity = getActivity()
-        return when {
-            activity is LifecycleOwner -> activity
-            else -> null
-        }
-    }
-    
-    private fun registerWithLifecycle() {
-        val lifecycleOwner = getLifecycleOwner()
-        if (lifecycleOwner != null && lifecycleManager != null) {
-            Log.d("TPStreamsPlayerView", "Registering with lifecycle")
-            lifecycleOwner.lifecycle.addObserver(lifecycleManager!!)
-        }
-    }
-    
-    private fun unregisterFromLifecycle() {
-        val lifecycleOwner = getLifecycleOwner()
-        if (lifecycleOwner != null && lifecycleManager != null) {
-            Log.d("TPStreamsPlayerView", "Unregistering from lifecycle")
-            lifecycleOwner.lifecycle.removeObserver(lifecycleManager!!)
-        }
-    }
-
-    // Implementation of DownloadOptionsBottomSheet.DownloadSelectionListener
-    override fun onDownloadResolutionSelected(resolution: String) {
-        Log.d(TAG, "Download requested for resolution: $resolution")
-        
-        val tpsPlayer = player as? TPStreamsPlayer ?: return
-        val mediaItem = tpsPlayer.currentMediaItem ?: return
-        
-        val activity = getActivity()
-        if (activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (!DownloadPermissionHandler.hasNotificationPermission(context)) {
-                DownloadPermissionHandler.requestNotificationPermission(activity)
-                return
-            }
-        }
-        startDownload(mediaItem, resolution)
-    }
-    
-    private fun startDownload(mediaItem: MediaItem, resolution: String) {
-        val downloadTracker = DownloadTracker.getInstance(context)
-        downloadTracker.startDownload(mediaItem, resolution)
-        
-        android.widget.Toast.makeText(
-            context,
-            "Starting download for $resolution",
-            android.widget.Toast.LENGTH_SHORT
-        ).show()
-    }
-
-    override fun getCurrentDownloadStatus(): String {
-        val tpsPlayer = player as? TPStreamsPlayer ?: return "Download"
-        val mediaItem = tpsPlayer.currentMediaItem ?: return "Download"
-        val uri = mediaItem.localConfiguration?.uri ?: return "Download"
-        
-        val downloadTracker = DownloadTracker.getInstance(context)
-        return when {
-            downloadTracker.isDownloaded(uri) -> "Downloaded"
-            downloadTracker.isDownloading(uri) -> "Downloading"
-            downloadTracker.isPaused(uri) -> "Paused"
-            else -> "Download"
-        }
-    }
-    
-    override fun getDownloadIcon(): Int {
-        val tpsPlayer = player as? TPStreamsPlayer ?: return R.drawable.ic_download
-        val mediaItem = tpsPlayer.currentMediaItem ?: return R.drawable.ic_download
-        val uri = mediaItem.localConfiguration?.uri ?: return R.drawable.ic_download
-        
-        val downloadTracker = DownloadTracker.getInstance(context)
-        return when {
-            downloadTracker.isDownloaded(uri) -> R.drawable.ic_download_done
-            downloadTracker.isDownloading(uri) -> R.drawable.ic_download_progress
-            downloadTracker.isPaused(uri) -> R.drawable.ic_download_progress
-            else -> R.drawable.ic_download
-        }
-    }
+    fun getActivity() = contextAccess.getActivity()
 
     companion object {
         private const val TAG = "TPStreamsPlayerView"
