@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_bottom_sheet"
+    android:paddingBottom="24dp">
+
+    <!-- Drag handle -->
+    <View
+        android:layout_width="32dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="16dp"
+        android:background="#CCCCCC" />
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/title_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/download_status_title"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#212121"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Message -->
+    <TextView
+        android:id="@+id/message_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/download_status_message"
+        android:textSize="14sp"
+        android:textColor="#757575"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Downloaded state layout -->
+    <LinearLayout
+        android:id="@+id/downloaded_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+        
+        <!-- Delete button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/delete_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:text="@string/delete"
+            android:textColor="#FFFFFF"
+            app:backgroundTint="#F44336" />
+    </LinearLayout>
+
+    <!-- Downloading state layout -->
+    <LinearLayout
+        android:id="@+id/downloading_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp">
+        
+        <!-- Pause/Resume button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/pause_resume_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:text="@string/pause_download"
+            android:textColor="#FFFFFF"
+            app:backgroundTint="#2196F3" />
+        
+        <!-- Cancel button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/cancel_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="@string/cancel_download"
+            android:textColor="#FFFFFF"
+            app:backgroundTint="#F44336" />
+    </LinearLayout>
+
+</LinearLayout> 

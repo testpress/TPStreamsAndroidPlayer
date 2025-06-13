@@ -19,6 +19,26 @@
     <!-- Advanced resolution screen -->
     <string name="select_video_quality">Select video quality</string>
     
+    <!-- Download options -->
+    <string name="select_download_quality">Select download quality</string>
+    <string name="download">Download</string>
+    <string name="download_button">DOWNLOAD</string>
+    <string name="download_size">Size: %1$s</string>
+    <string name="download_notification_channel_name">Downloads</string>
+    <string name="download_notification_channel_description">Video download notifications</string>
+    <string name="delete_download_title">Delete Download</string>
+    <string name="delete_download_message">Are you sure you want to delete this downloaded video?</string>
+    <string name="delete">DELETE</string>
+    <string name="downloading_title">Downloading</string>
+    <string name="downloading_message">Your video is currently downloading</string>
+    <string name="paused_download_title">Download Paused</string>
+    <string name="paused_download_message">Your download has been paused</string>
+    <string name="download_status_title">Download Status</string>
+    <string name="download_status_message">Manage your download</string>
+    <string name="pause_download">PAUSE</string>
+    <string name="resume_download">RESUME</string>
+    <string name="cancel_download">CANCEL</string>
+    
     <!-- Playback speed -->
     <string name="playback_speed">Playback speed</string>
     <string name="playback_speed_normal">Normal</string>

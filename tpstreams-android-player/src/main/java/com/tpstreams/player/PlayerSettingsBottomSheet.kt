@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.FragmentManager
@@ -20,9 +21,12 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         fun onQualitySelected()
         fun onCaptionsSelected()
         fun onPlaybackSpeedSelected()
+        fun onDownloadSelected()
         fun getCurrentQuality(): String
         fun getCurrentCaptionStatus(): String
         fun getPlaybackSpeed(): Float
+        fun getCurrentDownloadStatus(): String
+        fun getDownloadIcon(): Int
     }
 
     private var listener: SettingsListener? = null
@@ -62,42 +66,48 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        Log.d(TAG, "Setting up click listeners")
+        val qualityItem = view.findViewById<LinearLayout>(R.id.quality_item)
+        val captionsItem = view.findViewById<LinearLayout>(R.id.captions_item)
+        val playbackSpeedItem = view.findViewById<LinearLayout>(R.id.playback_speed_item)
+        val downloadItem = view.findViewById<LinearLayout>(R.id.download_item)
         
-        // Update current quality text
-        val currentQualityText = view.findViewById<TextView>(R.id.current_quality_text)
-        currentQualityText.text = listener?.getCurrentQuality() ?: "Auto"
+        val qualityValue = view.findViewById<TextView>(R.id.quality_value)
+        val captionsValue = view.findViewById<TextView>(R.id.captions_value)
+        val playbackSpeedValue = view.findViewById<TextView>(R.id.playback_speed_value)
+        val downloadIcon = view.findViewById<ImageView>(R.id.download_icon)
+        val downloadText = view.findViewById<TextView>(R.id.download_text)
         
-        // Update current caption text
-        val currentCaptionText = view.findViewById<TextView>(R.id.current_caption_text)
-        currentCaptionText.text = listener?.getCurrentCaptionStatus() ?: "Off"
+        // Update values from listener
+        listener?.let { listener ->
+            qualityValue.text = listener.getCurrentQuality()
+            captionsValue.text = listener.getCurrentCaptionStatus()
+            playbackSpeedValue.text = getString(R.string.playback_speed_format, listener.getPlaybackSpeed())
+            
+            // Update download text and icon based on download status
+            downloadText.text = listener.getCurrentDownloadStatus()
+            downloadIcon.setImageResource(listener.getDownloadIcon())
+        }
         
-        // Update current playback speed text
-        val currentSpeedText = view.findViewById<TextView>(R.id.current_speed_text)
-        val currentSpeed = listener?.getPlaybackSpeed() ?: 1.0f
-        currentSpeedText.text = String.format("%.2fx", currentSpeed)
-        
-        view.findViewById<LinearLayout>(R.id.quality_option)?.setOnClickListener {
-            Log.d(TAG, "Quality option clicked")
-            showQualityOptions()
+        // Set click listeners
+        qualityItem.setOnClickListener {
+            listener?.onQualitySelected()
             dismiss()
         }
         
-        view.findViewById<LinearLayout>(R.id.captions_option)?.setOnClickListener {
-            Log.d(TAG, "Captions option clicked")
+        captionsItem.setOnClickListener {
             listener?.onCaptionsSelected()
             dismiss()
         }
         
-        view.findViewById<LinearLayout>(R.id.playback_speed_option)?.setOnClickListener {
-            Log.d(TAG, "Playback speed option clicked")
+        playbackSpeedItem.setOnClickListener {
             listener?.onPlaybackSpeedSelected()
             dismiss()
         }
-    }
-    
-    private fun showQualityOptions() {
-        listener?.onQualitySelected()
+        
+        downloadItem.setOnClickListener {
+            listener?.onDownloadSelected()
+            dismiss()
+        }
     }
     
     fun show(fragmentManager: FragmentManager) {
