@@ -226,11 +226,12 @@ object DownloadController {
                         if (drmRequest != null) {
                             TPSDownloadService.sendDownload(context, drmRequest, true)
                             Log.d(TAG, "DRM download started for: ${mediaItem.mediaId}, resolution: $resolution")
-                            return
                         }
+                        
+                    }else {
+                        TPSDownloadService.sendDownload(context, request, true)
+                        Log.d(TAG,"Download started for: ${mediaItem.mediaId}, resolution: $resolution")
                     }
-                    TPSDownloadService.sendDownload(context, request, true)
-                    Log.d(TAG, "Download started for: ${mediaItem.mediaId}, resolution: $resolution")
                 } finally {
                     helper.release()
                 }
