@@ -16,31 +16,6 @@
         android:layout_marginBottom="16dp"
         android:background="#CCCCCC" />
 
-    <!-- Title -->
-    <TextView
-        android:id="@+id/title_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp"
-        android:text="@string/download_status_title"
-        android:textColor="#212121"
-        android:textSize="18sp"
-        android:textStyle="bold" />
-
-    <!-- Message -->
-    <TextView
-        android:id="@+id/message_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="24dp"
-        android:text="@string/download_status_message"
-        android:textColor="#757575"
-        android:textSize="14sp" />
-
     <!-- Downloaded state layout -->
     <LinearLayout
         android:id="@+id/downloaded_layout"

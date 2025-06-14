@@ -46,21 +46,15 @@ class DownloadActionBottomSheet : BottomSheetDialogFragment() {
     private fun updateUI() {
         val view = view ?: return
         
-        val titleTextView = view.findViewById<TextView>(R.id.title_text)
-        val messageTextView = view.findViewById<TextView>(R.id.message_text)
         val downloadedLayout = view.findViewById<LinearLayout>(R.id.downloaded_layout)
         val downloadingLayout = view.findViewById<LinearLayout>(R.id.downloading_layout)
         
         when (downloadState) {
             Download.STATE_COMPLETED -> {
-                titleTextView.text = getString(R.string.delete_download_title)
-                messageTextView.text = getString(R.string.delete_download_message)
                 downloadedLayout.visibility = View.VISIBLE
                 downloadingLayout.visibility = View.GONE
             }
             Download.STATE_DOWNLOADING -> {
-                titleTextView.text = getString(R.string.downloading_title)
-                messageTextView.text = getString(R.string.downloading_message)
                 downloadedLayout.visibility = View.GONE
                 downloadingLayout.visibility = View.VISIBLE
                 
@@ -76,8 +70,6 @@ class DownloadActionBottomSheet : BottomSheetDialogFragment() {
                 }
             }
             Download.STATE_STOPPED -> {
-                titleTextView.text = getString(R.string.paused_download_title)
-                messageTextView.text = getString(R.string.paused_download_message)
                 downloadedLayout.visibility = View.GONE
                 downloadingLayout.visibility = View.VISIBLE
                 
@@ -93,8 +85,6 @@ class DownloadActionBottomSheet : BottomSheetDialogFragment() {
                 }
             }
             else -> {
-                titleTextView.text = getString(R.string.download_status_title)
-                messageTextView.text = getString(R.string.download_status_message)
                 downloadedLayout.visibility = View.GONE
                 downloadingLayout.visibility = View.VISIBLE
             }
