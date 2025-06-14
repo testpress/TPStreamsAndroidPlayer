@@ -106,7 +106,6 @@ class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
         val recyclerView = view.findViewById<RecyclerView>(R.id.download_resolutions_recycler_view)
         recyclerView.layoutManager = LinearLayoutManager(context)
         
-        downloadSizeText = view.findViewById(R.id.download_size_text)
         downloadButton = view.findViewById(R.id.download_button)
         
         adapter = DownloadResolutionAdapter(availableResolutions, selectedResolution) { resolution ->

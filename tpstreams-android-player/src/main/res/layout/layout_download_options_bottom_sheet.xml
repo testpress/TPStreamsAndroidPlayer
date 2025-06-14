@@ -37,18 +37,6 @@
         android:overScrollMode="never" />
         
     <!-- Download size -->
-    <TextView
-        android:id="@+id/download_size_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/download_size"
-        android:textSize="14sp"
-        android:textColor="#757575"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="16dp"
-        android:visibility="gone" />
 
     <!-- Download button -->
     <com.google.android.material.button.MaterialButton
