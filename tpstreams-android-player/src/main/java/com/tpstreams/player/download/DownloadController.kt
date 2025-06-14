@@ -22,8 +22,6 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.core.app.NotificationCompat
-import androidx.core.util.component1
-import androidx.core.util.component2
 import androidx.media3.exoplayer.drm.OfflineLicenseHelper
 import androidx.media3.exoplayer.drm.DrmSessionEventListener
 import com.tpstreams.player.R
@@ -206,7 +204,7 @@ object DownloadController {
     
     fun startDownload(context: Context, mediaItem: MediaItem, resolution: String) {
         Log.d(TAG, "Preparing download for: ${mediaItem.mediaId}")
-
+        
         val helper = DownloadHelper.forMediaItem(
             context,
             mediaItem,
