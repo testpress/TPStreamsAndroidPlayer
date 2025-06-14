@@ -157,7 +157,7 @@ private constructor(
                     .setMediaId(assetId)
                     .apply {
                         if (enableDrm) {
-                            val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken&download=true"
+                            val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
                             val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")
                             
                             val drmConfig = DrmConfiguration.Builder(C.WIDEVINE_UUID)
@@ -202,31 +202,11 @@ private constructor(
             if (matchingDownload != null) {
                 Log.d("TPStreamsPlayer", "Found downloaded content for $assetId, using local version")
 
-                val request = matchingDownload.request
-                val builder = request.toMediaItem().buildUpon()
-
-                if (request.keySetId != null && request.data.isNotEmpty()) {
-                    val licenseUri = String(request.data, Charsets.UTF_8)
-                    if (licenseUri.isNotEmpty()) {
-                        Log.d("TPStreamsPlayer", "Applying DRM configuration for $assetId")
-
-                        val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                            .setLicenseUri(licenseUri)
-                            .setKeySetId(request.keySetId)
-                            .setMultiSession(false)
-                            .build()
-
-                        builder.setDrmConfiguration(drmConfig)
-                    } else {
-                        Log.e("TPStreamsPlayer", "Empty DRM license URI data for $assetId, skipping playback")
-                        return false
-                    }
-                } else if (request.keySetId != null) {
-                    Log.e("TPStreamsPlayer", "Missing DRM license URI data for $assetId, skipping playback")
+                val downloadedMediaItem = DownloadController.buildMediaItemFromDownload(matchingDownload)
+                if (downloadedMediaItem == null) {
+                    Log.e("TPStreamsPlayer", "Failed to build media item from download for $assetId")
                     return false
                 }
-
-                val downloadedMediaItem = builder.build()
                 
                 CoroutineScope(Dispatchers.Main).launch {
                     exoPlayer.setMediaItem(downloadedMediaItem)

@@ -29,6 +29,8 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.ExecutorService
+import androidx.media3.common.Format
+import androidx.media3.common.C
 
 
 @UnstableApi
@@ -217,16 +219,13 @@ object DownloadController {
                 try {
                     Log.d(TAG, "Download prepared for: ${mediaItem.mediaId}")
                     val request = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
-                    val drmConfig = mediaItem.localConfiguration?.drmConfiguration
-
-                    if(drmConfig != null) {
-                        val drmRequest = handleDrmDownload(context, drmConfig, helper, request)
+                    if (isMediaItemContainsDrm(mediaItem)) {
+                        val drmRequest = mediaItem.localConfiguration?.drmConfiguration?.let {
+                            handleDrmDownload(context, it, helper, request)
+                        }
                         if (drmRequest != null) {
                             TPSDownloadService.sendDownload(context, drmRequest, true)
                             Log.d(TAG, "DRM download started for: ${mediaItem.mediaId}, resolution: $resolution")
-                            return
-                        } else {
-                            Log.e(TAG, "Failed to handle DRM license, skipping download")
                             return
                         }
                     }
@@ -280,32 +279,64 @@ object DownloadController {
         baseRequest: DownloadRequest
     ): DownloadRequest? {
         val licenseUri = drmConfig.licenseUri?.toString() ?: return null
-        Log.d(TAG, "DRM license URI: $licenseUri")
-                
-        val trackGroups = helper.getTrackGroups(0)
+        val downloadLicenseUri = "$licenseUri&download=true"
 
-        val drmFormat = (0 until trackGroups.length).firstNotNullOfOrNull { i ->
+        val drmFormat = findDrmFormat(helper) ?: return null
+        val dataSourceFactory = createDataSourceFactory(context, drmConfig)
+
+        return downloadLicenseAndBuildRequest(
+            context = context,
+            licenseUri = downloadLicenseUri,
+            drmFormat = drmFormat,
+            baseRequest = baseRequest,
+            dataSourceFactory = dataSourceFactory
+        )
+    }
+
+    fun isMediaItemContainsDrm(mediaItem: MediaItem): Boolean {
+        return mediaItem.localConfiguration?.drmConfiguration != null
+    }
+
+    private fun findDrmFormat(helper: DownloadHelper): Format? {
+        val trackGroups = helper.getTrackGroups(0)
+    
+        return (0 until trackGroups.length).firstNotNullOfOrNull { i ->
             (0 until trackGroups[i].length).map { j -> trackGroups[i].getFormat(j) }
                 .firstOrNull { it.drmInitData != null }
-        } ?: return null
+        }
+    }
 
+    private fun createDataSourceFactory(
+        context: Context,
+        drmConfig: MediaItem.DrmConfiguration
+    ): DataSource.Factory {
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setUserAgent(Util.getUserAgent(context, "TPStreams Player"))
             .setDefaultRequestProperties(drmConfig.licenseRequestHeaders)
 
-        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+        return DefaultDataSource.Factory(context, httpDataSourceFactory)
+    }
 
-        return OfflineLicenseHelper.newWidevineInstance(
+    private fun downloadLicenseAndBuildRequest(
+        context: Context,
+        licenseUri: String,
+        drmFormat: Format,
+        baseRequest: DownloadRequest,
+        dataSourceFactory: DataSource.Factory
+    ): DownloadRequest? {
+        val licenseHelper = OfflineLicenseHelper.newWidevineInstance(
             licenseUri,
             false,
             dataSourceFactory,
             DrmSessionEventListener.EventDispatcher()
-        ).run {
+        )
+
+        return licenseHelper.run {
             try {
                 val keySetId = downloadLicense(drmFormat)
-                Log.d(TAG, "DRM download started with the KeySetId: ${keySetId?.contentToString()}")
-                
+                Log.d("DRM", "DRM download started with the KeySetId: ${keySetId?.contentToString()}")
+
                 DownloadRequest.Builder(baseRequest.id, baseRequest.uri)
                     .setMimeType(baseRequest.mimeType)
                     .setStreamKeys(baseRequest.streamKeys)
@@ -313,13 +344,40 @@ object DownloadController {
                     .setData(licenseUri.toByteArray(Charsets.UTF_8))
                     .build()
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to handle DRM content: ${e.message}", e)
+                Log.e("DRM", "Failed to handle DRM content: ${e.message}", e)
                 null
             } finally {
                 release()
             }
         }
     }
+
+    fun buildMediaItemFromDownload(download: Download): MediaItem? {
+        val request = download.request
+        val builder = request.toMediaItem().buildUpon()
+    
+        val keySetId = request.keySetId
+        val licenseUri = request.data.toString(Charsets.UTF_8)
+    
+        if (keySetId != null) {
+            if (licenseUri.isEmpty()) {
+                Log.e("TPStreamsPlayer", "Missing DRM license URI for ${request.id}, skipping playback")
+                return null
+            }
+    
+            Log.d("TPStreamsPlayer", "Applying DRM configuration for ${request.id}")
+            val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                .setLicenseUri(licenseUri)
+                .setKeySetId(keySetId)
+                .setMultiSession(false)
+                .build()
+    
+            builder.setDrmConfiguration(drmConfig)
+        }
+    
+        return builder.build()
+    }
+
     
     @Synchronized
     fun releaseResources() {
