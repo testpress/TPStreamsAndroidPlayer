@@ -188,7 +188,8 @@ private constructor(
             }
         }
     }
-    
+
+    @OptIn(UnstableApi::class)
     private fun playFromDownload(assetId: String): Boolean {
         try {
             val downloadTracker = DownloadTracker.getInstance(context)
@@ -200,7 +201,12 @@ private constructor(
             
             if (matchingDownload != null) {
                 Log.d("TPStreamsPlayer", "Found downloaded content for $assetId, using local version")
-                val downloadedMediaItem = matchingDownload.request.toMediaItem()
+
+                val downloadedMediaItem = DownloadController.buildMediaItemFromDownload(matchingDownload)
+                if (downloadedMediaItem == null) {
+                    Log.e("TPStreamsPlayer", "Failed to build media item from download for $assetId")
+                    return false
+                }
                 
                 CoroutineScope(Dispatchers.Main).launch {
                     exoPlayer.setMediaItem(downloadedMediaItem)
