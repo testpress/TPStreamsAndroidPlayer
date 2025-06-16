@@ -111,9 +111,9 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         
         val downloadTracker = DownloadTracker.getInstance(view.context)
         return when {
-            downloadTracker.isDownloaded(uri) -> "Downloaded"
-            downloadTracker.isDownloading(uri) -> "Downloading"
-            downloadTracker.isPaused(uri) -> "Downloading Paused"
+            downloadTracker.isDownloaded(assetId) -> "Downloaded"
+            downloadTracker.isDownloading(assetId) -> "Downloading"
+            downloadTracker.isPaused(assetId) -> "Downloading Paused"
             else -> "Download"
         }
     }
