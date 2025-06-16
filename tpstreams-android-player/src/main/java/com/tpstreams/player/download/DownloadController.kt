@@ -218,7 +218,16 @@ object DownloadController {
             override fun onPrepared(helper: DownloadHelper) {
                 try {
                     Log.d(TAG, "Download prepared for: ${mediaItem.mediaId}")
-                    val request = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
+                    val baseRequest = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
+
+                    val request = DownloadRequest.Builder(mediaItem.mediaId, baseRequest.uri)
+                        .setMimeType(baseRequest.mimeType)
+                        .setStreamKeys(baseRequest.streamKeys)
+                        .setData(baseRequest.data)
+                        .build()
+                        
+                    Log.d(TAG, "Created download request with ID: ${request.id} for URL: ${request.uri}")
+                    
                     if (isMediaItemContainsDrm(mediaItem)) {
                         val drmRequest = mediaItem.localConfiguration?.drmConfiguration?.let {
                             handleDrmDownload(context, it, helper, request)
@@ -356,6 +365,7 @@ object DownloadController {
     fun buildMediaItemFromDownload(download: Download): MediaItem? {
         val request = download.request
         val builder = request.toMediaItem().buildUpon()
+            .setMediaId(request.id) // Explicitly set the mediaId to ensure it matches the assetId
     
         val keySetId = request.keySetId
         val licenseUri = request.data.toString(Charsets.UTF_8)
@@ -375,7 +385,8 @@ object DownloadController {
     
             builder.setDrmConfiguration(drmConfig)
         }
-    
+        
+        Log.d("TPStreamsPlayer", "Building media item from download with ID: ${request.id}")
         return builder.build()
     }
 

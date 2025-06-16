@@ -20,7 +20,7 @@ class DownloadTracker private constructor(private val context: Context) {
     }
     
     private val listeners = CopyOnWriteArraySet<Listener>()
-    private val downloads = ConcurrentHashMap<Uri, Download>()
+    private val downloads = ConcurrentHashMap<String, Download>()
     private var downloadManager: DownloadManager? = null
     
     init {
@@ -35,7 +35,7 @@ class DownloadTracker private constructor(private val context: Context) {
             
             while (downloadCursor.moveToNext()) {
                 val download = downloadCursor.download
-                downloads[download.request.uri] = download
+                downloads[download.request.id] = download
             }
             
             notifyListeners()
@@ -56,8 +56,8 @@ class DownloadTracker private constructor(private val context: Context) {
         }
     }
     
-    fun getDownload(uri: Uri): Download? {
-        return downloads[uri]
+    fun getDownload(assetId: String): Download? {
+        return downloads[assetId]
     }
     
     /**
@@ -69,12 +69,12 @@ class DownloadTracker private constructor(private val context: Context) {
     }
     
     /**
-     * Get the download request for a URI if it exists and is downloaded
-     * @param uri The URI to check
+     * Get the download request for an assetId if it exists and is downloaded
+     * @param assetId The assetId to check
      * @return The DownloadRequest if the content is downloaded, null otherwise
      */
-    fun getDownloadRequest(uri: Uri): DownloadRequest? {
-        val download = getDownload(uri)
+    fun getDownloadRequest(assetId: String): DownloadRequest? {
+        val download = getDownload(assetId)
         return if (download != null && download.state == Download.STATE_COMPLETED) {
             download.request
         } else {
@@ -82,18 +82,18 @@ class DownloadTracker private constructor(private val context: Context) {
         }
     }
     
-    fun isDownloaded(uri: Uri): Boolean {
-        val download = downloads[uri] ?: return false
+    fun isDownloaded(assetId: String): Boolean {
+        val download = downloads[assetId] ?: return false
         return download.state == Download.STATE_COMPLETED
     }
     
-    fun isDownloading(uri: Uri): Boolean {
-        val download = downloads[uri] ?: return false
+    fun isDownloading(assetId: String): Boolean {
+        val download = downloads[assetId] ?: return false
         return download.state == Download.STATE_DOWNLOADING
     }
     
-    fun isPaused(uri: Uri): Boolean {
-        val download = downloads[uri] ?: return false
+    fun isPaused(assetId: String): Boolean {
+        val download = downloads[assetId] ?: return false
         return download.state == Download.STATE_STOPPED
     }
     
@@ -102,24 +102,24 @@ class DownloadTracker private constructor(private val context: Context) {
         DownloadController.startDownload(context, mediaItem, resolution)
     }
     
-    fun pauseDownload(uri: Uri) {
-        val download = downloads[uri] ?: return
+    fun pauseDownload(assetId: String) {
+        val download = downloads[assetId] ?: return
         
         Log.d(TAG, "Pausing download: ${download.request.id}")
         
         DownloadController.pauseDownload(context, download.request.id)
     }
     
-    fun resumeDownload(uri: Uri) {
-        val download = downloads[uri] ?: return
+    fun resumeDownload(assetId: String) {
+        val download = downloads[assetId] ?: return
         
         Log.d(TAG, "Resuming download: ${download.request.id}")
         
         DownloadController.resumeDownload(context, download.request.id)
     }
     
-    fun removeDownload(uri: Uri) {
-        val download = downloads[uri] ?: return
+    fun removeDownload(assetId: String) {
+        val download = downloads[assetId] ?: return
         
         Log.d(TAG, "Removing download: ${download.request.id}")
         
@@ -147,17 +147,17 @@ class DownloadTracker private constructor(private val context: Context) {
         notifyListeners()
     }
     
-    fun getDownloadPercentage(uri: Uri): Float {
-        val download = downloads[uri] ?: return 0f
+    fun getDownloadPercentage(assetId: String): Float {
+        val download = downloads[assetId] ?: return 0f
         return TPSDownloadService.calculateProgressPercent(download).toFloat()
     }
     
-    fun getDownloadStatus(uri: Uri): String {
-        val download = downloads[uri] ?: return "Not found"
+    fun getDownloadStatus(assetId: String): String {
+        val download = downloads[assetId] ?: return "Not found"
         
         return when (download.state) {
             Download.STATE_DOWNLOADING -> {
-                val percentage = getDownloadPercentage(uri)
+                val percentage = getDownloadPercentage(assetId)
                 "Downloading: ${percentage.toInt()}%"
             }
             Download.STATE_COMPLETED -> "Downloaded"
@@ -168,7 +168,7 @@ class DownloadTracker private constructor(private val context: Context) {
     
     private inner class DownloadManagerListener : DownloadManager.Listener {
         override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
-            downloads[download.request.uri] = download
+            downloads[download.request.id] = download
             
             val progressPercent = TPSDownloadService.calculateProgressPercent(download)
             val bytesDownloaded = download.bytesDownloaded
@@ -198,7 +198,7 @@ class DownloadTracker private constructor(private val context: Context) {
         }
         
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
-            downloads.remove(download.request.uri)
+            downloads.remove(download.request.id)
             Log.d(TAG, "Download removed: ${download.request.id}")
             notifyListeners()
         }

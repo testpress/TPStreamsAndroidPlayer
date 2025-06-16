@@ -1,7 +1,6 @@
 package com.tpstreams.player
 
 import android.app.Dialog
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -27,15 +26,15 @@ class DownloadActionBottomSheet : BottomSheetDialogFragment() {
     }
 
     private var listener: DownloadActionListener? = null
-    private var currentUri: Uri? = null
+    private var currentAssetId: String? = null
     private var downloadState: Int = Download.STATE_COMPLETED
 
     fun setDownloadActionListener(listener: DownloadActionListener) {
         this.listener = listener
     }
 
-    fun setDownloadUri(uri: Uri) {
-        this.currentUri = uri
+    fun setDownloadAssetId(assetId: String) {
+        this.currentAssetId = assetId
     }
 
     fun setDownloadState(state: Int) {

@@ -45,6 +45,8 @@ private constructor(
     private var subtitleMetadata = mapOf<String, Boolean>()
     
     init {
+        Log.d("TPStreamsPlayer", "Initializing TPStreamsPlayer with assetId: $assetId")
+        
         exoPlayer.addListener(object : Player.Listener {
             @OptIn(UnstableApi::class)
             override fun onTracksChanged(tracks: Tracks) {
@@ -193,16 +195,12 @@ private constructor(
     private fun playFromDownload(assetId: String): Boolean {
         try {
             val downloadTracker = DownloadTracker.getInstance(context)
-            val downloads = downloadTracker.getAllDownloads()
+            val download = downloadTracker.getDownload(assetId)
             
-            val matchingDownload = downloads.firstOrNull { download ->
-                download.request.id.contains(assetId)
-            }
-            
-            if (matchingDownload != null) {
+            if (download != null) {
                 Log.d("TPStreamsPlayer", "Found downloaded content for $assetId, using local version")
 
-                val downloadedMediaItem = DownloadController.buildMediaItemFromDownload(matchingDownload)
+                val downloadedMediaItem = DownloadController.buildMediaItemFromDownload(download)
                 if (downloadedMediaItem == null) {
                     Log.e("TPStreamsPlayer", "Failed to build media item from download for $assetId")
                     return false
