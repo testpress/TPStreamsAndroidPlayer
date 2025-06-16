@@ -28,6 +28,7 @@ import com.tpstreams.player.download.DownloadController
 import com.tpstreams.player.download.DownloadTracker
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.common.MediaMetadata
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -103,6 +104,7 @@ private constructor(
                 val body = response.body?.string() ?: return@launch
                 
                 val json = JSONObject(body)
+                val title = json.optString("title", "Undefined")
                 val videoObj = json.getJSONObject("video")
                 val enableDrm = videoObj.optBoolean("enable_drm", false)
                 val mediaUrl = if (enableDrm) {
@@ -110,6 +112,10 @@ private constructor(
                 } else {
                     videoObj.getString("playback_url")
                 }
+                val thumbnailsArray = videoObj.optJSONArray("thumbnails")
+                val thumbnailUrl = thumbnailsArray?.optString(0) ?: ""
+                
+                Log.d("TPStreamsPlayer", "Extracted metadata - title: $title, thumbnail: $thumbnailUrl")
 
                 // Extract subtitle tracks from metadata
                 val subtitleConfigurations = mutableListOf<MediaItem.SubtitleConfiguration>()
@@ -158,6 +164,12 @@ private constructor(
                     .setUri(mediaUrl)
                     .setMediaId(assetId)
                     .apply {
+                        val metadata = MediaMetadata.Builder()
+                            .setTitle(title)
+                            .setArtworkUri(if (thumbnailUrl.isNotEmpty()) Uri.parse(thumbnailUrl) else null)
+                            .build()
+                        setMediaMetadata(metadata)
+                        
                         if (enableDrm) {
                             val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
                             val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")

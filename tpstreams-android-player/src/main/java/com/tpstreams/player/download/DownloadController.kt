@@ -31,6 +31,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ExecutorService
 import androidx.media3.common.Format
 import androidx.media3.common.C
+import org.json.JSONObject
 
 
 @UnstableApi
@@ -206,6 +207,10 @@ object DownloadController {
     
     fun startDownload(context: Context, mediaItem: MediaItem, resolution: String) {
         Log.d(TAG, "Preparing download for: ${mediaItem.mediaId}")
+        val title = mediaItem.mediaMetadata.title?.toString() ?: "Undefined"
+        val thumbnailUrl = mediaItem.mediaMetadata.artworkUri?.toString() ?: ""
+        
+        Log.d(TAG, "Download metadata - Title: $title, Thumbnail: $thumbnailUrl")
         
         val helper = DownloadHelper.forMediaItem(
             context,
@@ -219,11 +224,16 @@ object DownloadController {
                 try {
                     Log.d(TAG, "Download prepared for: ${mediaItem.mediaId}")
                     val baseRequest = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
+                    
+                    val metadataJson = JSONObject().apply {
+                        put("title", title)
+                        put("thumbnailUrl", thumbnailUrl)
+                    }.toString()
 
                     val request = DownloadRequest.Builder(mediaItem.mediaId, baseRequest.uri)
                         .setMimeType(baseRequest.mimeType)
                         .setStreamKeys(baseRequest.streamKeys)
-                        .setData(baseRequest.data)
+                        .setData(metadataJson.toByteArray(Charsets.UTF_8))
                         .build()
                         
                     Log.d(TAG, "Created download request with ID: ${request.id} for URL: ${request.uri}")
@@ -351,7 +361,7 @@ object DownloadController {
                     .setMimeType(baseRequest.mimeType)
                     .setStreamKeys(baseRequest.streamKeys)
                     .setKeySetId(keySetId)
-                    .setData(licenseUri.toByteArray(Charsets.UTF_8))
+                    .setData(baseRequest.data)
                     .build()
             } catch (e: Exception) {
                 Log.e("DRM", "Failed to handle DRM content: ${e.message}", e)
