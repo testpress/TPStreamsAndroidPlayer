@@ -73,23 +73,7 @@ val player = TPStreamsPlayer.create(
 binding.playerView.player = player
 ```
 
-4. Use with Jetpack Compose:
-
-```kotlin
-AndroidView(
-    modifier = Modifier
-        .fillMaxWidth()
-        .aspectRatio(16 / 9f),
-    factory = { context ->
-        PlayerView(context).apply {
-            this.player = player
-            useController = true
-        }
-    }
-)
-```
-
-5. Basic playback control:
+4. Basic playback control:
 
 ```kotlin
 // Start playback
