@@ -16,41 +16,39 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     fun onDownloadSelected() {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
-        val uri = mediaItem.localConfiguration?.uri ?: return
+        val assetId = mediaItem.mediaId
         
         val activity = view.getActivity() ?: return
         val downloadTracker = DownloadTracker.getInstance(view.context)
         
-        if (uri != null) {
-            when {
-                downloadTracker.isDownloaded(uri) -> {
-                    view.downloadActionBottomSheet.setDownloadUri(uri)
-                    view.downloadActionBottomSheet.setDownloadState(Download.STATE_COMPLETED)
-                    view.downloadActionBottomSheet.show(activity.supportFragmentManager)
-                }
-                downloadTracker.isDownloading(uri) -> {
-                    view.downloadActionBottomSheet.setDownloadUri(uri)
-                    view.downloadActionBottomSheet.setDownloadState(Download.STATE_DOWNLOADING)
-                    view.downloadActionBottomSheet.show(activity.supportFragmentManager)
-                }
-                downloadTracker.isPaused(uri) -> {
-                    view.downloadActionBottomSheet.setDownloadUri(uri)
-                    view.downloadActionBottomSheet.setDownloadState(Download.STATE_STOPPED)
-                    view.downloadActionBottomSheet.show(activity.supportFragmentManager)
-                }
-                else -> {
-                    view.downloadOptionsBottomSheet.setDownloadSelectionListener(view)
-                    
-                    // Get available resolutions
-                    val availableHeights = tpsPlayer.getAvailableVideoResolutions()
-                    val resolutionStrings = availableHeights.map { "${it}p" }
-                    view.downloadOptionsBottomSheet.setAvailableResolutions(resolutionStrings)
-                    view.downloadOptionsBottomSheet.setMediaItem(mediaItem, tpsPlayer.duration)
-                    view.downloadOptionsBottomSheet.show(activity.supportFragmentManager)
-                    
-                    val trackBitrates = tpsPlayer.getVideoTrackBitrates()
-                    view.downloadOptionsBottomSheet.setTrackBitrates(trackBitrates)
-                }
+        when {
+            downloadTracker.isDownloaded(assetId) -> {
+                view.downloadActionBottomSheet.setDownloadAssetId(assetId)
+                view.downloadActionBottomSheet.setDownloadState(Download.STATE_COMPLETED)
+                view.downloadActionBottomSheet.show(activity.supportFragmentManager)
+            }
+            downloadTracker.isDownloading(assetId) -> {
+                view.downloadActionBottomSheet.setDownloadAssetId(assetId)
+                view.downloadActionBottomSheet.setDownloadState(Download.STATE_DOWNLOADING)
+                view.downloadActionBottomSheet.show(activity.supportFragmentManager)
+            }
+            downloadTracker.isPaused(assetId) -> {
+                view.downloadActionBottomSheet.setDownloadAssetId(assetId)
+                view.downloadActionBottomSheet.setDownloadState(Download.STATE_STOPPED)
+                view.downloadActionBottomSheet.show(activity.supportFragmentManager)
+            }
+            else -> {
+                view.downloadOptionsBottomSheet.setDownloadSelectionListener(view)
+                
+                // Get available resolutions
+                val availableHeights = tpsPlayer.getAvailableVideoResolutions()
+                val resolutionStrings = availableHeights.map { "${it}p" }
+                view.downloadOptionsBottomSheet.setAvailableResolutions(resolutionStrings)
+                view.downloadOptionsBottomSheet.setMediaItem(mediaItem, tpsPlayer.duration)
+                view.downloadOptionsBottomSheet.show(activity.supportFragmentManager)
+                
+                val trackBitrates = tpsPlayer.getVideoTrackBitrates()
+                view.downloadOptionsBottomSheet.setTrackBitrates(trackBitrates)
             }
         }
     }
@@ -85,37 +83,37 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     fun deleteCurrentDownload() {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
-        val uri = mediaItem.localConfiguration?.uri ?: return
+        val assetId = mediaItem.mediaId
         
-        DownloadTracker.getInstance(view.context).removeDownload(uri)
+        DownloadTracker.getInstance(view.context).removeDownload(assetId)
     }
     
     fun pauseCurrentDownload() {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
-        val uri = mediaItem.localConfiguration?.uri ?: return
+        val assetId = mediaItem.mediaId
         
-        DownloadTracker.getInstance(view.context).pauseDownload(uri)
+        DownloadTracker.getInstance(view.context).pauseDownload(assetId)
     }
     
     fun resumeCurrentDownload() {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
-        val uri = mediaItem.localConfiguration?.uri ?: return
+        val assetId = mediaItem.mediaId
         
-        DownloadTracker.getInstance(view.context).resumeDownload(uri)
+        DownloadTracker.getInstance(view.context).resumeDownload(assetId)
     }
 
     fun getCurrentDownloadStatus(): String {
         val tpsPlayer = view.getPlayer() ?: return "Download"
         val mediaItem = tpsPlayer.currentMediaItem ?: return "Download"
-        val uri = mediaItem.localConfiguration?.uri ?: return "Download"
+        val assetId = mediaItem.mediaId
         
         val downloadTracker = DownloadTracker.getInstance(view.context)
         return when {
-            downloadTracker.isDownloaded(uri) -> "Downloaded"
-            downloadTracker.isDownloading(uri) -> "Downloading"
-            downloadTracker.isPaused(uri) -> "Paused"
+            downloadTracker.isDownloaded(assetId) -> "Downloaded"
+            downloadTracker.isDownloading(assetId) -> "Downloading"
+            downloadTracker.isPaused(assetId) -> "Paused"
             else -> "Download"
         }
     }
@@ -123,13 +121,13 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     fun getDownloadIcon(): Int {
         val tpsPlayer = view.getPlayer() ?: return R.drawable.ic_download
         val mediaItem = tpsPlayer.currentMediaItem ?: return R.drawable.ic_download
-        val uri = mediaItem.localConfiguration?.uri ?: return R.drawable.ic_download
+        val assetId = mediaItem.mediaId
         
         val downloadTracker = DownloadTracker.getInstance(view.context)
         return when {
-            downloadTracker.isDownloaded(uri) -> R.drawable.ic_download_done
-            downloadTracker.isDownloading(uri) -> R.drawable.ic_download_progress
-            downloadTracker.isPaused(uri) -> R.drawable.ic_download_progress
+            downloadTracker.isDownloaded(assetId) -> R.drawable.ic_download_done
+            downloadTracker.isDownloading(assetId) -> R.drawable.ic_download_progress
+            downloadTracker.isPaused(assetId) -> R.drawable.ic_download_progress
             else -> R.drawable.ic_download
         }
     }
