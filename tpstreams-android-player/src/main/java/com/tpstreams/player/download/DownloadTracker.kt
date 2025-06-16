@@ -11,6 +11,7 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import java.io.File
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.ConcurrentHashMap
+import org.json.JSONObject
 
 @UnstableApi
 class DownloadTracker private constructor(private val context: Context) {
@@ -66,6 +67,49 @@ class DownloadTracker private constructor(private val context: Context) {
      */
     fun getAllDownloads(): List<Download> {
         return downloads.values.toList()
+    }
+    
+    /**
+     * Get all downloads as DownloadItems
+     * @return List of DownloadItem objects
+     */
+    fun getAllDownloadItems(): List<DownloadItem> {
+        return downloads.values.map { createDownloadItem(it) }
+    }
+    
+    /**
+     * Create a DownloadItem from a Download object
+     */
+    fun createDownloadItem(download: Download): DownloadItem {
+        val assetId = download.request.id
+        val progressPercent = TPSDownloadService.calculateProgressPercent(download)
+        
+        // Extract metadata from download request data
+        var title = "Unknown Title"
+        var thumbnailUrl: String? = null
+        
+        try {
+            val dataString = download.request.data?.toString(Charsets.UTF_8)
+            Log.d(TAG, "dataString: $dataString")
+            if (!dataString.isNullOrEmpty()) {
+                val json = JSONObject(dataString)
+                title = json.optString("title", title)
+                thumbnailUrl = json.optString("thumbnailUrl", null)
+                    .takeIf { it?.isNotEmpty() == true }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting metadata from download: ${e.message}")
+        }
+        
+        return DownloadItem(
+            assetId = assetId,
+            title = title,
+            thumbnailUrl = thumbnailUrl,
+            totalBytes = download.contentLength,
+            downloadedBytes = download.bytesDownloaded,
+            progressPercentage = progressPercent.toFloat(),
+            state = download.state
+        )
     }
     
     /**
