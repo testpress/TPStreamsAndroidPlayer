@@ -113,7 +113,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         return when {
             downloadTracker.isDownloaded(assetId) -> "Downloaded"
             downloadTracker.isDownloading(assetId) -> "Downloading"
-            downloadTracker.isPaused(assetId) -> "Paused"
+            downloadTracker.isPaused(assetId) -> "Downloading Paused"
             else -> "Download"
         }
     }
