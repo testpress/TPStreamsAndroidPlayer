@@ -17,7 +17,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.google.android.material.button.MaterialButton
+import androidx.appcompat.widget.AppCompatButton
 import kotlin.math.roundToInt
 
 class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
@@ -31,7 +31,7 @@ class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
     private lateinit var adapter: DownloadResolutionAdapter
     private var selectedResolution: String? = null
     private var downloadSizeText: TextView? = null
-    private var downloadButton: MaterialButton? = null
+    private var downloadButton: AppCompatButton? = null
     private var mediaItem: MediaItem? = null
     private var videoDurationMs: Long = 0
     private var trackBitrates = mutableMapOf<String, Int>()
