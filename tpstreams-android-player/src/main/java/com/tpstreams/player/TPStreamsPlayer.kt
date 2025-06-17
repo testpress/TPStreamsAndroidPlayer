@@ -322,27 +322,7 @@ private constructor(
     fun getResolutionBitrates(): Map<String, Int> {
         val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return emptyMap()
         
-        val videoResolutions = getAvailableVideoResolutions()
-        
-        val videoBitrates = getVideoBitrates(mappedTrackInfo)
-        val audioBitrates = getAudioBitrates(mappedTrackInfo)
-        
-        val combinedBitrates = mutableMapOf<String, Int>()
-        
-        for (i in videoResolutions.indices) {
-            if (i < videoBitrates.size && i < audioBitrates.size) { 
-                combinedBitrates["${videoResolutions[i]}p"] = videoBitrates[i]
-            }
-            else if (i < videoBitrates.size) {
-                combinedBitrates["${videoResolutions[i]}p"] = videoBitrates[i]
-            }
-        }        
-        return combinedBitrates
-    }
-
-    @OptIn(UnstableApi::class)
-    private fun getVideoBitrates(mappedTrackInfo: MappingTrackSelector.MappedTrackInfo): List<Int> {
-        val bitrates = mutableListOf<Int>()
+        val resolutionBitrateMap = mutableMapOf<Int, Int>()
         
         for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
             if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_VIDEO) {
@@ -352,40 +332,22 @@ private constructor(
                     for (trackIndex in 0 until group.length) {
                         val format = group.getFormat(trackIndex)
                         if (format.height != Format.NO_VALUE && format.bitrate != Format.NO_VALUE) {
-                            bitrates.add(format.bitrate)
+                            // Store the resolution and its corresponding bitrate
+                            resolutionBitrateMap[format.height] = format.bitrate
                         }
                     }
                 }
             }
         }
-        Log.d("TPStreamsPlayer", "Video bitrates: ${bitrates.sortedByDescending { it }}")
-        return bitrates.sortedByDescending { it }
-    }
-
-    @OptIn(UnstableApi::class)
-    private fun getAudioBitrates(mappedTrackInfo: MappingTrackSelector.MappedTrackInfo): List<Int> {
-        val audioBitrates = mutableListOf<Int>()
         
-        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
-            if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_AUDIO) {
-                val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
-                for (groupIndex in 0 until trackGroups.length) {
-                    val group = trackGroups.get(groupIndex)
-                    for (trackIndex in 0 until group.length) {
-                        val format = group.getFormat(trackIndex)
-                        val bitrate = format.bitrate
-                        val sampleRate = format.sampleRate
-                        val channelCount = format.channelCount
-                        
-                        val audioBitrate = if (bitrate == Format.NO_VALUE) 0 else bitrate
-                        audioBitrates.add(audioBitrate)
-
-                    }
-                }
-            }
+        // Convert to final map format with string keys
+        val combinedBitrates = mutableMapOf<String, Int>()
+        for ((resolution, bitrate) in resolutionBitrateMap) {
+            combinedBitrates["${resolution}p"] = bitrate
         }
-        Log.d("TPStreamsPlayer", "Audio bitrates: ${audioBitrates.sortedByDescending { it }}")
-        return audioBitrates.sortedByDescending { it }
+        
+        Log.d("TPStreamsPlayer", "Resolution-bitrate map: $combinedBitrates")
+        return combinedBitrates
     }
 
     @OptIn(UnstableApi::class)
@@ -523,4 +485,5 @@ private constructor(
         }
     }
 }
+
 
