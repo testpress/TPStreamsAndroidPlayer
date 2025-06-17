@@ -12,8 +12,8 @@ class PlayerUIViewModel(application: Application) : AndroidViewModel(application
     val player: TPStreamsPlayer by lazy {
         TPStreamsPlayer.create(
             context = application.applicationContext,
-            assetId = "8rEx9apZHFF",
-            accessToken = "19aa0055-d965-4654-8fce-b804e70a46b0",
+            assetId = "BEArYFdaFbt",
+            accessToken = "e6a1b485-daad-42eb-8cf2-6b6e51631092",
             shouldAutoPlay = false
         )
     }

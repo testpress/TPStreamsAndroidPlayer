@@ -1,5 +1,6 @@
 package com.tpstreams.player
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.viewModels
@@ -22,8 +23,14 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Initialize SDK once
-        TPStreamsPlayer.init("6332n7")
+        TPStreamsPlayer.init("9q94nm")
 
         binding.playerView.player = viewModel.player
+        
+        // Set up downloads button
+        binding.downloadsButton.setOnClickListener {
+            val intent = Intent(this, DownloadsActivity::class.java)
+            startActivity(intent)
+        }
     }
 }

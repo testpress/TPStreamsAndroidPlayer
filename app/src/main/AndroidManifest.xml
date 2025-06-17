@@ -24,6 +24,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".DownloadsActivity"
+            android:exported="false"
+            android:label="Downloads"
+            android:parentActivityName=".MainActivity" />
     </application>
 
 </manifest>
