@@ -47,7 +47,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
                 view.downloadOptionsBottomSheet.setMediaItem(mediaItem, tpsPlayer.duration)
                 view.downloadOptionsBottomSheet.show(activity.supportFragmentManager)
                 
-                val trackBitrates = tpsPlayer.getVideoTrackBitrates()
+                val trackBitrates = tpsPlayer.getResolutionBitrates()
                 view.downloadOptionsBottomSheet.setTrackBitrates(trackBitrates)
             }
         }

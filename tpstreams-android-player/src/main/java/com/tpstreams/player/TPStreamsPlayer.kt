@@ -29,6 +29,7 @@ import com.tpstreams.player.download.DownloadTracker
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.common.MediaMetadata
+import androidx.media3.exoplayer.trackselection.MappingTrackSelector
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -318,10 +319,11 @@ private constructor(
     }
 
     @OptIn(UnstableApi::class)
-    fun getVideoTrackBitrates(): Map<String, Int> {
-        val bitrates = mutableMapOf<String, Int>()
-        
+    fun getResolutionBitrates(): Map<String, Int> {
         val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return emptyMap()
+        
+        val resolutionBitrateMap = mutableMapOf<Int, Int>()
+        
         for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
             if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_VIDEO) {
                 val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
@@ -330,16 +332,22 @@ private constructor(
                     for (trackIndex in 0 until group.length) {
                         val format = group.getFormat(trackIndex)
                         if (format.height != Format.NO_VALUE && format.bitrate != Format.NO_VALUE) {
-                            val resolution = "${format.height}p"
-                            bitrates[resolution] = format.bitrate
-                            Log.d("TPStreamsPlayer", "Track bitrate for $resolution: ${format.bitrate} bps")
+                            // Store the resolution and its corresponding bitrate
+                            resolutionBitrateMap[format.height] = format.bitrate
                         }
                     }
                 }
             }
         }
         
-        return bitrates
+        // Convert to final map format with string keys
+        val combinedBitrates = mutableMapOf<String, Int>()
+        for ((resolution, bitrate) in resolutionBitrateMap) {
+            combinedBitrates["${resolution}p"] = bitrate
+        }
+        
+        Log.d("TPStreamsPlayer", "Resolution-bitrate map: $combinedBitrates")
+        return combinedBitrates
     }
 
     @OptIn(UnstableApi::class)
@@ -477,4 +485,5 @@ private constructor(
         }
     }
 }
+
 
