@@ -54,7 +54,7 @@
             android:textSize="14sp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/download_progress"
-            tools:text="65% • 120MB / 200MB" />
+            tools:text="65%" />
 
         <TextView
             android:id="@+id/state_text"

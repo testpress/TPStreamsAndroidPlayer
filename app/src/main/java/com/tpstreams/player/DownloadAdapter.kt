@@ -10,7 +10,6 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.tpstreams.player.download.DownloadItem
-import java.text.DecimalFormat
 
 class DownloadAdapter : ListAdapter<DownloadItem, DownloadAdapter.DownloadViewHolder>(DownloadDiffCallback()) {
 
@@ -38,24 +37,14 @@ class DownloadAdapter : ListAdapter<DownloadItem, DownloadAdapter.DownloadViewHo
             val progress = downloadItem.progressPercentage.toInt()
             progressBar.progress = progress
             
-            // Format file sizes
-            val downloadedSize = formatFileSize(downloadItem.downloadedBytes)
-            val totalSize = formatFileSize(downloadItem.totalBytes)
-            progressText.text = "$progress% • $downloadedSize / $totalSize"
+            // Show only percentage
+            progressText.text = "$progress%"
             
             // Set state text
             stateText.text = getStateString(downloadItem.state)
         }
         
-        private fun formatFileSize(bytes: Long): String {
-            val df = DecimalFormat("0.00")
-            return when {
-                bytes < 1024 -> "$bytes B"
-                bytes < 1024 * 1024 -> "${df.format(bytes / 1024.0)} KB"
-                bytes < 1024 * 1024 * 1024 -> "${df.format(bytes / (1024.0 * 1024.0))} MB"
-                else -> "${df.format(bytes / (1024.0 * 1024.0 * 1024.0))} GB"
-            }
-        }
+
         
         private fun getStateString(state: Int): String {
             return when (state) {
