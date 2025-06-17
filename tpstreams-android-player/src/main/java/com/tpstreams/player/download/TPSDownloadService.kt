@@ -79,16 +79,6 @@ class TPSDownloadService : DownloadService(
                 true
             )
         }
-        
-        fun calculateProgressPercent(download: Download): Int {
-            return if (download.contentLength > 0) {
-                (download.bytesDownloaded * 100 / download.contentLength).toInt()
-            } else if (download.state == Download.STATE_COMPLETED) {
-                100 // If completed but no content length, it's 100%
-            } else {
-                0 // Otherwise default to 0
-            }
-        }
     }
     
     override fun onCreate() {
