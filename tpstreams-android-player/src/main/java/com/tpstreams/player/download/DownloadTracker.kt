@@ -82,7 +82,7 @@ class DownloadTracker private constructor(private val context: Context) {
      */
     fun createDownloadItem(download: Download): DownloadItem {
         val assetId = download.request.id
-        val progressPercent = download.percentDownloaded.toInt()
+        val progressPercent = getSafeProgressPercentage(download.percentDownloaded)
         
         // Extract metadata from download request data
         var title = "Unknown Title"
@@ -110,6 +110,10 @@ class DownloadTracker private constructor(private val context: Context) {
             progressPercentage = progressPercent.toFloat(),
             state = download.state
         )
+    }
+    
+    private fun getSafeProgressPercentage(percentDownloaded: Float): Int {
+        return if (percentDownloaded < 0) 0 else percentDownloaded.toInt()
     }
     
     /**
@@ -196,8 +200,8 @@ class DownloadTracker private constructor(private val context: Context) {
         
         return when (download.state) {
             Download.STATE_DOWNLOADING -> {
-                val percentage = download.percentDownloaded.toInt()
-                "Downloading: ${percentage.toInt()}%"
+                val percentage = getSafeProgressPercentage(download.percentDownloaded)
+                "Downloading: $percentage%"
             }
             Download.STATE_COMPLETED -> "Downloaded"
             Download.STATE_STOPPED -> "Paused"
@@ -209,7 +213,7 @@ class DownloadTracker private constructor(private val context: Context) {
         override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
             downloads[download.request.id] = download
             
-            val progressPercent = download.percentDownloaded.toInt()
+            val progressPercent = getSafeProgressPercentage(download.percentDownloaded)
             val bytesDownloaded = download.bytesDownloaded
             val contentLength = download.contentLength
             
