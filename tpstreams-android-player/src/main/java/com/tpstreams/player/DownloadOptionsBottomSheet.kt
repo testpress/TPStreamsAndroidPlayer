@@ -144,7 +144,7 @@ class DownloadOptionsBottomSheet : BottomSheetDialogFragment() {
         if (actualBitrate == null) return "Unknown"
         
         val durationSeconds = videoDurationMs / 1000.0
-        val videoSizeBytes = (actualBitrate.toLong() * durationSeconds / 8.0 * 1.1).toLong()
+        val videoSizeBytes = (actualBitrate.toLong() * durationSeconds / 8.0 ).toLong()
         
         return formatFileSize(videoSizeBytes)
     }
