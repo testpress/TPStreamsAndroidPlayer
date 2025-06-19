@@ -176,7 +176,6 @@ class DownloadTracker private constructor(private val context: Context) {
         try {
             DownloadController.downloadCache.removeResource(download.request.id)
             Log.d(TAG, "Cache resource removed for: ${download.request.id}")
-
         } catch (e: Exception) {
             Log.e(TAG, "Error removing resources: ${e.message}", e)
         }
