@@ -44,7 +44,7 @@ dependencies {
 1. Initialize the SDK (do this once, typically in your Application class):
 
 ```kotlin
-TPStreamsPlayer.init("your_organization_id")
+TPStreamsSDK.init("your_organization_id")
 ```
 
 2. Create a player instance:
