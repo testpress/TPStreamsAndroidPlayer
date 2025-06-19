@@ -40,6 +40,7 @@ class TPStreamsPlayerControlView @JvmOverloads constructor(
         
         // Hide default settings button
         findViewById<ImageButton>(androidx.media3.ui.R.id.exo_settings)?.visibility = View.GONE
+        findViewById<ImageButton>(androidx.media3.ui.R.id.exo_overflow_show)?.visibility = View.GONE
     }
 
     /**
