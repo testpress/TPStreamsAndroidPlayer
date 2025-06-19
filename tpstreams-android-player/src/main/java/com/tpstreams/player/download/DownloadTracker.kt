@@ -174,20 +174,9 @@ class DownloadTracker private constructor(private val context: Context) {
         DownloadController.removeDownload(context, download.request.id)
         
         try {
-            DownloadController.downloadCache.removeResource(download.request.uri.toString())
+            DownloadController.downloadCache.removeResource(download.request.id)
             Log.d(TAG, "Cache resource removed for: ${download.request.id}")
-            
-            val downloadDirectory = File(context.getExternalFilesDir(null), DownloadController.DOWNLOAD_CONTENT_DIRECTORY)
-            val downloadFiles = downloadDirectory.listFiles { file -> 
-                file.name.contains(download.request.id.replace("/", "_")) 
-            }
-            
-            downloadFiles?.forEach { file ->
-                if (file.exists()) {
-                    val deleted = file.delete()
-                    Log.d(TAG, "Deleting file ${file.absolutePath}: ${if (deleted) "success" else "failed"}")
-                }
-            }
+
         } catch (e: Exception) {
             Log.e(TAG, "Error removing resources: ${e.message}", e)
         }
