@@ -445,7 +445,7 @@ private constructor(
     companion object {
         private var organizationId: String? = null
 
-        fun init(orgId: String) {
+        internal fun init(orgId: String) {
             organizationId = orgId
         }
 
