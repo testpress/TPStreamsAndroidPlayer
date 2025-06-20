@@ -1,0 +1,4 @@
+jdk: 17
+gradle:
+  - wrapper
+  - build: tpstreams-android-player/build.gradle.kts
