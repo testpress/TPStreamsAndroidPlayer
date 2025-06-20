@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Initialize SDK once
-        TPStreamsPlayer.init("6332n7")
+        TPStreamsSDK.init("6332n7")
 
         binding.playerView.player = viewModel.player
     }
