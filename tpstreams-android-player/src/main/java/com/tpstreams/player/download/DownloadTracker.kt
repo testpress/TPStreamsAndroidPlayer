@@ -193,7 +193,7 @@ class DownloadTracker private constructor(private val context: Context) {
             }
             Download.STATE_COMPLETED -> "Downloaded"
             Download.STATE_STOPPED -> "Paused"
-            else -> DownloadController.getStateString(download.state)
+            else -> DownloadController.getStateString(download.state) as String
         }
     }
     

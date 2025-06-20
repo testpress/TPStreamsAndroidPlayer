@@ -117,6 +117,6 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
     }
 
     companion object {
-        const val TAG = "PlayerSettingsBottomSheet"
+        const val TAG = "SettingsBottomSheet"
     }
 } 

@@ -159,6 +159,6 @@ class CaptionsBottomSheet : BottomSheetDialogFragment() {
     }
 
     companion object {
-        private const val TAG = "CaptionsOptionsBottomSheet"
+        private const val TAG = "CaptionsBottomSheet"
     }
 } 
