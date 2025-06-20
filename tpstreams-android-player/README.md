@@ -8,7 +8,7 @@ This is a custom video player for Android based on ExoPlayer.
 
 ```kotlin
 // Initialize the player
-TPStreamsPlayer.init("your_organization_id")
+TPStreamsSDK.init("your_organization_id")
 
 // Create the player
 val player = TPStreamsPlayer.create(
