@@ -50,7 +50,7 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
-                <com.tpstreams.player.ui.AutoSizeTimeTextView android:id="@id/exo_position"
+                <com.tpstreams.player.ui.TimeDisplayTextView android:id="@id/exo_position"
                     style="@style/ExoStyledControls.TimeText.Position"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"/>
@@ -60,7 +60,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"/>
 
-                <com.tpstreams.player.ui.AutoSizeTimeTextView android:id="@id/exo_duration"
+                <com.tpstreams.player.ui.TimeDisplayTextView android:id="@id/exo_duration"
                     style="@style/ExoStyledControls.TimeText.Duration"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"/>
