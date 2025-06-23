@@ -23,4 +23,32 @@
         <item name="cornerSizeBottomRight">0dp</item>
         <item name="cornerSizeBottomLeft">0dp</item>
     </style>
+
+    <style name="ExoStyledControls.TimeText.Base">
+        <item name="android:textSize">@dimen/timer_text_size</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textColor">@color/exo_white</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">none</item>
+    </style>
+
+    <style name="ExoStyledControls.TimeText.Position" parent="ExoStyledControls.TimeText.Base">
+        <item name="android:gravity">end|center_vertical</item>
+        <item name="android:paddingEnd">@dimen/timer_text_padding</item>
+        <item name="android:paddingRight">@dimen/timer_text_padding</item>
+    </style>
+
+    <style name="ExoStyledControls.TimeText.Separator" parent="ExoStyledControls.TimeText.Base">
+        <item name="android:text">@string/timer_divider</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingLeft">1dp</item>
+        <item name="android:paddingRight">1dp</item>
+    </style>
+
+    <style name="ExoStyledControls.TimeText.Duration" parent="ExoStyledControls.TimeText.Base">
+        <item name="android:gravity">start|center_vertical</item>
+        <item name="android:paddingStart">@dimen/timer_text_padding</item>
+        <item name="android:paddingLeft">@dimen/timer_text_padding</item>
+    </style>
 </resources> 
