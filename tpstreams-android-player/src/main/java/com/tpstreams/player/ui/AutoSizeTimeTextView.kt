@@ -14,7 +14,7 @@ class AutoSizeTimeTextView @JvmOverloads constructor(
 
     private val minTextSize = 10f
     private val maxTextSize = 24f
-    private var initialTextSize = textSize
+    private var initialTextSize = 0f
     
     private val sampleTimePatterns = arrayOf(
         "0:00", "00:00", "0:00:00", "00:00:00", "99:59:59"
@@ -23,6 +23,7 @@ class AutoSizeTimeTextView @JvmOverloads constructor(
     init {
         maxLines = 1
         ellipsize = null
+        initialTextSize = textSize
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -30,14 +31,19 @@ class AutoSizeTimeTextView @JvmOverloads constructor(
         
         if (mode == MeasureSpec.EXACTLY) {
             val exactWidth = MeasureSpec.getSize(widthMeasureSpec)
-            val textWidth = paint.measureText(text.toString())
+            val currentText = text?.toString() ?: ""
+            val textWidth = paint.measureText(currentText)
             
             if (textWidth > exactWidth) {
                 val scaleFactor = exactWidth / textWidth
-                val newTextSize = Math.max(minTextSize, Math.min(textSize * scaleFactor, maxTextSize))
-                setTextSize(TypedValue.COMPLEX_UNIT_PX, newTextSize)
+                val newTextSize = maxOf(minTextSize, minOf(textSize * scaleFactor, maxTextSize))
+                if (textSize != newTextSize) {
+                    setTextSize(TypedValue.COMPLEX_UNIT_PX, newTextSize)
+                }
             } else {
-                setTextSize(TypedValue.COMPLEX_UNIT_PX, initialTextSize)
+                if (textSize != initialTextSize) {
+                    setTextSize(TypedValue.COMPLEX_UNIT_PX, initialTextSize)
+                }
             }
             
             super.onMeasure(widthMeasureSpec, heightMeasureSpec)

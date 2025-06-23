@@ -42,7 +42,7 @@
             android:layout_gravity="center_vertical|start"
             android:orientation="horizontal">
 
-            <LinearLayout android:id="@id/exo_time"
+            <LinearLayout android:id="@+id/exo_time_container"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_vertical"
