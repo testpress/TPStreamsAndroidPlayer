@@ -99,9 +99,6 @@ class DownloadClient private constructor(private val context: Context) {
         listeners.forEach { it.onDownloadsChanged() }
     }
 
-    // endregion
-
-    // region Listener Management
 
     fun addListener(listener: Listener) {
         listeners.add(listener)
