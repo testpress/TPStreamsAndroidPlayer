@@ -25,7 +25,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import com.tpstreams.player.download.DownloadController
-import com.tpstreams.player.download.DownloadTracker
+import com.tpstreams.player.download.DownloadClient
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.common.MediaMetadata
@@ -207,8 +207,8 @@ private constructor(
     @OptIn(UnstableApi::class)
     private fun playFromDownload(assetId: String): Boolean {
         try {
-            val downloadTracker = DownloadTracker.getInstance(context)
-            val download = downloadTracker.getDownload(assetId)
+            val downloadClient = DownloadClient.getInstance(context)
+            val download = downloadClient.getDownload(assetId)
             
             if (download != null) {
                 Log.d("TPStreamsPlayer", "Found downloaded content for $assetId, using local version")

@@ -12,7 +12,7 @@ import androidx.fragment.app.FragmentManager
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.tpstreams.player.download.DownloadTracker
+import com.tpstreams.player.download.DownloadClient
 import androidx.media3.exoplayer.offline.Download
 import android.widget.ImageView
 
