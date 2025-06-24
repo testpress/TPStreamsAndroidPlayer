@@ -38,7 +38,10 @@ private constructor(
     private val trackSelector: DefaultTrackSelector,
     assetId: String,
     accessToken: String,
-    private val shouldAutoPlay: Boolean = true
+    private val shouldAutoPlay: Boolean = true,
+    private val startAt: Long = 0,
+    private val enableDownload: Boolean = false,
+    private val showDefaultCaptions: Boolean = false
 ) : Player by exoPlayer {
 
     private var isPrepared = false
@@ -54,6 +57,13 @@ private constructor(
             override fun onTracksChanged(tracks: Tracks) {
                 val textTracks = getAvailableTextTracks()
                 Log.d("TPStreamsPlayer", "Tracks changed. Text tracks available: ${textTracks.size}")
+                
+                if (showDefaultCaptions && isPrepared && textTracks.isNotEmpty()) {
+                    val defaultTrack = textTracks.firstOrNull()
+                    defaultTrack?.let {
+                        setTextTrackByLanguage(it.first)
+                    }
+                }
             }
             
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -194,6 +204,17 @@ private constructor(
                     exoPlayer.setMediaItem(mediaItem)
                     exoPlayer.prepare()
                     isPrepared = true
+
+                    if (startAt > 0) {
+                        val duration = exoPlayer.duration
+                        if (duration > 0 && duration != C.TIME_UNSET) {
+                            val seekPosition = minOf(startAt * 1000, duration - 1000)
+                            exoPlayer.seekTo(seekPosition)
+                        } else {
+                            exoPlayer.seekTo(startAt * 1000)
+                        }
+                    }
+                    
                     if (shouldAutoPlay || requestedPlay) {
                         exoPlayer.play()
                     }
@@ -442,6 +463,8 @@ private constructor(
         return subtitleMetadata[language] ?: false
     }
 
+    fun isDownloadEnabled(): Boolean = enableDownload
+
     companion object {
         private var organizationId: String? = null
 
@@ -478,10 +501,13 @@ private constructor(
             context: Context,
             assetId: String,
             accessToken: String,
-            shouldAutoPlay: Boolean = true
+            shouldAutoPlay: Boolean = true,
+            startAt: Long = 0,
+            enableDownload: Boolean = false,
+            showDefaultCaptions: Boolean = false
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context)
-            return TPStreamsPlayer(context,exo, trackSelector, assetId, accessToken, shouldAutoPlay)
+            return TPStreamsPlayer(context, exo, trackSelector, assetId, accessToken, shouldAutoPlay, startAt, enableDownload, showDefaultCaptions)
         }
     }
 }
