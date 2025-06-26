@@ -267,7 +267,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun getPlaybackSpeed() = settingsPanel.getPlaybackSpeed()
     override fun getCurrentDownloadStatus() = downloadActions.getCurrentDownloadStatus()
     override fun getDownloadIcon() = downloadActions.getDownloadIcon()
-    override fun isDownloadVisible() = settingsPanel.isDownloadVisible()
+    override fun isDownloadEnabled() = settingsPanel.isDownloadEnabled()
 
     // Implementation of QualityOptionsBottomSheet.QualityOptionsListener
     override fun onAutoQualitySelected() = settingsPanel.onAutoQualitySelected()

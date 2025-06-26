@@ -27,7 +27,7 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         fun getPlaybackSpeed(): Float
         fun getCurrentDownloadStatus(): String
         fun getDownloadIcon(): Int
-        fun isDownloadVisible(): Boolean
+        fun isDownloadEnabled(): Boolean
     }
 
     private var listener: SettingsListener? = null
@@ -88,7 +88,7 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
             downloadText.text = listener.getCurrentDownloadStatus()
             downloadIcon.setImageResource(listener.getDownloadIcon())
             
-            downloadItem.visibility = if (listener.isDownloadVisible()) View.VISIBLE else View.GONE
+            downloadItem.visibility = if (listener.isDownloadEnabled()) View.VISIBLE else View.GONE
         }
         
         // Set click listeners
