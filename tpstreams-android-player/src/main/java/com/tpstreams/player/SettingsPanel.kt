@@ -112,4 +112,9 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     fun onSpeedSelected(speed: Float) {
         setPlaybackSpeed(speed)
     }
+
+    fun isDownloadEnabled(): Boolean {
+        val player = view.getPlayer()
+        return player?.enableDownload ?: false
+    }
 } 
