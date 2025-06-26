@@ -39,9 +39,9 @@ private constructor(
     assetId: String,
     accessToken: String,
     private val shouldAutoPlay: Boolean = true,
-    val startAt: Long = 0,
+    private val startAt: Long = 0,
     val enableDownload: Boolean = false,
-    val showDefaultCaptions: Boolean = false
+    private val showDefaultCaptions: Boolean = false
 ) : Player by exoPlayer {
 
     private var isPrepared = false
@@ -229,8 +229,6 @@ private constructor(
         if (duration > 0 && duration != C.TIME_UNSET) {
             val seekPosition = minOf(startAt * 1000, duration - 1000)
             exoPlayer.seekTo(seekPosition)
-        } else {
-            exoPlayer.seekTo(startAt * 1000)
         }
     }
 
