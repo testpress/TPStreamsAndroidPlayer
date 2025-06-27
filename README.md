@@ -20,12 +20,13 @@ A powerful Android SDK for seamless integration with TPStreams video platform, f
 
 ## Installation
 
-Add the following to your root `build.gradle.kts`:
+Add the following to your `settings.gradle.kts`:
 
 ```kotlin
-allprojects {
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        // ... other repositories
+        mavenCentral()
         maven { url = uri("https://jitpack.io") }
     }
 }
@@ -35,7 +36,7 @@ Add the dependency to your app's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.testpress:tpstreams-android-player:1.0.0")
+    implementation("com.github.testpress:TPStreamsAndroidPlayer:1.0.0")
 }
 ```
 
@@ -88,40 +89,28 @@ player.release()
 
 ## Download Functionality
 
-### 1. Request Permissions (Android 13+)
-
-For Android 13 and above, you need to request notification permissions for download notifications:
+### 1. Manage Downloads
 
 ```kotlin
-if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-    if (!DownloadPermissionHandler.hasNotificationPermission(context)) {
-        DownloadPermissionHandler.requestNotificationPermission(activity)
-    }
-}
-```
-
-### 2. Manage Downloads
-
-```kotlin
-// Get download tracker instance
-val downloadTracker = DownloadTracker.getInstance(context)
+// Get download client instance
+val downloadClient = DownloadClient.getInstance(context)
 
 // Check download status
-val isDownloaded = downloadTracker.isDownloaded(assetId)
-val isDownloading = downloadTracker.isDownloading(assetId)
-val isPaused = downloadTracker.isPaused(assetId)
+val isDownloaded = downloadClient.isDownloaded(assetId)
+val isDownloading = downloadClient.isDownloading(assetId)
+val isPaused = downloadClient.isPaused(assetId)
 
 // Control downloads
-downloadTracker.pauseDownload(assetId)
-downloadTracker.resumeDownload(assetId)
-downloadTracker.removeDownload(assetId)
+downloadClient.pauseDownload(assetId)
+downloadClient.resumeDownload(assetId)
+downloadClient.removeDownload(assetId)
 ```
 
-### 3. Display Download List
+### 2. Display Download List
 
 ```kotlin
 // Get all download items
-val downloadItems = downloadTracker.getAllDownloadItems()
+val downloadItems = downloadClient.getAllDownloadItems()
 
 // Each DownloadItem contains:
 // - assetId: String - Unique identifier for the asset
@@ -133,12 +122,12 @@ val downloadItems = downloadTracker.getAllDownloadItems()
 // - state: Int - Download state (COMPLETED, DOWNLOADING, PAUSED, etc.)
 ```
 
-### 4. Example: Display Downloads in RecyclerView
+### 3. Example: Display Downloads in RecyclerView
 
 ```kotlin
 class DownloadsAdapter(
     private val items: List<DownloadItem>,
-    private val downloadTracker: DownloadTracker
+    private val downloadClient: DownloadClient
 ) : RecyclerView.Adapter<DownloadsAdapter.ViewHolder>() {
     
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -171,19 +160,19 @@ class DownloadsAdapter(
             DownloadState.COMPLETED -> {
                 holder.actionButton.text = "Delete"
                 holder.actionButton.setOnClickListener {
-                    downloadTracker.removeDownload(item.assetId)
+                    downloadClient.removeDownload(item.assetId)
                 }
             }
             DownloadState.DOWNLOADING -> {
                 holder.actionButton.text = "Pause"
                 holder.actionButton.setOnClickListener {
-                    downloadTracker.pauseDownload(item.assetId)
+                    downloadClient.pauseDownload(item.assetId)
                 }
             }
             DownloadState.PAUSED -> {
                 holder.actionButton.text = "Resume"
                 holder.actionButton.setOnClickListener {
-                    downloadTracker.resumeDownload(item.assetId)
+                    downloadClient.resumeDownload(item.assetId)
                 }
             }
         }
@@ -201,14 +190,14 @@ class DownloadsAdapter(
 }
 ```
 
-### 5. Listen for Download Changes
+### 4. Listen for Download Changes
 
 ```kotlin
 // Add listener to update UI when downloads change
-downloadTracker.addListener(object : DownloadTracker.Listener {
+downloadClient.addListener(object : DownloadClient.Listener {
     override fun onDownloadsChanged() {
         // Refresh your UI with the latest download information
-        val updatedDownloads = downloadTracker.getAllDownloadItems()
+        val updatedDownloads = downloadClient.getAllDownloadItems()
         downloadsAdapter.updateItems(updatedDownloads)
     }
 })
@@ -216,7 +205,7 @@ downloadTracker.addListener(object : DownloadTracker.Listener {
 // Don't forget to remove the listener when no longer needed
 override fun onDestroy() {
     super.onDestroy()
-    downloadTracker.removeListener(listener)
+    downloadClient.removeListener(listener)
 }
 ```
 
