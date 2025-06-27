@@ -6,7 +6,7 @@ import android.widget.Toast
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.offline.Download
 import com.tpstreams.player.download.DownloadPermissionHandler
-import com.tpstreams.player.download.DownloadTracker
+import com.tpstreams.player.download.DownloadClient
 
 class DownloadActions(private val view: TPStreamsPlayerView) {
     companion object {
@@ -19,20 +19,20 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val assetId = mediaItem.mediaId
         
         val activity = view.getActivity() ?: return
-        val downloadTracker = DownloadTracker.getInstance(view.context)
+        val downloadClient = DownloadClient.getInstance(view.context)
         
         when {
-            downloadTracker.isDownloaded(assetId) -> {
+            downloadClient.isDownloaded(assetId) -> {
                 view.downloadActionBottomSheet.setDownloadAssetId(assetId)
                 view.downloadActionBottomSheet.setDownloadState(Download.STATE_COMPLETED)
                 view.downloadActionBottomSheet.show(activity.supportFragmentManager)
             }
-            downloadTracker.isDownloading(assetId) -> {
+            downloadClient.isDownloading(assetId) -> {
                 view.downloadActionBottomSheet.setDownloadAssetId(assetId)
                 view.downloadActionBottomSheet.setDownloadState(Download.STATE_DOWNLOADING)
                 view.downloadActionBottomSheet.show(activity.supportFragmentManager)
             }
-            downloadTracker.isPaused(assetId) -> {
+            downloadClient.isPaused(assetId) -> {
                 view.downloadActionBottomSheet.setDownloadAssetId(assetId)
                 view.downloadActionBottomSheet.setDownloadState(Download.STATE_STOPPED)
                 view.downloadActionBottomSheet.show(activity.supportFragmentManager)
@@ -70,8 +70,8 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     }
     
     private fun startDownload(mediaItem: MediaItem, resolution: String) {
-        val downloadTracker = DownloadTracker.getInstance(view.context)
-        downloadTracker.startDownload(mediaItem, resolution)
+        val downloadClient = DownloadClient.getInstance(view.context)
+        downloadClient.startDownload(mediaItem, resolution)
         
         Toast.makeText(
             view.context,
@@ -85,7 +85,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val mediaItem = tpsPlayer.currentMediaItem ?: return
         val assetId = mediaItem.mediaId
         
-        DownloadTracker.getInstance(view.context).removeDownload(assetId)
+        DownloadClient.getInstance(view.context).removeDownload(assetId)
     }
     
     fun pauseCurrentDownload() {
@@ -93,7 +93,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val mediaItem = tpsPlayer.currentMediaItem ?: return
         val assetId = mediaItem.mediaId
         
-        DownloadTracker.getInstance(view.context).pauseDownload(assetId)
+        DownloadClient.getInstance(view.context).pauseDownload(assetId)
     }
     
     fun resumeCurrentDownload() {
@@ -101,7 +101,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val mediaItem = tpsPlayer.currentMediaItem ?: return
         val assetId = mediaItem.mediaId
         
-        DownloadTracker.getInstance(view.context).resumeDownload(assetId)
+        DownloadClient.getInstance(view.context).resumeDownload(assetId)
     }
 
     fun getCurrentDownloadStatus(): String {
@@ -109,11 +109,11 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val mediaItem = tpsPlayer.currentMediaItem ?: return "Download"
         val assetId = mediaItem.mediaId
         
-        val downloadTracker = DownloadTracker.getInstance(view.context)
+        val downloadClient = DownloadClient.getInstance(view.context)
         return when {
-            downloadTracker.isDownloaded(assetId) -> "Downloaded"
-            downloadTracker.isDownloading(assetId) -> "Downloading"
-            downloadTracker.isPaused(assetId) -> "Downloading Paused"
+            downloadClient.isDownloaded(assetId) -> "Downloaded"
+            downloadClient.isDownloading(assetId) -> "Downloading"
+            downloadClient.isPaused(assetId) -> "Downloading Paused"
             else -> "Download"
         }
     }
@@ -123,11 +123,11 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val mediaItem = tpsPlayer.currentMediaItem ?: return R.drawable.ic_download
         val assetId = mediaItem.mediaId
         
-        val downloadTracker = DownloadTracker.getInstance(view.context)
+        val downloadClient = DownloadClient.getInstance(view.context)
         return when {
-            downloadTracker.isDownloaded(assetId) -> R.drawable.ic_download_done
-            downloadTracker.isDownloading(assetId) -> R.drawable.ic_download_progress
-            downloadTracker.isPaused(assetId) -> R.drawable.ic_download_progress
+            downloadClient.isDownloaded(assetId) -> R.drawable.ic_download_done
+            downloadClient.isDownloading(assetId) -> R.drawable.ic_download_progress
+            downloadClient.isPaused(assetId) -> R.drawable.ic_download_progress
             else -> R.drawable.ic_download
         }
     }
