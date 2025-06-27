@@ -222,10 +222,10 @@ private constructor(
     }
 
     private fun seekToStartAt() {
-        if (playbackState == Player.STATE_READY && !hasSeekedToStartAt) {
+        if (playbackState == Player.STATE_READY && !hasSeekedToStartAt && startAt > 0) {
             val duration = exoPlayer.duration
             if (duration > 0 && duration != C.TIME_UNSET) {
-                val seekPosition = minOf(startAt * 1000, duration - 1000)
+                val seekPosition = minOf(startAt * 1000, maxOf(0, duration - 1000))
                 seekTo(seekPosition)
                 hasSeekedToStartAt = true
             }
