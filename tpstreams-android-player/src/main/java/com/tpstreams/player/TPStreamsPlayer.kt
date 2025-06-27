@@ -46,7 +46,7 @@ private constructor(
 
     private var isPrepared = false
     private var requestedPlay = false
-
+    private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
     
     init {
@@ -65,6 +65,7 @@ private constructor(
             
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
+                seekToStartAt()
             }
             
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -210,10 +211,6 @@ private constructor(
                     exoPlayer.prepare()
                     isPrepared = true
 
-                    if (startAt > 0) {
-                        seekToStartAt()
-                    }
-                    
                     if (shouldAutoPlay || requestedPlay) {
                         exoPlayer.play()
                     }
@@ -225,10 +222,13 @@ private constructor(
     }
 
     private fun seekToStartAt() {
-        val duration = exoPlayer.duration
-        if (duration > 0 && duration != C.TIME_UNSET) {
-            val seekPosition = minOf(startAt * 1000, duration - 1000)
-            exoPlayer.seekTo(seekPosition)
+        if (playbackState == Player.STATE_READY && !hasSeekedToStartAt && startAt > 0) {
+            val duration = exoPlayer.duration
+            if (duration > 0 && duration != C.TIME_UNSET) {
+                val seekPosition = minOf(startAt * 1000, maxOf(0, duration - 1000))
+                seekTo(seekPosition)
+                hasSeekedToStartAt = true
+            }
         }
     }
 
