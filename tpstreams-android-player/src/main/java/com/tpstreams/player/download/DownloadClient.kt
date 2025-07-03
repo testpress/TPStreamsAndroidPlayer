@@ -28,12 +28,7 @@ class DownloadClient private constructor(private val context: Context) {
 
     fun getDownloadStatus(assetId: String): String {
         val download = repository.getDownload(assetId) ?: return "Not found"
-        return when (download.state) {
-            Download.STATE_DOWNLOADING -> "Downloading: ${download.percentDownloaded.toInt()}%"
-            Download.STATE_COMPLETED -> "Downloaded"
-            Download.STATE_STOPPED -> "Paused"
-            else -> DownloadController.getStateString(download.state)
-        }
+        return DownloadController.getStateString(download.state)
     }
 
     fun getAllDownloads(): List<Download> = repository.getAllDownloads()
