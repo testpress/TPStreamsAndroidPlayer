@@ -159,6 +159,7 @@ object DownloadController {
     
     fun getStateString(state: Int): String {
         return when (state) {
+            Download.STATE_QUEUED -> "Queued"
             Download.STATE_DOWNLOADING -> "Downloading"
             Download.STATE_COMPLETED -> "Completed"
             Download.STATE_FAILED -> "Failed"
