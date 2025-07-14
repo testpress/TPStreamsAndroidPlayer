@@ -33,6 +33,13 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var orientationEventListener: OrientationListener? = null
     private var autoFullscreenEnabled = false
     var lifecycleManager: PlayerLifecycleManager? = null
+
+    private val playbackStateListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            this@TPStreamsPlayerView.keepScreenOn = isPlaying
+            lifecycleManager?.onPlaybackStateChanged(isPlaying)
+        }
+    }
     
     // Bottom sheets
     val settingsBottomSheet: PlayerSettingsBottomSheet by lazy {
@@ -222,17 +229,13 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     override fun setPlayer(player: Player?) {
+        getPlayer()?.removeListener(playbackStateListener)
         super.setPlayer(player)
         
         lifecycleManager = player?.let { PlayerLifecycleManager(it) }
         registerWithLifecycle()
         
-        player?.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                this@TPStreamsPlayerView.keepScreenOn = isPlaying
-                lifecycleManager?.onPlaybackStateChanged(isPlaying)
-            }
-        })
+        player?.addListener(playbackStateListener)
         
         if (player is TPStreamsPlayer) {
             player.addListener(object : Player.Listener {
@@ -254,6 +257,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        getPlayer()?.removeListener(playbackStateListener)
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
     }
