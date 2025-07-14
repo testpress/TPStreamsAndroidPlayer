@@ -229,6 +229,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         
         player?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                this@TPStreamsPlayerView.keepScreenOn = isPlaying
                 lifecycleManager?.onPlaybackStateChanged(isPlaying)
             }
         })
