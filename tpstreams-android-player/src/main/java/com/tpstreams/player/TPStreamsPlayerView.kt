@@ -230,6 +230,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     override fun setPlayer(player: Player?) {
+        if (player == getPlayer()) return
         getPlayer()?.removeListener(playbackStateListener)
         super.setPlayer(player)
         
