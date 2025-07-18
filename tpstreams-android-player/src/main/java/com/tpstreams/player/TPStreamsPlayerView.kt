@@ -113,6 +113,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        getPlayer()?.addListener(playbackStateListener)
         post {
             enableAutoFullscreenOnRotate()
             registerWithLifecycle()
@@ -229,6 +230,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     override fun setPlayer(player: Player?) {
+        if (player == getPlayer()) return
         getPlayer()?.removeListener(playbackStateListener)
         super.setPlayer(player)
         
