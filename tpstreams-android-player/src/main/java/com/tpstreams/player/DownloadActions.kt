@@ -92,13 +92,14 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     private fun createMediaItemWithToken(mediaItem: MediaItem, token: String): MediaItem {
         val oldDrmConfig = mediaItem.localConfiguration?.drmConfiguration ?: return mediaItem
         
-        val licenseUri = oldDrmConfig.licenseUri.toString()
-        val baseUri = licenseUri.substringBefore("access_token=")
-        
-        val updatedLicenseUri = "${baseUri}access_token=$token"
+        val licenseUri = oldDrmConfig.licenseUri ?: return mediaItem
+        val updatedUri = licenseUri.buildUpon()
+            .clearQuery()
+            .appendQueryParameter("access_token", token)
+            .build()
         
         val newDrmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
-            .setLicenseUri(updatedLicenseUri)
+            .setLicenseUri(updatedUri)
             .setLicenseRequestHeaders(mapOf("Authorization" to "Bearer $token"))
             .setMultiSession(true)
             .build()

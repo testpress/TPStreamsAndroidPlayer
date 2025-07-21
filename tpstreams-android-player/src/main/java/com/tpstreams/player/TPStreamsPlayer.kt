@@ -31,6 +31,7 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector
+import java.util.concurrent.atomic.AtomicInteger
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -55,7 +56,7 @@ private constructor(
     private var subtitleMetadata = mapOf<String, Boolean>()
 
     private var _listener: Listener? = null
-    private var tokenRefreshAttempts = 0
+    private val tokenRefreshAttempts = AtomicInteger(0)
     private val MAX_TOKEN_REFRESH_ATTEMPTS = 3
 
     var listener: Listener?
@@ -119,14 +120,14 @@ private constructor(
 
     private fun handleTokenRefresh(orgId: String, assetId: String) {
         Log.d("TPStreamsPlayer", "Token refresh needed for assetId: $assetId")
-        if (tokenRefreshAttempts >= MAX_TOKEN_REFRESH_ATTEMPTS) {
+        if (tokenRefreshAttempts.get() >= MAX_TOKEN_REFRESH_ATTEMPTS) {
             Log.e("TPStreamsPlayer", "Maximum token refresh attempts reached ($MAX_TOKEN_REFRESH_ATTEMPTS). Giving up.")
-            tokenRefreshAttempts = 0
+            tokenRefreshAttempts.set(0)
             return
         }
 
-        tokenRefreshAttempts++
-        Log.d("TPStreamsPlayer", "Attempting token refresh: attempt $tokenRefreshAttempts of $MAX_TOKEN_REFRESH_ATTEMPTS")
+        tokenRefreshAttempts.incrementAndGet()
+        Log.d("TPStreamsPlayer", "Attempting token refresh: attempt ${tokenRefreshAttempts.get()} of $MAX_TOKEN_REFRESH_ATTEMPTS")
 
         listener?.onAccessTokenExpired(assetId) { newToken ->
             if (newToken.isNotEmpty()) {
@@ -134,8 +135,11 @@ private constructor(
                 fetchAndPrepare(orgId, assetId, newToken)
             } else {
                 Log.e("TPStreamsPlayer", "Failed to get new access token")
-                tokenRefreshAttempts = 0
+                tokenRefreshAttempts.set(0)
             }
+        } ?: run {
+            Log.e("TPStreamsPlayer", "No listener set for token refresh")
+            tokenRefreshAttempts.set(0)
         }
     }
 
@@ -156,7 +160,7 @@ private constructor(
                 val assetApiUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/?access_token=$accessToken"
                 
                 val request = Request.Builder().url(assetApiUrl).build()
-                val response = OkHttpClient().newCall(request).execute()
+                val response = client.newCall(request).execute()
 
                 if (!response.isSuccessful) {
                     if (response.code == 401) {
@@ -166,12 +170,12 @@ private constructor(
                         }
                     } else {
                         Log.e("TPStreamsPlayer", "API error: ${response.code} ${response.message} for asset $assetId")
-                        tokenRefreshAttempts = 0
+                        tokenRefreshAttempts.set(0)
                     }
                     return@launch
                 }
 
-                tokenRefreshAttempts = 0
+                tokenRefreshAttempts.set(0)
 
                 val body = response.body?.string() ?: return@launch
                 
@@ -534,14 +538,20 @@ private constructor(
                 callback(getCurrentAccessToken())
             } else {
                 Log.d("TPStreamsPlayer", "Current token is invalid, requesting fresh token")
-                listener?.onAccessTokenExpired(assetId) { newToken ->
+                val tokenListener = listener
+                if (tokenListener != null) {
+                    tokenListener.onAccessTokenExpired(assetId) { newToken ->
                     if (newToken.isNotEmpty()) {
                         Log.d("TPStreamsPlayer", "Received fresh token for download")
                         callback(newToken)
                     } else {
                         Log.e("TPStreamsPlayer", "Failed to get fresh token for download")
-                        callback("")
+                            callback("")
+                        }
                     }
+                } else {
+                    Log.e("TPStreamsPlayer", "No token listener available")
+                    callback("")
                 }
             }
         }
@@ -552,16 +562,10 @@ private constructor(
         val drmConfig = currentMediaItem.localConfiguration?.drmConfiguration
         
         val authHeader = drmConfig?.licenseRequestHeaders?.get("Authorization")
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return authHeader.substring(7) // Remove "Bearer " prefix
-        }
+        authHeader?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ")?.let { return it }
         
-        val licenseUri = drmConfig?.licenseUri?.toString() ?: return ""
-        if (licenseUri.contains("access_token=")) {
-            return licenseUri.substringAfter("access_token=").substringBefore("&")
-        }
-        
-        return ""
+        val licenseUri = drmConfig?.licenseUri ?: return ""
+        return licenseUri.getQueryParameter("access_token") ?: ""
     }
     
     private fun checkTokenValidity(assetId: String, callback: (Boolean) -> Unit) {
@@ -582,7 +586,7 @@ private constructor(
                     .head()
                     .build()
                 
-                val response = OkHttpClient().newCall(request).execute()
+                val response = client.newCall(request).execute()
                 val isValid = response.isSuccessful
                 Log.d("TPStreamsPlayer", "Token validation check: $response")
                 Log.d("TPStreamsPlayer", "Token validation check: ${if (isValid) "valid" else "invalid"}")
@@ -601,6 +605,7 @@ private constructor(
 
     companion object {
         private var organizationId: String? = null
+        private val client = OkHttpClient()
 
         internal fun init(orgId: String) {
             organizationId = orgId
