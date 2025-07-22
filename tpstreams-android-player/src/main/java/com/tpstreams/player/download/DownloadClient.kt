@@ -47,14 +47,22 @@ class DownloadClient private constructor(private val context: Context) {
         
         var title = "Unknown Title"
         var thumbnailUrl: String? = null
+        val customMetadata = mutableMapOf<String, String>()
         
         try {
             val dataString = download.request.data?.toString(Charsets.UTF_8)
             if (!dataString.isNullOrEmpty()) {
                 val json = JSONObject(dataString)
-                title = json.optString("title", title)
-                thumbnailUrl = json.optString("thumbnailUrl", null)
+                title = json.optString(DownloadConstants.KEY_TITLE, title)
+                thumbnailUrl = json.optString(DownloadConstants.KEY_THUMBNAIL_URL, null)
                     .takeIf { it?.isNotEmpty() == true }
+
+                val metadataObj = json.optJSONObject(DownloadConstants.KEY_CUSTOM_METADATA)
+                if (metadataObj != null) {
+                    metadataObj.keys().forEach { key ->
+                        customMetadata[key] = metadataObj.optString(key, "")
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting metadata from download: ${e.message}")
@@ -67,7 +75,8 @@ class DownloadClient private constructor(private val context: Context) {
             totalBytes = download.contentLength,
             downloadedBytes = download.bytesDownloaded,
             progressPercentage = progressPercent.toFloat(),
-            state = download.state
+            state = download.state,
+            metadata = customMetadata
         )
     }
 
@@ -76,8 +85,8 @@ class DownloadClient private constructor(private val context: Context) {
     }
 
 
-    fun startDownload(mediaItem: MediaItem, resolution: String) {
-        DownloadController.startDownload(context, mediaItem, resolution)
+    fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>) {
+        DownloadController.startDownload(context, mediaItem, resolution, metadata)
     }
 
     fun pauseDownload(assetId: String) {

@@ -41,7 +41,8 @@ private constructor(
     private val shouldAutoPlay: Boolean = true,
     private val startAt: Long = 0,
     val enableDownload: Boolean = false,
-    private val showDefaultCaptions: Boolean = false
+    private val showDefaultCaptions: Boolean = false,
+    val downloadMetadata: Map<String, String>? = null
 ) : Player by exoPlayer {
 
     interface Listener {
@@ -581,10 +582,21 @@ private constructor(
             shouldAutoPlay: Boolean = true,
             startAt: Long = 0,
             enableDownload: Boolean = false,
-            showDefaultCaptions: Boolean = false
+            showDefaultCaptions: Boolean = false,
+            downloadMetadata: Map<String, String>? = null
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context)
-            return TPStreamsPlayer(context, exo, trackSelector, assetId, accessToken, shouldAutoPlay, startAt, enableDownload, showDefaultCaptions)
+            return TPStreamsPlayer(
+                context,
+                exo,
+                trackSelector,
+                assetId,
+                accessToken,
+                shouldAutoPlay,
+                startAt,
+                enableDownload,
+                showDefaultCaptions,
+                downloadMetadata)
         }
     }
 }
