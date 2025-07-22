@@ -73,26 +73,25 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     private fun startDownload(mediaItem: MediaItem, resolution: String) {
         val downloadClient = DownloadClient.getInstance(view.context)
         val tpsPlayer = view.getPlayer() ?: return
-        val assetId = mediaItem.mediaId
+        val assetId = tpsPlayer.assetId
         
         tpsPlayer.isTokenValid(assetId) { isValid ->
-            if (isValid) {
-                downloadClient.startDownload(mediaItem, resolution)
-                showToast("Starting download for $resolution", false)
+            if (!isValid) {
+                tpsPlayer.getNewToken(assetId) { token ->
+                    if (token.isEmpty()) {
+                        showToast("Failed to authorize download", true)
+                        return@getNewToken
+                    }
+    
+                    val updatedMediaItem = mediaItem.updateMediaItemDrmConfig(token)
+                    downloadClient.startDownload(updatedMediaItem, resolution)
+                    showToast("Starting download for $resolution", false)
+                }
                 return@isTokenValid
             }
-            
-            tpsPlayer.getValidTokenForDownload(assetId) { token ->
-                if (token.isEmpty()) {
-                    showToast("Failed to authorize download", true)
-                    return@getValidTokenForDownload
-                }
-                
-                val updatedMediaItem = mediaItem.updateMediaItemDrmConfig(token)
-                Log.d(TAG, "Starting download with new token")
-                downloadClient.startDownload(updatedMediaItem, resolution)
-                showToast("Starting download for $resolution", false)
-            }
+    
+            downloadClient.startDownload(mediaItem, resolution)
+            showToast("Starting download for $resolution", false)
         }
     }
     

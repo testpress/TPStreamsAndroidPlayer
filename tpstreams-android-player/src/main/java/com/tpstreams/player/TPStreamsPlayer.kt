@@ -37,8 +37,8 @@ private constructor(
     private val context: Context,
     private val exoPlayer: ExoPlayer,
     private val trackSelector: DefaultTrackSelector,
-    assetId: String,
-    accessToken: String,
+    val assetId: String,
+    val accessToken: String,
     private val shouldAutoPlay: Boolean = true,
     private val startAt: Long = 0,
     val enableDownload: Boolean = false,
@@ -92,12 +92,7 @@ private constructor(
             }
             
             override fun onPlayerError(error: PlaybackException) {
-                val message = when (error.errorCode) {
-                    PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED -> "DRM license acquisition failed."
-                    PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED -> "DRM license expired."
-                    else -> "Playback error: ${error.errorCodeName}"
-                }
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                Log.e("TPStreamsPlayer", "Player error: ${error.message}", error)
             }
             
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
@@ -494,23 +489,22 @@ private constructor(
         Log.d("TPStreamsPlayer", "Checking if token is valid for asset: $assetId")
         
         CoroutineScope(Dispatchers.Main).launch {
-            val token = getCurrentAccessToken()
-            if (token.isEmpty()) {
+            if (accessToken.isEmpty()) {
                 Log.d("TPStreamsPlayer", "No current token available")
                 callback(false)
                 return@launch
             }
             
-            val org = organizationId ?: run {
+            val orgId = organizationId ?: run {
                 callback(false)
                 return@launch
             }
             
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    val validationUrl = "https://app.tpstreams.com/api/v1/$org/assets/$assetId/?access_token=$token"
+                    val assetApiUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/?access_token=$accessToken"
                     val request = Request.Builder()
-                        .url(validationUrl)
+                        .url(assetApiUrl)
                         .head()
                         .build()
                     
@@ -531,16 +525,8 @@ private constructor(
         }
     }
 
-    fun getValidTokenForDownload(assetId: String, callback: (String) -> Unit) {
-        
-        isTokenValid(assetId) { isValid ->
-            if (isValid) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    val currentToken = getCurrentAccessToken()
-                    Log.d("TPStreamsPlayer", "Current token is still valid, using it for download")
-                    callback(currentToken)
-                }
-            } else {
+    fun getNewToken(assetId: String, callback: (String) -> Unit) {
+        CoroutineScope(Dispatchers.Main).launch {
                 listener?.onAccessTokenExpired(assetId) { newToken ->
                     if (newToken.isNotEmpty()) {
                         Log.d("TPStreamsPlayer", "Received fresh token for download")
@@ -551,21 +537,9 @@ private constructor(
                     }
                 } ?: run {
                     Log.e("TPStreamsPlayer", "No token listener available")
-                    callback("")
-                }
+                callback("")
             }
         }
-    }
-    
-    fun getCurrentAccessToken(): String {
-        val currentMediaItem = currentMediaItem ?: return ""
-        val drmConfig = currentMediaItem.localConfiguration?.drmConfiguration
-        
-        val authHeader = drmConfig?.licenseRequestHeaders?.get("Authorization")
-        authHeader?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ")?.let { return it }
-        
-        val licenseUri = drmConfig?.licenseUri ?: return ""
-        return licenseUri.getQueryParameter("access_token") ?: ""
     }
 
     companion object {
