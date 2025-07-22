@@ -53,15 +53,14 @@ class DownloadClient private constructor(private val context: Context) {
             val dataString = download.request.data?.toString(Charsets.UTF_8)
             if (!dataString.isNullOrEmpty()) {
                 val json = JSONObject(dataString)
-                title = json.optString("title", title)
-                thumbnailUrl = json.optString("thumbnailUrl", null)
+                title = json.optString(DownloadConstants.KEY_TITLE, title)
+                thumbnailUrl = json.optString(DownloadConstants.KEY_THUMBNAIL_URL, null)
                     .takeIf { it?.isNotEmpty() == true }
                     
-                val metadataObj = json.optJSONObject("customMetadata")
+                // Extract custom metadata if present
+                val metadataObj = json.optJSONObject(DownloadConstants.KEY_CUSTOM_METADATA)
                 if (metadataObj != null) {
-                    val keys = metadataObj.keys()
-                    while (keys.hasNext()) {
-                        val key = keys.next()
+                    metadataObj.keys().forEach { key ->
                         customMetadata[key] = metadataObj.optString(key, "")
                     }
                 }

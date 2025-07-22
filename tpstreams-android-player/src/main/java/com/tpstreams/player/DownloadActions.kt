@@ -7,6 +7,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.offline.Download
 import com.tpstreams.player.download.DownloadPermissionHandler
 import com.tpstreams.player.download.DownloadClient
+import com.tpstreams.player.download.DownloadConstants
 
 class DownloadActions(private val view: TPStreamsPlayerView) {
     companion object {
@@ -75,7 +76,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         
         // Use metadata from the player if available, otherwise use default metadata
         val metadata = tpsPlayer?.downloadMetadata ?: mapOf(
-            "downloadDate" to System.currentTimeMillis().toString()
+            DownloadConstants.KEY_DOWNLOAD_DATE to System.currentTimeMillis().toString()
         )
         
         downloadClient.startDownload(mediaItem, resolution, metadata)

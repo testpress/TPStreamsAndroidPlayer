@@ -227,15 +227,16 @@ object DownloadController {
                     val baseRequest = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
                     
                     val metadataJson = JSONObject().apply {
-                        put("title", title)
-                        put("thumbnailUrl", thumbnailUrl)
+                        put(DownloadConstants.KEY_TITLE, title)
+                        put(DownloadConstants.KEY_THUMBNAIL_URL, thumbnailUrl)
                         
+                        // Add custom metadata if provided
                         metadata?.let { customMetadata ->
                             val customMetadataObj = JSONObject()
                             customMetadata.forEach { (key, value) ->
                                 customMetadataObj.put(key, value)
                             }
-                            put("customMetadata", customMetadataObj)
+                            put(DownloadConstants.KEY_CUSTOM_METADATA, customMetadataObj)
                         }
                     }.toString()
 
