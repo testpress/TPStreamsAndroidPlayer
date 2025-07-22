@@ -71,7 +71,14 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     
     private fun startDownload(mediaItem: MediaItem, resolution: String) {
         val downloadClient = DownloadClient.getInstance(view.context)
-        downloadClient.startDownload(mediaItem, resolution)
+        val tpsPlayer = view.getPlayer() as? TPStreamsPlayer
+        
+        // Use metadata from the player if available, otherwise use default metadata
+        val metadata = tpsPlayer?.downloadMetadata ?: mapOf(
+            "downloadDate" to System.currentTimeMillis().toString()
+        )
+        
+        downloadClient.startDownload(mediaItem, resolution, metadata)
         
         Toast.makeText(
             view.context,

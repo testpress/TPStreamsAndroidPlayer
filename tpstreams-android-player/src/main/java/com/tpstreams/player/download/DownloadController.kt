@@ -206,7 +206,7 @@ object DownloadController {
         return DefaultDataSource.Factory(context, httpDataSourceFactory)
     }
     
-    fun startDownload(context: Context, mediaItem: MediaItem, resolution: String) {
+    fun startDownload(context: Context, mediaItem: MediaItem, resolution: String, metadata: Map<String, String>? = null) {
         Log.d(TAG, "Preparing download for: ${mediaItem.mediaId}")
         val title = mediaItem.mediaMetadata.title?.toString() ?: "Undefined"
         val thumbnailUrl = mediaItem.mediaMetadata.artworkUri?.toString() ?: ""
@@ -229,6 +229,14 @@ object DownloadController {
                     val metadataJson = JSONObject().apply {
                         put("title", title)
                         put("thumbnailUrl", thumbnailUrl)
+                        
+                        metadata?.let { customMetadata ->
+                            val customMetadataObj = JSONObject()
+                            customMetadata.forEach { (key, value) ->
+                                customMetadataObj.put(key, value)
+                            }
+                            put("customMetadata", customMetadataObj)
+                        }
                     }.toString()
 
                     val request = DownloadRequest.Builder(mediaItem.mediaId, baseRequest.uri)

@@ -13,5 +13,6 @@ data class DownloadItem(
     val totalBytes: Long = 0,
     val downloadedBytes: Long = 0,
     val progressPercentage: Float = 0f,
-    val state: Int = 0
+    val state: Int = 0,
+    val metadata: Map<String, String> = emptyMap()
 ) 

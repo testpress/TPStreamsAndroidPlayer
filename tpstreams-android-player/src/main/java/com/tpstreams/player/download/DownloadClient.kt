@@ -47,6 +47,7 @@ class DownloadClient private constructor(private val context: Context) {
         
         var title = "Unknown Title"
         var thumbnailUrl: String? = null
+        val customMetadata = mutableMapOf<String, String>()
         
         try {
             val dataString = download.request.data?.toString(Charsets.UTF_8)
@@ -55,6 +56,15 @@ class DownloadClient private constructor(private val context: Context) {
                 title = json.optString("title", title)
                 thumbnailUrl = json.optString("thumbnailUrl", null)
                     .takeIf { it?.isNotEmpty() == true }
+                    
+                val metadataObj = json.optJSONObject("customMetadata")
+                if (metadataObj != null) {
+                    val keys = metadataObj.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        customMetadata[key] = metadataObj.optString(key, "")
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting metadata from download: ${e.message}")
@@ -67,7 +77,8 @@ class DownloadClient private constructor(private val context: Context) {
             totalBytes = download.contentLength,
             downloadedBytes = download.bytesDownloaded,
             progressPercentage = progressPercent.toFloat(),
-            state = download.state
+            state = download.state,
+            metadata = customMetadata
         )
     }
 
@@ -78,6 +89,10 @@ class DownloadClient private constructor(private val context: Context) {
 
     fun startDownload(mediaItem: MediaItem, resolution: String) {
         DownloadController.startDownload(context, mediaItem, resolution)
+    }
+    
+    fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>) {
+        DownloadController.startDownload(context, mediaItem, resolution, metadata)
     }
 
     fun pauseDownload(assetId: String) {
