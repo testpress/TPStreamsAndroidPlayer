@@ -36,19 +36,33 @@ private constructor(
     private val context: Context,
     private val exoPlayer: ExoPlayer,
     private val trackSelector: DefaultTrackSelector,
-    assetId: String,
-    accessToken: String,
+    val assetId: String,
+    val accessToken: String,
     private val shouldAutoPlay: Boolean = true,
     private val startAt: Long = 0,
     val enableDownload: Boolean = false,
     private val showDefaultCaptions: Boolean = false
 ) : Player by exoPlayer {
 
+    interface Listener {
+        fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit)
+    }
+
     private var isPrepared = false
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
-    
+
+    private var _listener: Listener? = null
+    var listener: Listener?
+        get() = _listener
+        set(value) {
+            _listener = value
+            if (value != null) {
+                Log.d("TPStreamsPlayer", "Player listener set")
+            }
+        }
+
     init {
         Log.d("TPStreamsPlayer", "Initializing TPStreamsPlayer with assetId: $assetId")
         
@@ -111,10 +125,10 @@ private constructor(
                 val assetApiUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/?access_token=$accessToken"
                 
                 val request = Request.Builder().url(assetApiUrl).build()
-                val response = OkHttpClient().newCall(request).execute()
+                val response = client.newCall(request).execute()
 
                 if (!response.isSuccessful) {
-                    Log.e("TPStreamsPlayer", "Failed to fetch asset metadata: ${response.code}")
+                    Log.d("TPStreamsPlayer", "API returned 401 Unauthorized for asset $assetId")
                     return@launch
                 }
 
@@ -470,8 +484,66 @@ private constructor(
         return subtitleMetadata[language] ?: false
     }
 
+    fun isTokenValid(assetId: String, callback: (Boolean) -> Unit) {
+        Log.d("TPStreamsPlayer", "Checking if token is valid for asset: $assetId")
+        
+        CoroutineScope(Dispatchers.Main).launch {
+            if (accessToken.isEmpty()) {
+                Log.d("TPStreamsPlayer", "No current token available")
+                callback(false)
+                return@launch
+            }
+            
+            val orgId = organizationId ?: run {
+                callback(false)
+                return@launch
+            }
+            
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val assetApiUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/?access_token=$accessToken"
+                    val request = Request.Builder()
+                        .url(assetApiUrl)
+                        .head()
+                        .build()
+                    
+                    val response = client.newCall(request).execute()
+                    val isValid = response.isSuccessful
+                    Log.d("TPStreamsPlayer", "Token validation result: ${if (isValid) "valid" else "invalid"}")
+                    
+                    launch(Dispatchers.Main) {
+                        callback(isValid)
+                    }
+                } catch (e: Exception) {
+                    Log.e("TPStreamsPlayer", "Error checking token validity: ${e.message}")
+                    launch(Dispatchers.Main) {
+                        callback(false)
+                    }
+                }
+            }
+        }
+    }
+
+    fun getNewToken(assetId: String, callback: (String) -> Unit) {
+        CoroutineScope(Dispatchers.Main).launch {
+                listener?.onAccessTokenExpired(assetId) { newToken ->
+                    if (newToken.isNotEmpty()) {
+                        Log.d("TPStreamsPlayer", "Received fresh token for download")
+                        callback(newToken)
+                    } else {
+                        Log.e("TPStreamsPlayer", "Failed to get fresh token for download")
+                        callback("")
+                    }
+                } ?: run {
+                    Log.e("TPStreamsPlayer", "No token listener available")
+                callback("")
+            }
+        }
+    }
+
     companion object {
         private var organizationId: String? = null
+        private val client = OkHttpClient()
 
         internal fun init(orgId: String) {
             organizationId = orgId

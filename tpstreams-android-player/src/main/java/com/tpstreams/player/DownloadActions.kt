@@ -7,6 +7,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.offline.Download
 import com.tpstreams.player.download.DownloadPermissionHandler
 import com.tpstreams.player.download.DownloadClient
+import androidx.media3.common.C
 
 class DownloadActions(private val view: TPStreamsPlayerView) {
     companion object {
@@ -71,12 +72,52 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     
     private fun startDownload(mediaItem: MediaItem, resolution: String) {
         val downloadClient = DownloadClient.getInstance(view.context)
-        downloadClient.startDownload(mediaItem, resolution)
+        val tpsPlayer = view.getPlayer() ?: return
+        val assetId = tpsPlayer.assetId
         
+        tpsPlayer.isTokenValid(assetId) { isValid ->
+            if (!isValid) {
+                tpsPlayer.getNewToken(assetId) { token ->
+                    if (token.isEmpty()) {
+                        showToast("Failed to authorize download", true)
+                        return@getNewToken
+                    }
+    
+                    val updatedMediaItem = mediaItem.updateMediaItemDrmConfig(token)
+                    downloadClient.startDownload(updatedMediaItem, resolution)
+                    showToast("Starting download for $resolution", false)
+                }
+                return@isTokenValid
+            }
+    
+            downloadClient.startDownload(mediaItem, resolution)
+            showToast("Starting download for $resolution", false)
+        }
+    }
+    
+    private fun MediaItem.updateMediaItemDrmConfig(token: String): MediaItem {
+        val drm = localConfiguration?.drmConfiguration ?: return this
+        val uri = drm.licenseUri ?: return this
+    
+        val newUri = uri.buildUpon()
+            .clearQuery()
+            .appendQueryParameter("access_token", token)
+            .build()
+    
+        val newDrm = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+            .setLicenseUri(newUri)
+            .setLicenseRequestHeaders(mapOf("Authorization" to "Bearer $token"))
+            .setMultiSession(true)
+            .build()
+    
+        return buildUpon().setDrmConfiguration(newDrm).build()
+    }
+    
+    private fun showToast(message: String, isLong: Boolean) {
         Toast.makeText(
             view.context,
-            "Starting download for $resolution",
-            Toast.LENGTH_SHORT
+            message,
+            if (isLong) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
         ).show()
     }
 
