@@ -31,7 +31,6 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector
-import java.util.concurrent.atomic.AtomicInteger
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -56,9 +55,6 @@ private constructor(
     private var subtitleMetadata = mapOf<String, Boolean>()
 
     private var _listener: Listener? = null
-    private val tokenRefreshAttempts = AtomicInteger(0)
-    private val MAX_TOKEN_REFRESH_ATTEMPTS = 3
-
     var listener: Listener?
         get() = _listener
         set(value) {
@@ -118,31 +114,6 @@ private constructor(
         fetchAndPrepare(org, assetId, accessToken)
     }
 
-    private fun handleTokenRefresh(orgId: String, assetId: String) {
-        Log.d("TPStreamsPlayer", "Token refresh needed for assetId: $assetId")
-        if (tokenRefreshAttempts.get() >= MAX_TOKEN_REFRESH_ATTEMPTS) {
-            Log.e("TPStreamsPlayer", "Maximum token refresh attempts reached ($MAX_TOKEN_REFRESH_ATTEMPTS). Giving up.")
-            tokenRefreshAttempts.set(0)
-            return
-        }
-
-        tokenRefreshAttempts.incrementAndGet()
-        Log.d("TPStreamsPlayer", "Attempting token refresh: attempt ${tokenRefreshAttempts.get()} of $MAX_TOKEN_REFRESH_ATTEMPTS")
-
-        listener?.onAccessTokenExpired(assetId) { newToken ->
-            if (newToken.isNotEmpty()) {
-                Log.d("TPStreamsPlayer", "Received new access token, reloading media")
-                fetchAndPrepare(orgId, assetId, newToken)
-            } else {
-                Log.e("TPStreamsPlayer", "Failed to get new access token")
-                tokenRefreshAttempts.set(0)
-            }
-        } ?: run {
-            Log.e("TPStreamsPlayer", "No listener set for token refresh")
-            tokenRefreshAttempts.set(0)
-        }
-    }
-
     private fun enableDefaultCaptions() {
         val textTracks = getAvailableTextTracks()
         val defaultTrack = textTracks.firstOrNull()
@@ -163,19 +134,9 @@ private constructor(
                 val response = client.newCall(request).execute()
 
                 if (!response.isSuccessful) {
-                    if (response.code == 401) {
-                        Log.d("TPStreamsPlayer", "API returned 401 Unauthorized for asset $assetId")
-                        launch(Dispatchers.Main) {
-                            handleTokenRefresh(orgId, assetId)
-                        }
-                    } else {
-                        Log.e("TPStreamsPlayer", "API error: ${response.code} ${response.message} for asset $assetId")
-                        tokenRefreshAttempts.set(0)
-                    }
+                    Log.d("TPStreamsPlayer", "API returned 401 Unauthorized for asset $assetId")
                     return@launch
                 }
-
-                tokenRefreshAttempts.set(0)
 
                 val body = response.body?.string() ?: return@launch
                 
@@ -529,27 +490,66 @@ private constructor(
         return subtitleMetadata[language] ?: false
     }
 
-    fun getAccessTokenForDownload(assetId: String, callback: (String) -> Unit) {
-        Log.d("TPStreamsPlayer", "Getting access token for download: $assetId")
+    fun isTokenValid(assetId: String, callback: (Boolean) -> Unit) {
+        Log.d("TPStreamsPlayer", "Checking if token is valid for asset: $assetId")
         
-        checkTokenValidity(assetId) { isValid ->
+        CoroutineScope(Dispatchers.Main).launch {
+            val token = getCurrentAccessToken()
+            if (token.isEmpty()) {
+                Log.d("TPStreamsPlayer", "No current token available")
+                callback(false)
+                return@launch
+            }
+            
+            val org = organizationId ?: run {
+                callback(false)
+                return@launch
+            }
+            
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val validationUrl = "https://app.tpstreams.com/api/v1/$org/assets/$assetId/?access_token=$token"
+                    val request = Request.Builder()
+                        .url(validationUrl)
+                        .head()
+                        .build()
+                    
+                    val response = client.newCall(request).execute()
+                    val isValid = response.isSuccessful
+                    Log.d("TPStreamsPlayer", "Token validation result: ${if (isValid) "valid" else "invalid"}")
+                    
+                    launch(Dispatchers.Main) {
+                        callback(isValid)
+                    }
+                } catch (e: Exception) {
+                    Log.e("TPStreamsPlayer", "Error checking token validity: ${e.message}")
+                    launch(Dispatchers.Main) {
+                        callback(false)
+                    }
+                }
+            }
+        }
+    }
+
+    fun getValidTokenForDownload(assetId: String, callback: (String) -> Unit) {
+        
+        isTokenValid(assetId) { isValid ->
             if (isValid) {
-                Log.d("TPStreamsPlayer", "Current token is still valid, using it for download")
-                callback(getCurrentAccessToken())
+                CoroutineScope(Dispatchers.Main).launch {
+                    val currentToken = getCurrentAccessToken()
+                    Log.d("TPStreamsPlayer", "Current token is still valid, using it for download")
+                    callback(currentToken)
+                }
             } else {
-                Log.d("TPStreamsPlayer", "Current token is invalid, requesting fresh token")
-                val tokenListener = listener
-                if (tokenListener != null) {
-                    tokenListener.onAccessTokenExpired(assetId) { newToken ->
+                listener?.onAccessTokenExpired(assetId) { newToken ->
                     if (newToken.isNotEmpty()) {
                         Log.d("TPStreamsPlayer", "Received fresh token for download")
                         callback(newToken)
                     } else {
                         Log.e("TPStreamsPlayer", "Failed to get fresh token for download")
-                            callback("")
-                        }
+                        callback("")
                     }
-                } else {
+                } ?: run {
                     Log.e("TPStreamsPlayer", "No token listener available")
                     callback("")
                 }
@@ -557,7 +557,7 @@ private constructor(
         }
     }
     
-    private fun getCurrentAccessToken(): String {
+    fun getCurrentAccessToken(): String {
         val currentMediaItem = currentMediaItem ?: return ""
         val drmConfig = currentMediaItem.localConfiguration?.drmConfiguration
         
@@ -566,41 +566,6 @@ private constructor(
         
         val licenseUri = drmConfig?.licenseUri ?: return ""
         return licenseUri.getQueryParameter("access_token") ?: ""
-    }
-    
-    private fun checkTokenValidity(assetId: String, callback: (Boolean) -> Unit) {
-        val token = getCurrentAccessToken()
-        if (token.isEmpty()) {
-            Log.d("TPStreamsPlayer", "No current token available")
-            callback(false)
-            return
-        }
-        
-        val org = organizationId ?: return callback(false)
-        
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val validationUrl = "https://app.tpstreams.com/api/v1/$org/assets/$assetId/?access_token=$token"
-                val request = Request.Builder()
-                    .url(validationUrl)
-                    .head()
-                    .build()
-                
-                val response = client.newCall(request).execute()
-                val isValid = response.isSuccessful
-                Log.d("TPStreamsPlayer", "Token validation check: $response")
-                Log.d("TPStreamsPlayer", "Token validation check: ${if (isValid) "valid" else "invalid"}")
-                
-                launch(Dispatchers.Main) {
-                    callback(isValid)
-                }
-            } catch (e: Exception) {
-                Log.e("TPStreamsPlayer", "Error checking token validity: ${e.message}")
-                launch(Dispatchers.Main) {
-                    callback(false)
-                }
-            }
-        }
     }
 
     companion object {

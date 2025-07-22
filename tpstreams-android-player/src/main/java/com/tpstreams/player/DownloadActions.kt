@@ -75,38 +75,43 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val tpsPlayer = view.getPlayer() ?: return
         val assetId = mediaItem.mediaId
         
-        showToast("Preparing download...", false)
-        
-        tpsPlayer.getAccessTokenForDownload(assetId) { token ->
-            if (token.isEmpty()) {
-                showToast("Failed to authorize download", true)
-                return@getAccessTokenForDownload
+        tpsPlayer.isTokenValid(assetId) { isValid ->
+            if (isValid) {
+                downloadClient.startDownload(mediaItem, resolution)
+                showToast("Starting download for $resolution", false)
+                return@isTokenValid
             }
             
-            val updatedMediaItem = createMediaItemWithToken(mediaItem, token)
-            downloadClient.startDownload(updatedMediaItem, resolution)
-            showToast("Starting download for $resolution", false)
+            tpsPlayer.getValidTokenForDownload(assetId) { token ->
+                if (token.isEmpty()) {
+                    showToast("Failed to authorize download", true)
+                    return@getValidTokenForDownload
+                }
+                
+                val updatedMediaItem = mediaItem.updateMediaItemDrmConfig(token)
+                Log.d(TAG, "Starting download with new token")
+                downloadClient.startDownload(updatedMediaItem, resolution)
+                showToast("Starting download for $resolution", false)
+            }
         }
     }
     
-    private fun createMediaItemWithToken(mediaItem: MediaItem, token: String): MediaItem {
-        val oldDrmConfig = mediaItem.localConfiguration?.drmConfiguration ?: return mediaItem
-        
-        val licenseUri = oldDrmConfig.licenseUri ?: return mediaItem
-        val updatedUri = licenseUri.buildUpon()
+    private fun MediaItem.updateMediaItemDrmConfig(token: String): MediaItem {
+        val drm = localConfiguration?.drmConfiguration ?: return this
+        val uri = drm.licenseUri ?: return this
+    
+        val newUri = uri.buildUpon()
             .clearQuery()
             .appendQueryParameter("access_token", token)
             .build()
-        
-        val newDrmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
-            .setLicenseUri(updatedUri)
+    
+        val newDrm = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+            .setLicenseUri(newUri)
             .setLicenseRequestHeaders(mapOf("Authorization" to "Bearer $token"))
             .setMultiSession(true)
             .build()
-        
-        return mediaItem.buildUpon()
-            .setDrmConfiguration(newDrmConfig)
-            .build()
+    
+        return buildUpon().setDrmConfiguration(newDrm).build()
     }
     
     private fun showToast(message: String, isLong: Boolean) {
