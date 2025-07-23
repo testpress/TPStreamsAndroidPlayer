@@ -58,11 +58,8 @@ class DownloadClient private constructor(private val context: Context) {
                     .takeIf { it?.isNotEmpty() == true }
 
                 val metadataObj = json.optJSONObject(DownloadConstants.KEY_CUSTOM_METADATA)
-                if (metadataObj != null) {
-                    metadataObj.keys().forEach { key ->
-                        customMetadata[key] = metadataObj.optString(key, "")
-                    }
-                }
+                val map = metadataObj.keys().asSequence().associateWith { metadataObj.getString(it) }
+                customMetadata.putAll(map)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting metadata from download: ${e.message}")

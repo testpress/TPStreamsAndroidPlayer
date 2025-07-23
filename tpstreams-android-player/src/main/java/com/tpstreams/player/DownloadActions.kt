@@ -75,9 +75,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val downloadClient = DownloadClient.getInstance(view.context)
         val tpsPlayer = view.getPlayer() ?: return
         val assetId = tpsPlayer.assetId
-        val metadata = tpsPlayer?.downloadMetadata ?: mapOf(
-            DownloadConstants.KEY_DOWNLOAD_DATE to System.currentTimeMillis().toString()
-        )
+        val metadata = tpsPlayer.downloadMetadata ?: emptyMap()
 
         tpsPlayer.isTokenValid(assetId) { isValid ->
             if (!isValid) {

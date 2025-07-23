@@ -231,12 +231,8 @@ object DownloadController {
                         put(DownloadConstants.KEY_THUMBNAIL_URL, thumbnailUrl)
 
                         // Add custom metadata if provided
-                        metadata?.let { customMetadata ->
-                            val customMetadataObj = JSONObject()
-                            customMetadata.forEach { (key, value) ->
-                                customMetadataObj.put(key, value)
-                            }
-                            put(DownloadConstants.KEY_CUSTOM_METADATA, customMetadataObj)
+                        if (metadata.isNotEmpty()) {
+                            put(DownloadConstants.KEY_CUSTOM_METADATA, JSONObject(metadata as Map<*, *>))
                         }
                     }.toString()
 
