@@ -76,6 +76,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val tpsPlayer = view.getPlayer() ?: return
         val assetId = tpsPlayer.assetId
         val metadata = tpsPlayer.downloadMetadata ?: emptyMap()
+        val offlineLicenseExpireTime = tpsPlayer.offlineLicenseExpireTime
 
         tpsPlayer.isTokenValid(assetId) { isValid ->
             if (!isValid) {
@@ -86,13 +87,13 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
                     }
     
                     val updatedMediaItem = mediaItem.updateMediaItemDrmConfig(token)
-                    downloadClient.startDownload(updatedMediaItem, resolution, metadata)
+                    downloadClient.startDownload(updatedMediaItem, resolution, metadata, offlineLicenseExpireTime)
                     showToast("Starting download for $resolution", false)
                 }
                 return@isTokenValid
             }
     
-            downloadClient.startDownload(mediaItem, resolution, metadata)
+            downloadClient.startDownload(mediaItem, resolution, metadata, offlineLicenseExpireTime)
             showToast("Starting download for $resolution", false)
         }
     }
