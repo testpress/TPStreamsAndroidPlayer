@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService
 import androidx.media3.common.Format
 import androidx.media3.common.C
 import org.json.JSONObject
+import android.net.Uri
 
 
 @UnstableApi
@@ -306,11 +307,12 @@ object DownloadController {
         offlineLicenseExpireTime: Int = 0
     ): DownloadRequest? {
         val licenseUri = drmConfig.licenseUri?.toString() ?: return null
-        val downloadLicenseUri = if (offlineLicenseExpireTime > 0) {
-            "$licenseUri&download=true&license_duration_seconds=$offlineLicenseExpireTime"
-        } else {
-            "$licenseUri&download=true"
+        val uriBuilder = Uri.parse(licenseUri).buildUpon()
+            .appendQueryParameter("download", "true")
+        if (offlineLicenseExpireTime > 0) {
+            uriBuilder.appendQueryParameter("license_duration_seconds", offlineLicenseExpireTime.toString())
         }
+        val downloadLicenseUri = uriBuilder.build().toString()
 
         val drmFormat = findDrmFormat(helper) ?: return null
         val dataSourceFactory = createDataSourceFactory(context, drmConfig)
