@@ -42,7 +42,8 @@ private constructor(
     private val startAt: Long = 0,
     val enableDownload: Boolean = false,
     private val showDefaultCaptions: Boolean = false,
-    val downloadMetadata: Map<String, String>? = null
+    val downloadMetadata: Map<String, String>? = null,
+    val offlineLicenseExpireTime: Int = 0
 ) : Player by exoPlayer {
 
     interface Listener {
@@ -583,7 +584,8 @@ private constructor(
             startAt: Long = 0,
             enableDownload: Boolean = false,
             showDefaultCaptions: Boolean = false,
-            downloadMetadata: Map<String, String>? = null
+            downloadMetadata: Map<String, String>? = null,
+            offlineLicenseExpireTime: Int = 0
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context)
             return TPStreamsPlayer(
@@ -596,7 +598,8 @@ private constructor(
                 startAt,
                 enableDownload,
                 showDefaultCaptions,
-                downloadMetadata)
+                downloadMetadata,
+                offlineLicenseExpireTime)
         }
     }
 }

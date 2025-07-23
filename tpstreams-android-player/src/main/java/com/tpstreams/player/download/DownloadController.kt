@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService
 import androidx.media3.common.Format
 import androidx.media3.common.C
 import org.json.JSONObject
+import android.net.Uri
 
 
 @UnstableApi
@@ -206,7 +207,7 @@ object DownloadController {
         return DefaultDataSource.Factory(context, httpDataSourceFactory)
     }
     
-    fun startDownload(context: Context, mediaItem: MediaItem, resolution: String, metadata: Map<String, String>) {
+    fun startDownload(context: Context, mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, offlineLicenseExpireTime: Int = 0) {
         Log.d(TAG, "Preparing download for: ${mediaItem.mediaId}")
         val title = mediaItem.mediaMetadata.title?.toString() ?: "Undefined"
         val thumbnailUrl = mediaItem.mediaMetadata.artworkUri?.toString() ?: ""
@@ -246,7 +247,7 @@ object DownloadController {
                     
                     if (isMediaItemContainsDrm(mediaItem)) {
                         val drmRequest = mediaItem.localConfiguration?.drmConfiguration?.let {
-                            handleDrmDownload(context, it, helper, request)
+                            handleDrmDownload(context, it, helper, request, offlineLicenseExpireTime)
                         }
                         if (drmRequest != null) {
                             TPSDownloadService.sendDownload(context, drmRequest, true)
@@ -302,10 +303,16 @@ object DownloadController {
         context: Context,
         drmConfig: MediaItem.DrmConfiguration,
         helper: DownloadHelper,
-        baseRequest: DownloadRequest
+        baseRequest: DownloadRequest,
+        offlineLicenseExpireTime: Int = 0
     ): DownloadRequest? {
         val licenseUri = drmConfig.licenseUri?.toString() ?: return null
-        val downloadLicenseUri = "$licenseUri&download=true"
+        val uriBuilder = Uri.parse(licenseUri).buildUpon()
+            .appendQueryParameter("download", "true")
+        if (offlineLicenseExpireTime > 0) {
+            uriBuilder.appendQueryParameter("license_duration_seconds", offlineLicenseExpireTime.toString())
+        }
+        val downloadLicenseUri = uriBuilder.build().toString()
 
         val drmFormat = findDrmFormat(helper) ?: return null
         val dataSourceFactory = createDataSourceFactory(context, drmConfig)

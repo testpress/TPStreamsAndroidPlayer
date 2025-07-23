@@ -82,8 +82,8 @@ class DownloadClient private constructor(private val context: Context) {
     }
 
 
-    fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>) {
-        DownloadController.startDownload(context, mediaItem, resolution, metadata)
+    fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, offlineLicenseExpireTime: Int = 0) {
+        DownloadController.startDownload(context, mediaItem, resolution, metadata, offlineLicenseExpireTime)
     }
 
     fun pauseDownload(assetId: String) {
