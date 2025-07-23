@@ -8,6 +8,7 @@ import androidx.media3.exoplayer.offline.Download
 import com.tpstreams.player.download.DownloadPermissionHandler
 import com.tpstreams.player.download.DownloadClient
 import androidx.media3.common.C
+import com.tpstreams.player.download.DownloadConstants
 
 class DownloadActions(private val view: TPStreamsPlayerView) {
     companion object {
@@ -74,7 +75,8 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val downloadClient = DownloadClient.getInstance(view.context)
         val tpsPlayer = view.getPlayer() ?: return
         val assetId = tpsPlayer.assetId
-        
+        val metadata = tpsPlayer.downloadMetadata ?: emptyMap()
+
         tpsPlayer.isTokenValid(assetId) { isValid ->
             if (!isValid) {
                 tpsPlayer.getNewToken(assetId) { token ->
@@ -84,13 +86,13 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
                     }
     
                     val updatedMediaItem = mediaItem.updateMediaItemDrmConfig(token)
-                    downloadClient.startDownload(updatedMediaItem, resolution)
+                    downloadClient.startDownload(updatedMediaItem, resolution, metadata)
                     showToast("Starting download for $resolution", false)
                 }
                 return@isTokenValid
             }
     
-            downloadClient.startDownload(mediaItem, resolution)
+            downloadClient.startDownload(mediaItem, resolution, metadata)
             showToast("Starting download for $resolution", false)
         }
     }
