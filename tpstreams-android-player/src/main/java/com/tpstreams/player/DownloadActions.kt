@@ -3,6 +3,8 @@ package com.tpstreams.player
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.offline.Download
 import com.tpstreams.player.download.DownloadPermissionHandler
@@ -61,14 +63,16 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
         
-        val activity = view.getActivity()
-        if (activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (!DownloadPermissionHandler.hasNotificationPermission(view.context)) {
-                DownloadPermissionHandler.requestNotificationPermission(activity)
-                return
+        val activity = view.getActivity() ?: return
+        
+        if (activity is FragmentActivity) {
+            DownloadPermissionHandler.requestPermissionIfNeeded(activity) {
+                startDownload(mediaItem, resolution)
             }
+        } else {
+            // Fallback for non-FragmentActivity (should be rare)
+            startDownload(mediaItem, resolution)
         }
-        startDownload(mediaItem, resolution)
     }
     
     private fun startDownload(mediaItem: MediaItem, resolution: String) {
