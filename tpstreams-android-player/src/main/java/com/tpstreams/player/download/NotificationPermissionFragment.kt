@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.lifecycle.Lifecycle
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 
@@ -13,6 +14,7 @@ import androidx.fragment.app.FragmentActivity
 class NotificationPermissionFragment : Fragment() {
 
     private var onGrantedCallback: (() -> Unit)? = null
+    private var pendingPermissionRequest = false
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -22,17 +24,27 @@ class NotificationPermissionFragment : Fragment() {
         } else {
             Toast.makeText(requireContext(), "Allow notification permission in App settings to download videos", Toast.LENGTH_LONG).show()
         }
-        parentFragmentManager.beginTransaction().remove(this).commitAllowingStateLoss()
+        if (isAdded) {
+            parentFragmentManager.beginTransaction().remove(this).commit()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        retainInstance = true
+        
+        if (pendingPermissionRequest) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     fun requestPermission(callback: () -> Unit) {
         onGrantedCallback = callback
-        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        
+        if (isAdded && lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            pendingPermissionRequest = true
+        }
     }
 
     companion object {
@@ -40,13 +52,11 @@ class NotificationPermissionFragment : Fragment() {
 
         fun request(activity: FragmentActivity, callback: () -> Unit) {
             val fragment = NotificationPermissionFragment()
-            fragment.onGrantedCallback = callback
 
             activity.supportFragmentManager.beginTransaction()
                 .add(fragment, TAG)
-                .commitAllowingStateLoss()
+                .commit()
 
-            activity.supportFragmentManager.executePendingTransactions()
             fragment.requestPermission(callback)
         }
     }
