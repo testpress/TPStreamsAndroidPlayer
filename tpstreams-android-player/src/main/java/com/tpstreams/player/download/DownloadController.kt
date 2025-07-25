@@ -278,7 +278,6 @@ object DownloadController {
         if (isInitialized) {
             downloadManager.setStopReason(id, STOP_REASON_PAUSED)
         }
-        TPSDownloadService.pauseDownloads(context)
     }
     
     fun resumeDownload(context: Context, id: String) {
@@ -286,7 +285,6 @@ object DownloadController {
         if (isInitialized) {
             downloadManager.setStopReason(id, STOP_REASON_NONE)
         }
-        TPSDownloadService.resumeDownloads(context)
     }
     
     fun removeDownload(context: Context, id: String) {
