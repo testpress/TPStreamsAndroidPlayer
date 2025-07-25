@@ -275,18 +275,12 @@ object DownloadController {
     
     fun pauseDownload(context: Context, id: String) {
         Log.d(TAG, "Pausing download: $id")
-        if (isInitialized) {
-            downloadManager.setStopReason(id, STOP_REASON_PAUSED)
-        }
-        TPSDownloadService.pauseDownloads(context)
+        getDownloadManager(context).setStopReason(id, STOP_REASON_PAUSED)
     }
     
     fun resumeDownload(context: Context, id: String) {
         Log.d(TAG, "Resuming download: $id")
-        if (isInitialized) {
-            downloadManager.setStopReason(id, STOP_REASON_NONE)
-        }
-        TPSDownloadService.resumeDownloads(context)
+        getDownloadManager(context).setStopReason(id, STOP_REASON_NONE)
     }
     
     fun removeDownload(context: Context, id: String) {
