@@ -6,12 +6,14 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import com.tpstreams.player.download.DownloadPermissionHandler
 import com.tpstreams.player.download.DownloadClient
 import androidx.media3.common.C
 import com.tpstreams.player.download.DownloadConstants
 
+@UnstableApi
 class DownloadActions(private val view: TPStreamsPlayerView) {
     companion object {
         private const val TAG = "DownloadActions"

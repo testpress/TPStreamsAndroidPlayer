@@ -9,6 +9,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.FragmentManager
+import androidx.media3.common.util.UnstableApi
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -16,6 +17,7 @@ import com.tpstreams.player.download.DownloadClient
 import androidx.media3.exoplayer.offline.Download
 import android.widget.ImageView
 
+@UnstableApi
 class DownloadActionBottomSheet : BottomSheetDialogFragment() {
 
     interface DownloadActionListener {

@@ -6,7 +6,9 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.media3.common.util.UnstableApi
 
+@UnstableApi
 class FullscreenMode(private val view: TPStreamsPlayerView) {
     private var isFullscreen = false
     private var originalParent: ViewGroup? = null

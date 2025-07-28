@@ -3,11 +3,13 @@ package com.tpstreams.player.download
 import android.content.Context
 import android.util.Log
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import org.json.JSONObject
 
+@UnstableApi
 class DownloadClient private constructor(private val context: Context) {
 
     interface Listener {

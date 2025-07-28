@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tp_streams_icon_tint_primary">#212121</color>
+    <color name="tp_streams_icon_tint_secondary">#757575</color>
+</resources> 

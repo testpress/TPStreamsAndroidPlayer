@@ -1,8 +1,10 @@
 package com.tpstreams.player
 
 import android.util.Log
+import androidx.media3.common.util.UnstableApi
 import java.util.Locale
 
+@UnstableApi
 class Captions(private val view: TPStreamsPlayerView) {
     private var currentCaptionLanguage: String? = null
     private var availableCaptions: List<Pair<String, String>> = emptyList()
