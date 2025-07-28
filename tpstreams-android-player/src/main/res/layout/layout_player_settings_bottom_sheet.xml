@@ -185,6 +185,6 @@
             android:layout_height="16dp"
             android:src="@drawable/ic_chevron_right"
             android:layout_gravity="center_vertical"
-            app:tint="#757575" />
+            app:tint="@color/tp_streams_icon_tint_secondary" />
     </LinearLayout>
 </LinearLayout> 
