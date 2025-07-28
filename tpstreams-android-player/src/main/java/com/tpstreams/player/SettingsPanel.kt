@@ -1,5 +1,8 @@
 package com.tpstreams.player
 
+import androidx.media3.common.util.UnstableApi
+
+@UnstableApi
 class SettingsPanel(private val view: TPStreamsPlayerView) {
     private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
     private var availableResolutions: List<String> = emptyList()

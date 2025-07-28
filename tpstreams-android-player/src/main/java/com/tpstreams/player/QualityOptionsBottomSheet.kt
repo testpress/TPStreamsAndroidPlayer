@@ -141,7 +141,7 @@ class QualityOptionsBottomSheet : BottomSheetDialogFragment() {
     }
 
     companion object {
-        const val TAG = "QualityOptionsBottomSheet"
+        const val TAG = "QualityOptionsBS"
         
         // Quality option constants
         const val QUALITY_AUTO = "Auto"
