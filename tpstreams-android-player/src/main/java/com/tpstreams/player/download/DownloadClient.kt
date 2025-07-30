@@ -1,6 +1,8 @@
 package com.tpstreams.player.download
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
@@ -20,7 +22,22 @@ class DownloadClient private constructor(private val context: Context) {
     private val repository = DownloadRepository(context) {
         listeners.forEach { it.onDownloadsChanged() }
     }
-
+    
+    private val PROGRESS_UPDATE_INTERVAL_MS = 1000L
+    private val progressHandler = Handler(Looper.getMainLooper())
+    private val progressRunnable = object : Runnable {
+        override fun run() {
+            listeners.forEach { listener ->
+                try {
+                    listener.onDownloadsChanged()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error notifying listener: ${e.message}", e)
+                }
+            }
+            
+            progressHandler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
+        }
+    }
 
     fun isDownloaded(assetId: String): Boolean = repository.getDownload(assetId)?.state == Download.STATE_COMPLETED
 
@@ -105,10 +122,24 @@ class DownloadClient private constructor(private val context: Context) {
 
     fun addListener(listener: Listener) {
         listeners.add(listener)
+        if (listeners.size == 1) {
+            startProgressUpdates()
+        }
     }
 
     fun removeListener(listener: Listener) {
         listeners.remove(listener)
+        if (listeners.isEmpty()) {
+            stopProgressUpdates()
+        }
+    }
+    
+    private fun startProgressUpdates() {
+        progressHandler.post(progressRunnable)
+    }
+    
+    private fun stopProgressUpdates() {
+        progressHandler.removeCallbacks(progressRunnable)
     }
 
     private inner class DownloadRepository(
