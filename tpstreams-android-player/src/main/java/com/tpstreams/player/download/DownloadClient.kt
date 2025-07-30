@@ -23,11 +23,19 @@ class DownloadClient private constructor(private val context: Context) {
         listeners.forEach { it.onDownloadsChanged() }
     }
     
+    private val PROGRESS_UPDATE_INTERVAL_MS = 1000L
     private val progressHandler = Handler(Looper.getMainLooper())
     private val progressRunnable = object : Runnable {
         override fun run() {
-            listeners.forEach { it.onDownloadsChanged() }
-            progressHandler.postDelayed(this, 1000)
+            listeners.forEach { listener ->
+                try {
+                    listener.onDownloadsChanged()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error notifying listener: ${e.message}", e)
+                }
+            }
+            
+            progressHandler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
         }
     }
 
