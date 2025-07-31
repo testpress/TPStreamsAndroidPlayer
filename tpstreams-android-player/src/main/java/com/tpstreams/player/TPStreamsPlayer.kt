@@ -30,6 +30,7 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector
+import com.tpstreams.player.download.DownloadConstants
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -364,14 +365,13 @@ private constructor(
 
     @OptIn(UnstableApi::class)
     fun getResolutionBitrates(): Map<String, Int> {
-        val bitrateMap = mapOf(
-            "240p" to 192_000,
-            "360p" to 300_000,
-            "480p" to 400_000,    
-            "720p" to 900_000,
-            "1080p" to 1_500_000
+        return mapOf(
+            "240p" to DownloadConstants.BITRATE_240P,
+            "360p" to DownloadConstants.BITRATE_360P,
+            "480p" to DownloadConstants.BITRATE_480P,    
+            "720p" to DownloadConstants.BITRATE_720P,
+            "1080p" to DownloadConstants.BITRATE_1080P
         )
-        return bitrateMap
     }
 
     @OptIn(UnstableApi::class)
