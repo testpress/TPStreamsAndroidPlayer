@@ -361,7 +361,7 @@ private constructor(
 
         return resolutions.sortedDescending()
     }
-    
+
     @OptIn(UnstableApi::class)
     fun getResolutionBitrates(): Map<String, Int> {
         val bitrateMap = mapOf(
