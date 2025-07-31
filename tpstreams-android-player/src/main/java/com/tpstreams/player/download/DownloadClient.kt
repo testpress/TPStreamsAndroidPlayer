@@ -67,6 +67,7 @@ class DownloadClient private constructor(private val context: Context) {
         var title = "Unknown Title"
         var thumbnailUrl: String? = null
         val customMetadata = mutableMapOf<String, String>()
+        var computedSize: Long = 0
         
         try {
             val dataString = download.request.data?.toString(Charsets.UTF_8)
@@ -75,6 +76,7 @@ class DownloadClient private constructor(private val context: Context) {
                 title = json.optString(DownloadConstants.KEY_TITLE, title)
                 thumbnailUrl = json.optString(DownloadConstants.KEY_THUMBNAIL_URL, null)
                     .takeIf { it?.isNotEmpty() == true }
+                computedSize = json.optLong(DownloadConstants.KEY_CALCULATED_SIZE_BYTES, 0)
 
                 val metadataObj = json.optJSONObject(DownloadConstants.KEY_CUSTOM_METADATA)
                 val map = metadataObj.keys().asSequence().associateWith { metadataObj.getString(it) }
@@ -83,12 +85,14 @@ class DownloadClient private constructor(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting metadata from download: ${e.message}")
         }
+
+        val totalBytes = if (download.contentLength > 0) download.contentLength else computedSize
         
         return DownloadItem(
             assetId = assetId,
             title = title,
             thumbnailUrl = thumbnailUrl,
-            totalBytes = download.contentLength,
+            totalBytes = totalBytes,
             downloadedBytes = download.bytesDownloaded,
             progressPercentage = progressPercent.toFloat(),
             state = download.state,
@@ -101,8 +105,8 @@ class DownloadClient private constructor(private val context: Context) {
     }
 
 
-    fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, offlineLicenseExpireTime: Int = 0) {
-        DownloadController.startDownload(context, mediaItem, resolution, metadata, offlineLicenseExpireTime)
+    fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Int = 0) {
+        DownloadController.startDownload(context, mediaItem, resolution, metadata, totalSize, offlineLicenseExpireTime)
     }
 
     fun pauseDownload(assetId: String) {

@@ -83,6 +83,12 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val assetId = tpsPlayer.assetId
         val metadata = tpsPlayer.downloadMetadata ?: emptyMap()
         val offlineLicenseExpireTime = tpsPlayer.offlineLicenseExpireTime
+        
+        val trackBitrates = tpsPlayer.getResolutionBitrates()
+        val bitrate = trackBitrates[resolution] ?: 0
+        val durationMs = tpsPlayer.duration
+
+        val totalSize = getDownloadSize(trackBitrates, resolution, durationMs)
 
         tpsPlayer.isTokenValid(assetId) { isValid ->
             if (!isValid) {
@@ -93,13 +99,13 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
                     }
     
                     val updatedMediaItem = mediaItem.updateMediaItemDrmConfig(token)
-                    downloadClient.startDownload(updatedMediaItem, resolution, metadata, offlineLicenseExpireTime)
+                    downloadClient.startDownload(updatedMediaItem, resolution, metadata, totalSize, offlineLicenseExpireTime)
                     showToast("Starting download for $resolution", false)
                 }
                 return@isTokenValid
             }
     
-            downloadClient.startDownload(mediaItem, resolution, metadata, offlineLicenseExpireTime)
+            downloadClient.startDownload(mediaItem, resolution, metadata, totalSize, offlineLicenseExpireTime)
             showToast("Starting download for $resolution", false)
         }
     }
@@ -180,5 +186,12 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
             downloadClient.isPaused(assetId) -> R.drawable.ic_download_progress
             else -> R.drawable.ic_download
         }
+    }
+
+    fun getDownloadSize(trackBitrates: Map<String, Int>, resolution: String, durationMs: Long): Long {
+        val bitrate = trackBitrates[resolution] ?: 0
+        val durationSeconds = durationMs / 1000.0
+        val sizeBytes = (bitrate.toLong() * durationSeconds / 8.0).toLong()
+        return sizeBytes.toLong()
     }
 } 
