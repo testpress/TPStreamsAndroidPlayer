@@ -362,36 +362,18 @@ private constructor(
         return resolutions.sortedDescending()
     }
 
+    
+    
     @OptIn(UnstableApi::class)
     fun getResolutionBitrates(): Map<String, Int> {
-        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return emptyMap()
-        
-        val resolutionBitrateMap = mutableMapOf<Int, Int>()
-        
-        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
-            if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_VIDEO) {
-                val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
-                for (groupIndex in 0 until trackGroups.length) {
-                    val group = trackGroups.get(groupIndex)
-                    for (trackIndex in 0 until group.length) {
-                        val format = group.getFormat(trackIndex)
-                        if (format.height != Format.NO_VALUE && format.bitrate != Format.NO_VALUE) {
-                            // Store the resolution and its corresponding bitrate
-                            resolutionBitrateMap[format.height] = format.bitrate
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Convert to final map format with string keys
-        val combinedBitrates = mutableMapOf<String, Int>()
-        for ((resolution, bitrate) in resolutionBitrateMap) {
-            combinedBitrates["${resolution}p"] = bitrate
-        }
-        
-        Log.d("TPStreamsPlayer", "Resolution-bitrate map: $combinedBitrates")
-        return combinedBitrates
+        val bitrateMap = mapOf(
+            "240p" to 192_000,
+            "360p" to 300_000,
+            "480p" to 400_000,    
+            "720p" to 900_000,
+            "1080p" to 1_500_000
+        )
+        return bitrateMap
     }
 
     @OptIn(UnstableApi::class)
