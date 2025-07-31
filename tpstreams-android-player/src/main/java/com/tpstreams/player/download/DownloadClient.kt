@@ -79,8 +79,10 @@ class DownloadClient private constructor(private val context: Context) {
                 computedSize = json.optLong(DownloadConstants.KEY_CALCULATED_SIZE_BYTES, 0)
 
                 val metadataObj = json.optJSONObject(DownloadConstants.KEY_CUSTOM_METADATA)
-                val map = metadataObj.keys().asSequence().associateWith { metadataObj.getString(it) }
-                customMetadata.putAll(map)
+                if (metadataObj != null) {
+                    val map = metadataObj.keys().asSequence().associateWith { metadataObj.getString(it) }
+                    customMetadata.putAll(map)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting metadata from download: ${e.message}")
