@@ -85,7 +85,6 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val offlineLicenseExpireTime = tpsPlayer.offlineLicenseExpireTime
         
         val trackBitrates = tpsPlayer.getResolutionBitrates()
-        val bitrate = trackBitrates[resolution] ?: 0
         val durationMs = tpsPlayer.duration
 
         val totalSize = getDownloadSize(trackBitrates, resolution, durationMs)
@@ -188,10 +187,12 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         }
     }
 
-    fun getDownloadSize(trackBitrates: Map<String, Int>, resolution: String, durationMs: Long): Long {
-        val bitrate = trackBitrates[resolution] ?: 0
+    private fun getDownloadSize(trackBitrates: Map<String, Int>, resolution: String, durationMs: Long): Long {
+        val bitrate = trackBitrates[resolution] ?: return 0
+        if (bitrate <= 0 || durationMs <= 0) return 0
+
         val durationSeconds = durationMs / 1000.0
         val sizeBytes = (bitrate.toLong() * durationSeconds / 8.0).toLong()
-        return sizeBytes.toLong()
+        return sizeBytes
     }
 } 
