@@ -31,6 +31,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ExecutorService
 import androidx.media3.common.Format
 import androidx.media3.common.C
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import org.json.JSONObject
 import android.net.Uri
 
@@ -213,11 +215,19 @@ object DownloadController {
         val thumbnailUrl = mediaItem.mediaMetadata.artworkUri?.toString() ?: ""
         
         Log.d(TAG, "Download metadata - Title: $title, Thumbnail: $thumbnailUrl")
-        
+        val targetHeight = resolution.removeSuffix("p").toIntOrNull() ?: 0
+        val trackSelectionParameters = if (targetHeight > 0) {
+            TrackSelectionParameters.Builder()
+                .setMaxVideoSize(Int.MAX_VALUE, targetHeight)
+                .setMinVideoSize(0, targetHeight)
+                .build()
+        } else {
+            TrackSelectionParameters.Builder().build()
+        }
         val helper = DownloadHelper.forMediaItem(
-            context,
             mediaItem,
-            null,
+            trackSelectionParameters,
+            DefaultRenderersFactory(context),
             getDataSourceFactory(context)
         )
         
