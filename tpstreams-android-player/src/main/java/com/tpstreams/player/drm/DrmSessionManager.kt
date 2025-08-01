@@ -23,12 +23,17 @@ class DrmSessionManager(
     private val assetId: String,
     private val isTokenValid: (String, (Boolean) -> Unit) -> Unit,
     private val onAccessTokenExpired: (String, (String) -> Unit) -> Unit,
-    private val accessToken: String,
+    private var accessToken: String,
     private val organizationId: String?,
     private val exoPlayer: Player
 ) : Player.Listener {
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    companion object {
+        private const val API_BASE_URL = "https://app.tpstreams.com/api/v1"
+        private const val DRM_LICENSE_PATH = "drm_license"
+    }
 
     @OptIn(UnstableApi::class)
     override fun onPlayerError(error: PlaybackException) {
@@ -51,7 +56,8 @@ class DrmSessionManager(
                 Log.d("DrmSessionManager", "Token is expired, requesting new token")
                 onAccessTokenExpired(assetId) { newToken ->
                     if (newToken.isNotEmpty()) {
-                        Log.d("DrmSessionManager", "Received new token, retrying playback")
+                        Log.d("DrmSessionManager", "Received new token, updating access token")
+                        accessToken = newToken
                         retryPlayback(newToken)
                     } else {
                         Log.e("DrmSessionManager", "Failed to get new token for DRM license renewal")
@@ -71,7 +77,7 @@ class DrmSessionManager(
             .apply {
                 val currentDrmConfig = currentMediaItem.localConfiguration?.drmConfiguration
                 if (currentDrmConfig != null) {
-                    val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$token"
+                    val licenseUrl = "$API_BASE_URL/$orgId/assets/$assetId/$DRM_LICENSE_PATH/?access_token=$token"
                     val drmHeaders = mapOf("Authorization" to "Bearer $token")
                     
                     val newDrmConfig = DrmConfiguration.Builder(C.WIDEVINE_UUID)
