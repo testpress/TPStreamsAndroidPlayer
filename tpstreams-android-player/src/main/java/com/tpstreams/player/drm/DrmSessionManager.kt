@@ -16,6 +16,8 @@ import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 class DrmSessionManager(
     private val assetId: String,
@@ -26,27 +28,16 @@ class DrmSessionManager(
     private val exoPlayer: Player
 ) : Player.Listener {
 
+    private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
     @OptIn(UnstableApi::class)
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun onPlayerError(error: PlaybackException) {
         val cause = error.cause
         if (cause is DrmSession.DrmSessionException &&
             cause.cause is MediaDrmStateException) {
             val drmStateException = cause.cause as MediaDrmStateException
-            when (drmStateException.getErrorCode()) {
-                MediaDrm.ErrorCodes.ERROR_LICENSE_POLICY -> {
-                    Log.w("DrmSessionManager", "DRM license policy error for asset: $assetId")
-                    handleDrmLicenseExpiry()
-                }
-                MediaDrm.ErrorCodes.ERROR_KEY_EXPIRED -> {
-                    Log.w("DrmSessionManager", "DRM license expired for asset: $assetId")
-                    handleDrmLicenseExpiry()
-                }
-                else -> {
-                    Log.e("DrmSessionManager", "DRM error code: ${drmStateException.getErrorCode()} for asset: $assetId")
-                    handleDrmLicenseExpiry()
-                }
-            }
+            Log.w("DrmSessionManager", "DRM session error for asset: $assetId")
+            handleDrmLicenseExpiry()
         }
     }
 
@@ -94,7 +85,7 @@ class DrmSessionManager(
             }
             .build()
 
-        CoroutineScope(Dispatchers.Main).launch {
+        coroutineScope.launch {
             val currentPosition = exoPlayer.currentPosition
             val wasPlaying = exoPlayer.isPlaying
             
@@ -110,5 +101,9 @@ class DrmSessionManager(
             
             Log.d("DrmSessionManager", "Successfully retried playback with updated DRM license")
         }
+    }
+
+    fun release() {
+        coroutineScope.cancel()
     }
 } 

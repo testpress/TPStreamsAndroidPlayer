@@ -110,7 +110,8 @@ private constructor(
             }
             
             override fun onPlayerError(error: PlaybackException) {
-                if (error.cause is DrmSession.DrmSessionException) return
+                if (error.cause is DrmSession.DrmSessionException || 
+                    error.cause is android.media.MediaCodec.CryptoException) return
                 Log.e("TPStreamsPlayer", "Player error: ${error.message}", error)
             }
             
@@ -352,7 +353,11 @@ private constructor(
      */
     override fun getPlaybackState(): Int = exoPlayer.playbackState
 
-    override fun release() = exoPlayer.release()
+    override fun release() {
+        exoPlayer.removeListener(drmSessionManager)
+        drmSessionManager.release()
+        exoPlayer.release()
+    }
 
     @OptIn(UnstableApi::class)
     fun getTrackSelector(): DefaultTrackSelector = trackSelector
