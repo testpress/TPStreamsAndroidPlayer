@@ -107,7 +107,7 @@ class DownloadClient private constructor(private val context: Context) {
     }
 
 
-    fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Int = 0) {
+    fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS) {
         DownloadController.startDownload(context, mediaItem, resolution, metadata, totalSize, offlineLicenseExpireTime)
     }
 

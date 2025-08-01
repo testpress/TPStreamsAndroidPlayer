@@ -46,7 +46,7 @@ private constructor(
     val enableDownload: Boolean = false,
     private val showDefaultCaptions: Boolean = false,
     val downloadMetadata: Map<String, String>? = null,
-    val offlineLicenseExpireTime: Int = 0
+    val offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
 ) : Player by exoPlayer {
 
     interface Listener {
@@ -587,7 +587,7 @@ private constructor(
             enableDownload: Boolean = false,
             showDefaultCaptions: Boolean = false,
             downloadMetadata: Map<String, String>? = null,
-            offlineLicenseExpireTime: Int = 0
+            offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context)
             return TPStreamsPlayer(

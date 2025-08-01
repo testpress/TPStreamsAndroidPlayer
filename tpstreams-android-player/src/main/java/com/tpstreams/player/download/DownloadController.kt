@@ -209,7 +209,7 @@ object DownloadController {
         return DefaultDataSource.Factory(context, httpDataSourceFactory)
     }
     
-    fun startDownload(context: Context, mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Int = 0) {
+    fun startDownload(context: Context, mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS) {
         Log.d(TAG, "Preparing download for: ${mediaItem.mediaId}")
         val title = mediaItem.mediaMetadata.title?.toString() ?: "Undefined"
         val thumbnailUrl = mediaItem.mediaMetadata.artworkUri?.toString() ?: ""
@@ -309,7 +309,7 @@ object DownloadController {
         drmConfig: MediaItem.DrmConfiguration,
         helper: DownloadHelper,
         baseRequest: DownloadRequest,
-        offlineLicenseExpireTime: Int = 0
+        offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
     ): DownloadRequest? {
         val licenseUri = drmConfig.licenseUri?.toString() ?: return null
         val uriBuilder = Uri.parse(licenseUri).buildUpon()
