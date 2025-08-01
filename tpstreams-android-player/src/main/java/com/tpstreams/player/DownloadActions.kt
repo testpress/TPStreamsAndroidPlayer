@@ -141,6 +141,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val assetId = mediaItem.mediaId
         
         DownloadClient.getInstance(view.context).removeDownload(assetId)
+        showToast("Download deleted", false)
     }
     
     fun pauseCurrentDownload() {
@@ -149,6 +150,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val assetId = mediaItem.mediaId
         
         DownloadClient.getInstance(view.context).pauseDownload(assetId)
+        showToast("Download paused", false)
     }
     
     fun resumeCurrentDownload() {
@@ -157,6 +159,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val assetId = mediaItem.mediaId
         
         DownloadClient.getInstance(view.context).resumeDownload(assetId)
+        showToast("Download resumed", false)
     }
 
     fun getCurrentDownloadStatus(): String {
