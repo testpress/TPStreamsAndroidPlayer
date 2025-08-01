@@ -31,6 +31,8 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector
 import com.tpstreams.player.download.DownloadConstants
+import com.tpstreams.player.drm.DrmSessionManager
+import androidx.media3.exoplayer.drm.DrmSession
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -55,6 +57,7 @@ private constructor(
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
+    private lateinit var drmSessionManager: DrmSessionManager
 
     private var _listener: Listener? = null
     var listener: Listener?
@@ -69,6 +72,19 @@ private constructor(
     init {
         Log.d("TPStreamsPlayer", "Initializing TPStreamsPlayer with assetId: $assetId")
         
+        drmSessionManager = DrmSessionManager(
+            assetId = assetId,
+            isTokenValid = { assetId, callback -> isTokenValid(assetId, callback) },
+            onAccessTokenExpired = { assetId, callback -> 
+                Log.d("TPStreamsPlayer", "Emitting onAccessTokenExpired event for asset: $assetId")
+                listener?.onAccessTokenExpired(assetId, callback)
+            },
+            accessToken = accessToken,
+            organizationId = organizationId,
+            exoPlayer = exoPlayer
+        )
+        
+        exoPlayer.addListener(drmSessionManager)
         exoPlayer.addListener(object : Player.Listener {
             @OptIn(UnstableApi::class)
             override fun onTracksChanged(tracks: Tracks) {
@@ -94,6 +110,8 @@ private constructor(
             }
             
             override fun onPlayerError(error: PlaybackException) {
+                if (error.cause is DrmSession.DrmSessionException || 
+                    error.cause is android.media.MediaCodec.CryptoException) return
                 Log.e("TPStreamsPlayer", "Player error: ${error.message}", error)
             }
             
@@ -335,7 +353,11 @@ private constructor(
      */
     override fun getPlaybackState(): Int = exoPlayer.playbackState
 
-    override fun release() = exoPlayer.release()
+    override fun release() {
+        exoPlayer.removeListener(drmSessionManager)
+        drmSessionManager.release()
+        exoPlayer.release()
+    }
 
     @OptIn(UnstableApi::class)
     fun getTrackSelector(): DefaultTrackSelector = trackSelector
