@@ -30,6 +30,7 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector
+import com.tpstreams.player.download.DownloadConstants
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
