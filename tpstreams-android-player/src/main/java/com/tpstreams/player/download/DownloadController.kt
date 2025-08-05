@@ -235,7 +235,9 @@ object DownloadController {
                     Log.d(TAG, "Created download request with ID: ${request.id} for URL: ${request.uri}")
                     
                     if (isMediaItemContainsDrm(mediaItem)) {
-                        val drmRequest = handleDrmDownload(context, mediaItem.localConfiguration?.drmConfiguration!!, helper, request, offlineLicenseExpireTime)
+                        val drmRequest = mediaItem.localConfiguration?.drmConfiguration?.let { drmConfig ->
+                            handleDrmDownload(context, drmConfig, helper, request, offlineLicenseExpireTime)
+                        }
                         if (drmRequest != null) {
                             TPSDownloadService.sendDownload(context, drmRequest, true)
                             Log.d(TAG, "DRM download started for: ${mediaItem.mediaId}, resolution: $resolution")
@@ -319,7 +321,7 @@ object DownloadController {
         baseRequest: DownloadRequest,
         offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
     ): DownloadRequest? {
-        val downloadLicenseUri = buildDownloadLicenseUri(drmConfig.licenseUri?.toString(), offlineLicenseExpireTime)
+        val downloadLicenseUri = buildDownloadLicenseUri(drmConfig.licenseUri?.toString(), offlineLicenseExpireTime) ?: return null
         val drmFormat = findDrmFormat(helper) ?: return null
         val dataSourceFactory = createDataSourceFactory(context, drmConfig)
 
@@ -332,8 +334,8 @@ object DownloadController {
         )
     }
 
-    private fun buildDownloadLicenseUri(licenseUri: String?, offlineLicenseExpireTime: Long): String {
-        val uri = licenseUri ?: return ""
+    private fun buildDownloadLicenseUri(licenseUri: String?, offlineLicenseExpireTime: Long): String? {
+        val uri = licenseUri ?: return null
         val uriBuilder = Uri.parse(uri).buildUpon()
             .appendQueryParameter("download", "true")
         if (offlineLicenseExpireTime > 0) {
