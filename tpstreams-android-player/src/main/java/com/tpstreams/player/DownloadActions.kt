@@ -99,13 +99,11 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     
                     val updatedMediaItem = mediaItem.updateMediaItemDrmConfig(token)
                     downloadClient.startDownload(updatedMediaItem, resolution, metadata, totalSize, offlineLicenseExpireTime)
-                    showToast("Starting download for $resolution", false)
                 }
                 return@isTokenValid
             }
     
             downloadClient.startDownload(mediaItem, resolution, metadata, totalSize, offlineLicenseExpireTime)
-            showToast("Starting download for $resolution", false)
         }
     }
     

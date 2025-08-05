@@ -3,12 +3,14 @@ package com.tpstreams.player.download
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.StatFs
 import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
+import android.widget.Toast
 import org.json.JSONObject
 
 @UnstableApi
@@ -108,15 +110,76 @@ class DownloadClient private constructor(private val context: Context) {
 
 
     fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS) {
+        if (!hasEnoughStorage(totalSize)) {
+            Toast.makeText(
+                context,
+                "No available storage space",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        
+        Toast.makeText(
+            context,
+            "Starting download for $resolution",
+            Toast.LENGTH_SHORT
+        ).show()
+        
         DownloadController.startDownload(context, mediaItem, resolution, metadata, totalSize, offlineLicenseExpireTime)
     }
+    
+    fun resumeDownload(assetId: String) {
+        val downloadItem = getAllDownloadItems().find { it.assetId == assetId }
+        if (downloadItem == null) {
+            Log.w(TAG, "Cannot resume download, item not found for assetId: $assetId")
+            return
+        }
 
+        val remainingBytes = downloadItem.totalBytes - downloadItem.downloadedBytes
+        if (!hasEnoughStorage(remainingBytes)) {
+            Toast.makeText(
+                context,
+                "No available storage space",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        
+        DownloadController.resumeDownload(context, assetId)
+    }
+    
     fun pauseDownload(assetId: String) {
         DownloadController.pauseDownload(context, assetId)
     }
-
-    fun resumeDownload(assetId: String) {
-        DownloadController.resumeDownload(context, assetId)
+    
+    private fun hasEnoughStorage(requiredBytes: Long): Boolean {
+        val availableSpace = getAvailableStorageSpace()
+        val pendingDownloadsSize = getPendingDownloadsSize()
+        val actualAvailable = availableSpace - pendingDownloadsSize
+        
+        val requiredWithBuffer = (requiredBytes * STORAGE_BUFFER_MULTIPLIER).toLong()
+        
+        return actualAvailable >= requiredWithBuffer
+    }
+    
+    private fun getAvailableStorageSpace(): Long {
+        return try {
+            val dir = context.getExternalFilesDir(null)
+            val path = dir?.absolutePath ?: return 0L
+            
+            val stat = StatFs(path)
+            stat.availableBytes
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting available storage space: ${e.message}", e)
+            0L
+        }
+    }
+    
+    private fun getPendingDownloadsSize(): Long {
+        val pendingDownloads = getAllDownloadItems()
+            .filter { it.state !in listOf(Download.STATE_COMPLETED, Download.STATE_FAILED, Download.STATE_REMOVING) }
+        
+        return pendingDownloads.sumOf { it.totalBytes }
     }
 
     fun removeDownload(assetId: String) {
@@ -229,6 +292,7 @@ class DownloadClient private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "DownloadClient"
+        private const val STORAGE_BUFFER_MULTIPLIER = 1.2f
         
         @Volatile private var instance: DownloadClient? = null
 
