@@ -215,15 +215,7 @@ object DownloadController {
         val thumbnailUrl = mediaItem.mediaMetadata.artworkUri?.toString() ?: ""
         
         Log.d(TAG, "Download metadata - Title: $title, Thumbnail: $thumbnailUrl")
-        val targetHeight = resolution.removeSuffix("p").toIntOrNull() ?: 0
-        val trackSelectionParameters = if (targetHeight > 0) {
-            TrackSelectionParameters.Builder()
-                .setMaxVideoSize(Int.MAX_VALUE, targetHeight)
-                .setMinVideoSize(0, targetHeight)
-                .build()
-        } else {
-            TrackSelectionParameters.Builder().build()
-        }
+        val trackSelectionParameters = buildTrackSelectionParameters(resolution)
         val helper = DownloadHelper.forMediaItem(
             mediaItem,
             trackSelectionParameters,
@@ -237,29 +229,13 @@ object DownloadController {
                     Log.d(TAG, "Download prepared for: ${mediaItem.mediaId}")
                     val baseRequest = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
                     
-                    val metadataJson = JSONObject().apply {
-                        put(DownloadConstants.KEY_TITLE, title)
-                        put(DownloadConstants.KEY_THUMBNAIL_URL, thumbnailUrl)
-                        put(DownloadConstants.KEY_CALCULATED_SIZE_BYTES, totalSize)
-
-                        // Add custom metadata if provided
-                        if (metadata.isNotEmpty()) {
-                            put(DownloadConstants.KEY_CUSTOM_METADATA, JSONObject(metadata as Map<*, *>))
-                        }
-                    }.toString()
-
-                    val request = DownloadRequest.Builder(mediaItem.mediaId, baseRequest.uri)
-                        .setMimeType(baseRequest.mimeType)
-                        .setStreamKeys(baseRequest.streamKeys)
-                        .setData(metadataJson.toByteArray(Charsets.UTF_8))
-                        .build()
+                    val metadataJson = createDownloadMetadata(title, thumbnailUrl, totalSize, metadata)
+                    val request = createDownloadRequest(mediaItem.mediaId, baseRequest, metadataJson)
                         
                     Log.d(TAG, "Created download request with ID: ${request.id} for URL: ${request.uri}")
                     
                     if (isMediaItemContainsDrm(mediaItem)) {
-                        val drmRequest = mediaItem.localConfiguration?.drmConfiguration?.let {
-                            handleDrmDownload(context, it, helper, request, offlineLicenseExpireTime)
-                        }
+                        val drmRequest = handleDrmDownload(context, mediaItem.localConfiguration?.drmConfiguration!!, helper, request, offlineLicenseExpireTime)
                         if (drmRequest != null) {
                             TPSDownloadService.sendDownload(context, drmRequest, true)
                             Log.d(TAG, "DRM download started for: ${mediaItem.mediaId}, resolution: $resolution")
@@ -282,6 +258,38 @@ object DownloadController {
                 }
             }
         })
+    }
+
+    private fun buildTrackSelectionParameters(resolution: String): TrackSelectionParameters {
+        val targetHeight = resolution.removeSuffix("p").toIntOrNull() ?: 0
+        return if (targetHeight > 0) {
+            TrackSelectionParameters.Builder()
+                .setMaxVideoSize(Int.MAX_VALUE, targetHeight)
+                .setMinVideoSize(0, targetHeight)
+                .build()
+        } else {
+            TrackSelectionParameters.Builder().build()
+        }
+    }
+
+    private fun createDownloadMetadata(title: String, thumbnailUrl: String, totalSize: Long, metadata: Map<String, String>): String {
+        return JSONObject().apply {
+            put(DownloadConstants.KEY_TITLE, title)
+            put(DownloadConstants.KEY_THUMBNAIL_URL, thumbnailUrl)
+            put(DownloadConstants.KEY_CALCULATED_SIZE_BYTES, totalSize)
+
+            if (metadata.isNotEmpty()) {
+                put(DownloadConstants.KEY_CUSTOM_METADATA, JSONObject(metadata as Map<*, *>))
+            }
+        }.toString()
+    }
+
+    private fun createDownloadRequest(mediaId: String, baseRequest: DownloadRequest, metadataJson: String): DownloadRequest {
+        return DownloadRequest.Builder(mediaId, baseRequest.uri)
+            .setMimeType(baseRequest.mimeType)
+            .setStreamKeys(baseRequest.streamKeys)
+            .setData(metadataJson.toByteArray(Charsets.UTF_8))
+            .build()
     }
     
     fun pauseDownload(context: Context, id: String) {
@@ -311,14 +319,7 @@ object DownloadController {
         baseRequest: DownloadRequest,
         offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
     ): DownloadRequest? {
-        val licenseUri = drmConfig.licenseUri?.toString() ?: return null
-        val uriBuilder = Uri.parse(licenseUri).buildUpon()
-            .appendQueryParameter("download", "true")
-        if (offlineLicenseExpireTime > 0) {
-            uriBuilder.appendQueryParameter("license_duration_seconds", offlineLicenseExpireTime.toString())
-        }
-        val downloadLicenseUri = uriBuilder.build().toString()
-
+        val downloadLicenseUri = buildDownloadLicenseUri(drmConfig.licenseUri?.toString(), offlineLicenseExpireTime)
         val drmFormat = findDrmFormat(helper) ?: return null
         val dataSourceFactory = createDataSourceFactory(context, drmConfig)
 
@@ -329,6 +330,16 @@ object DownloadController {
             baseRequest = baseRequest,
             dataSourceFactory = dataSourceFactory
         )
+    }
+
+    private fun buildDownloadLicenseUri(licenseUri: String?, offlineLicenseExpireTime: Long): String {
+        val uri = licenseUri ?: return ""
+        val uriBuilder = Uri.parse(uri).buildUpon()
+            .appendQueryParameter("download", "true")
+        if (offlineLicenseExpireTime > 0) {
+            uriBuilder.appendQueryParameter("license_duration_seconds", offlineLicenseExpireTime.toString())
+        }
+        return uriBuilder.build().toString()
     }
 
     fun isMediaItemContainsDrm(mediaItem: MediaItem): Boolean {
