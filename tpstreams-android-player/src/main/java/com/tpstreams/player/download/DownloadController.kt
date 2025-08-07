@@ -35,6 +35,8 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import org.json.JSONObject
 import android.net.Uri
+import androidx.media3.exoplayer.offline.DefaultDownloadIndex
+import com.tpstreams.player.TPStreamsPlayer
 
 
 @UnstableApi
@@ -331,6 +333,146 @@ object DownloadController {
             drmFormat = drmFormat,
             baseRequest = baseRequest,
             dataSourceFactory = dataSourceFactory
+        )
+    }
+
+    fun renewDrmLicense(
+        context: Context,
+        assetId: String,
+        player: TPStreamsPlayer, 
+        onSuccess: (() -> Unit)? = null,
+        onError: ((String) -> Unit)? = null
+    ) {
+        Log.d(TAG, "Renewing DRM license for asset: $assetId")
+
+        val download = DownloadClient.getInstance(context).getDownload(assetId) ?: run {
+            Log.e(TAG, "Download not found for asset: $assetId")
+            onError?.invoke("Download not found")
+            return
+        }
+
+        player.getDownloadDrmLicenseUrl { freshLicenseUrl ->
+            if (freshLicenseUrl.isNotEmpty()) {
+                Log.d(TAG, "Got fresh license URL: $freshLicenseUrl")
+                performLicenseRenewal(context , player, assetId, freshLicenseUrl, download, onSuccess, onError)
+            } else {
+                Log.e(TAG, "Failed to get fresh license URL")
+                onError?.invoke("Failed to get fresh license URL")
+            }
+        }
+    }
+
+    private fun performLicenseRenewal(
+        context: Context,
+        player: TPStreamsPlayer,
+        assetId: String,
+        licenseUri: String,
+        download: Download,
+        onSuccess: (() -> Unit)?,
+        onError: ((String) -> Unit)?
+    ) {
+        val newDrmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+            .setLicenseUri(licenseUri)
+            .build()
+        
+        val mediaItem = buildMediaItemFromDownload(download) ?: run {
+            Log.e(TAG, "Failed to build media item for license renewal")
+            onError?.invoke("Failed to build media item")
+            return
+        }
+        
+        val newMediaItem = mediaItem.buildUpon()
+            .setDrmConfiguration(newDrmConfig)
+            .build()
+        
+        val helper = DownloadHelper.forMediaItem(
+            newMediaItem,
+            TrackSelectionParameters.Builder().build(),
+            DefaultRenderersFactory(context),
+            getDataSourceFactory(context)
+        )
+        
+        helper.prepare(object : DownloadHelper.Callback {
+            override fun onPrepared(helper: DownloadHelper) {
+                try {
+                    val drmFormat = findDrmFormat(helper)
+                    if (drmFormat != null) {
+                        val licenseHelper = OfflineLicenseHelper.newWidevineInstance(
+                            licenseUri,
+                            false,
+                            getDataSourceFactory(context),
+                            DrmSessionEventListener.EventDispatcher()
+                        )
+                        
+                        try {
+                            val keySetId = licenseHelper.downloadLicense(drmFormat)
+                            Log.d(TAG, "Successfully downloaded fresh license with KeySetId: $keySetId")
+
+                            val newDownloadRequest = cloneDownloadRequestWithNewKeys(download.request, keySetId)
+                            val newDownload = cloneDownloadWithNewDownloadRequest(download, newDownloadRequest)
+
+                            val downloadIndex: DefaultDownloadIndex = downloadManager.downloadIndex as DefaultDownloadIndex
+                            downloadIndex.putDownload(newDownload)
+                            val mediaItem = buildMediaItemFromDownload(newDownload)
+                            player.refreshPlaybackWithDownloadMediaItem(mediaItem!!)
+                            
+                            
+                            Log.d(TAG, "Download updated with new license for $assetId")
+                            onSuccess?.invoke()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error downloading license: ${e.message}", e)
+                            onError?.invoke("Failed to download license: ${e.message}")
+                        } finally {
+                            licenseHelper.release()
+                        }
+                    } else {
+                        Log.e(TAG, "No DRM format found for license renewal")
+                        onError?.invoke("No DRM format found")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error preparing helper for license download: ${e.message}", e)
+                    onError?.invoke("Error preparing download: ${e.message}")
+                } finally {
+                    helper.release()
+                }
+            }
+            
+            override fun onPrepareError(helper: DownloadHelper, e: IOException) {
+                Log.e(TAG, "Error preparing helper for license download: ${e.message}", e)
+                onError?.invoke("Error preparing download: ${e.message}")
+                helper.release()
+            }
+        })
+    }
+
+    private fun cloneDownloadRequestWithNewKeys(
+        downloadRequest: DownloadRequest,
+        keySetId: ByteArray
+    ): DownloadRequest {
+        return DownloadRequest.Builder(
+            downloadRequest.id,
+            downloadRequest.uri
+        )
+            .setStreamKeys(downloadRequest.streamKeys)
+            .setCustomCacheKey(downloadRequest.customCacheKey)
+            .setKeySetId(keySetId)
+            .setData(downloadRequest.data)
+            .setMimeType(downloadRequest.mimeType)
+            .build()
+    }
+
+    private fun cloneDownloadWithNewDownloadRequest(
+        download: Download,
+        downloadRequest: DownloadRequest
+    ): Download {
+        return Download(
+            download.request.copyWithMergedRequest(downloadRequest),
+            download.state,
+            download.startTimeMs,
+            download.updateTimeMs,
+            download.contentLength,
+            download.stopReason,
+            download.failureReason
         )
     }
 

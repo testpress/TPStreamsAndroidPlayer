@@ -94,7 +94,12 @@ private constructor(
             }
             
             override fun onPlayerError(error: PlaybackException) {
-                Log.e("TPStreamsPlayer", "Player error: ${error.message}", error)
+                if (isDrmLicenseExpiredError(error)) {
+                    Log.d("TPStreamsPlayer", "DRM error detected for asset: $assetId")
+                    DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)  
+                    return
+                }
+                Log.e("TPStreamsPlayer", "Player error: ${error.errorCode}")
             }
             
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
@@ -117,6 +122,12 @@ private constructor(
         defaultTrack?.let {
             setTextTrackByLanguage(it.first)
         }
+    }
+
+    private fun isDrmLicenseExpiredError(error: PlaybackException): Boolean {
+        return error.errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED ||
+               error.errorCode == PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION ||
+                error.errorCode == PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR
     }
 
     private fun fetchAndPrepare(orgId: String, assetId: String, accessToken: String) {
@@ -279,6 +290,23 @@ private constructor(
         }
         
         return false
+    }
+
+    @OptIn(UnstableApi::class)
+    fun refreshPlaybackWithDownloadMediaItem(mediaItem: MediaItem) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val currentPosition = exoPlayer.currentPosition
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+            
+            exoPlayer.setMediaItem(mediaItem)
+            exoPlayer.prepare()
+            val duration = exoPlayer.duration
+            if ((currentPosition > 0) && (duration == C.TIME_UNSET || currentPosition < duration)) {
+                exoPlayer.seekTo(currentPosition)
+            }
+            exoPlayer.play()
+        }
     }
 
     override fun play() {
@@ -547,6 +575,8 @@ private constructor(
     companion object {
         private var organizationId: String? = null
         private val client = OkHttpClient()
+        private const val LICENSE_URL_TEMPLATE = "https://app.tpstreams.com/api/v1/%s/assets/%s/drm_license/?access_token=%s&download=%s&license_duration_seconds=%s"
+
 
         internal fun init(orgId: String) {
             organizationId = orgId
@@ -601,6 +631,50 @@ private constructor(
                 showDefaultCaptions,
                 downloadMetadata,
                 offlineLicenseExpireTime)
+        }
+    }
+
+    
+    fun getDownloadDrmLicenseUrl(callback: (String) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            isTokenValid(assetId) { isValid ->
+                if (!isValid) {
+                    Log.d("TPStreamsPlayer", "Token expired, getting fresh token")
+                    listener?.onAccessTokenExpired(assetId) { newToken ->
+                        if (newToken.isNotEmpty()) {
+                            Log.d("TPStreamsPlayer", "Received fresh token")
+                            val licenseUrl = LICENSE_URL_TEMPLATE.format(
+                                organizationId!!,
+                                assetId!!,
+                                newToken!!,
+                                "true",
+                                offlineLicenseExpireTime.toString()
+                            )
+                            
+                            Log.d("TPStreamsPlayer", "Built license URL with fresh token: $licenseUrl")
+                            callback(licenseUrl)
+                        } else {
+                            Log.e("TPStreamsPlayer", "Failed to get fresh token")
+                            callback("")
+                        }
+                    } ?: run {
+                        Log.e("TPStreamsPlayer", "No token listener available")
+                        callback("")
+                    }
+                } else {
+                    Log.d("TPStreamsPlayer", "Token is valid, using current token")
+                    val licenseUrl = LICENSE_URL_TEMPLATE.format(
+                        organizationId!!,
+                        assetId!!,
+                        accessToken!!,
+                        "true",
+                        offlineLicenseExpireTime.toString()
+                    )
+                    
+                    Log.d("TPStreamsPlayer", "Built license URL with current token: $licenseUrl")
+                    callback(licenseUrl)
+                }
+            }
         }
     }
 }
