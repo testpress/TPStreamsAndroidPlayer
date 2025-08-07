@@ -302,7 +302,7 @@ object DownloadController {
     fun resumeDownload(context: Context, id: String) {
         Log.d(TAG, "Resuming download: $id")
         getDownloadManager(context).setStopReason(id, STOP_REASON_NONE)
-       TPSDownloadService.resumeDownloads(context)
+        TPSDownloadService.resumeDownloads(context)
     }
     
     fun removeDownload(context: Context, id: String) {
