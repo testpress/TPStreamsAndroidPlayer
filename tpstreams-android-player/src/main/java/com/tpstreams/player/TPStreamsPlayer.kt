@@ -14,6 +14,8 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -55,6 +57,8 @@ private constructor(
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
+    
+    private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private var _listener: Listener? = null
     var listener: Listener?
@@ -99,7 +103,7 @@ private constructor(
                     DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)  
                     return
                 }
-                Log.e("TPStreamsPlayer", "Player error: ${error.errorCode}")
+                Log.e("TPStreamsPlayer", "Player error: ${error.errorCodeName}", error)
             }
             
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
@@ -275,7 +279,7 @@ private constructor(
                     return false
                 }
                 
-                CoroutineScope(Dispatchers.Main).launch {
+                playerScope.launch {
                     exoPlayer.setMediaItem(downloadedMediaItem)
                     exoPlayer.prepare()
                     isPrepared = true
@@ -294,7 +298,7 @@ private constructor(
 
     @OptIn(UnstableApi::class)
     fun refreshPlaybackWithDownloadMediaItem(mediaItem: MediaItem) {
-        CoroutineScope(Dispatchers.Main).launch {
+        playerScope.launch {
             val currentPosition = exoPlayer.currentPosition
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
@@ -363,7 +367,10 @@ private constructor(
      */
     override fun getPlaybackState(): Int = exoPlayer.playbackState
 
-    override fun release() = exoPlayer.release()
+    override fun release() {
+        playerScope.cancel()
+        exoPlayer.release()
+    }
 
     @OptIn(UnstableApi::class)
     fun getTrackSelector(): DefaultTrackSelector = trackSelector
@@ -643,16 +650,20 @@ private constructor(
                     listener?.onAccessTokenExpired(assetId) { newToken ->
                         if (newToken.isNotEmpty()) {
                             Log.d("TPStreamsPlayer", "Received fresh token")
-                            val licenseUrl = LICENSE_URL_TEMPLATE.format(
-                                organizationId!!,
-                                assetId!!,
-                                newToken!!,
-                                "true",
-                                offlineLicenseExpireTime.toString()
-                            )
-                            
-                            Log.d("TPStreamsPlayer", "Built license URL with fresh token: $licenseUrl")
-                            callback(licenseUrl)
+                            organizationId?.let {
+                                val licenseUrl = LICENSE_URL_TEMPLATE.format(
+                                    it,
+                                    assetId,
+                                    newToken,
+                                    "true",
+                                    offlineLicenseExpireTime.toString()
+                                )
+                                Log.d("TPStreamsPlayer", "Built license URL with fresh token: $licenseUrl")
+                                callback(licenseUrl)
+                            } ?: run {
+                                Log.e("TPStreamsPlayer", "organizationId is null, cannot build license URL")
+                                callback("")
+                            }
                         } else {
                             Log.e("TPStreamsPlayer", "Failed to get fresh token")
                             callback("")
@@ -663,16 +674,20 @@ private constructor(
                     }
                 } else {
                     Log.d("TPStreamsPlayer", "Token is valid, using current token")
-                    val licenseUrl = LICENSE_URL_TEMPLATE.format(
-                        organizationId!!,
-                        assetId!!,
-                        accessToken!!,
-                        "true",
-                        offlineLicenseExpireTime.toString()
-                    )
-                    
-                    Log.d("TPStreamsPlayer", "Built license URL with current token: $licenseUrl")
-                    callback(licenseUrl)
+                    organizationId?.let {
+                        val licenseUrl = LICENSE_URL_TEMPLATE.format(
+                            it,
+                            assetId,
+                            accessToken,
+                            "true",
+                            offlineLicenseExpireTime.toString()
+                        )
+                        Log.d("TPStreamsPlayer", "Built license URL with current token: $licenseUrl")
+                        callback(licenseUrl)
+                    } ?: run {
+                        Log.e("TPStreamsPlayer", "organizationId is null, cannot build license URL")
+                        callback("")
+                    }
                 }
             }
         }

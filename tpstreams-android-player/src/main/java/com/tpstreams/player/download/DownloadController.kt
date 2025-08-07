@@ -411,14 +411,24 @@ object DownloadController {
                             val newDownloadRequest = cloneDownloadRequestWithNewKeys(download.request, keySetId)
                             val newDownload = cloneDownloadWithNewDownloadRequest(download, newDownloadRequest)
 
-                            val downloadIndex: DefaultDownloadIndex = downloadManager.downloadIndex as DefaultDownloadIndex
-                            downloadIndex.putDownload(newDownload)
-                            val mediaItem = buildMediaItemFromDownload(newDownload)
-                            player.refreshPlaybackWithDownloadMediaItem(mediaItem!!)
-                            
-                            
-                            Log.d(TAG, "Download updated with new license for $assetId")
-                            onSuccess?.invoke()
+                            val downloadIndex = downloadManager.downloadIndex as? DefaultDownloadIndex
+                            if (downloadIndex != null) {
+                                downloadIndex.putDownload(newDownload)
+                                val newMediaItem = buildMediaItemFromDownload(newDownload)
+                                if (newMediaItem != null) {
+                                    player.refreshPlaybackWithDownloadMediaItem(newMediaItem)
+                                    Log.d(TAG, "Download updated with new license for $assetId")
+                                    onSuccess?.invoke()
+                                } else {
+                                    val errorMsg = "Failed to build media item after license renewal for $assetId"
+                                    Log.e(TAG, errorMsg)
+                                    onError?.invoke(errorMsg)
+                                }
+                            } else {
+                                val errorMsg = "Failed to cast download index to DefaultDownloadIndex for $assetId"
+                                Log.e(TAG, errorMsg)
+                                onError?.invoke(errorMsg)
+                            }
                         } catch (e: Exception) {
                             Log.e(TAG, "Error downloading license: ${e.message}", e)
                             onError?.invoke("Failed to download license: ${e.message}")
