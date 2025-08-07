@@ -1,6 +1,7 @@
 package com.tpstreams.player
 
 import android.content.Context
+import android.media.MediaCodec
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -129,9 +130,11 @@ private constructor(
     }
 
     private fun isDrmLicenseExpiredError(error: PlaybackException): Boolean {
+        val cause = error.cause
         return error.errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED ||
                error.errorCode == PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION ||
-                error.errorCode == PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR
+                error.errorCode == PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR ||
+                cause is MediaCodec.CryptoException
     }
 
     private fun fetchAndPrepare(orgId: String, assetId: String, accessToken: String) {
