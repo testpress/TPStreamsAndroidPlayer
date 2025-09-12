@@ -18,6 +18,7 @@ class DownloadClient private constructor(private val context: Context) {
 
     interface Listener {
         fun onDownloadsChanged()
+        fun onDownloadStateChanged(downloadItem: DownloadItem, error: Exception? = null)
     }
 
     private val listeners = mutableSetOf<Listener>()
@@ -256,29 +257,8 @@ class DownloadClient private constructor(private val context: Context) {
         override fun onDownloadChanged(dm: DownloadManager, download: Download, ex: Exception?) {
             downloads[download.request.id] = download
             
-            val progressPercent = if (download.percentDownloaded < 0) 0 else download.percentDownloaded.toInt()
-            val bytesDownloaded = download.bytesDownloaded
-            val contentLength = download.contentLength
-            
-            when (download.state) {
-                Download.STATE_DOWNLOADING -> {
-                    Log.d(TAG, "Downloading: ${download.request.id}, Progress: $progressPercent%, " +
-                        "Speed: ${bytesDownloaded / 1024}KB/${if (contentLength > 0) contentLength / 1024 else "?"}KB")
-                }
-                Download.STATE_COMPLETED -> {
-                    Log.d(TAG, "Download completed: ${download.request.id}, Progress: $progressPercent%, " +
-                        "Size: ${bytesDownloaded / 1024}KB")
-                }
-                Download.STATE_FAILED -> {
-                    Log.e(TAG, "Download failed: ${download.request.id}, Error: ${ex?.message}")
-                }
-                Download.STATE_STOPPED -> {
-                    Log.d(TAG, "Download paused: ${download.request.id}, Progress: $progressPercent%")
-                }
-                else -> {
-                    Log.d(TAG, "Download state changed: ${download.request.id}, State: ${DownloadController.getStateString(download.state)}, Progress: $progressPercent%")
-                }
-            }
+            val downloadItem = createDownloadItem(download)
+            listeners.toList().forEach { it.onDownloadStateChanged(downloadItem, ex) }
             
             onChange()
         }
