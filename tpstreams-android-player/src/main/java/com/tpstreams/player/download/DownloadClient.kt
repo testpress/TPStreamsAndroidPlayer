@@ -18,7 +18,7 @@ class DownloadClient private constructor(private val context: Context) {
 
     interface Listener {
         fun onDownloadsChanged()
-        fun onDownloadStateChanged(downloadItem: DownloadItem)
+        fun onDownloadStateChanged(downloadItem: DownloadItem, error: Exception? = null)
     }
 
     private val listeners = mutableSetOf<Listener>()
@@ -256,8 +256,9 @@ class DownloadClient private constructor(private val context: Context) {
 
         override fun onDownloadChanged(dm: DownloadManager, download: Download, ex: Exception?) {
             downloads[download.request.id] = download
+            
             val downloadItem = createDownloadItem(download)
-            listeners.forEach { it.onDownloadStateChanged(downloadItem) }
+            listeners.toList().forEach { it.onDownloadStateChanged(downloadItem, ex) }
             
             onChange()
         }
