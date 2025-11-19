@@ -174,6 +174,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         getPlayer()?.addListener(playbackStateListener)
+        if (errorOverlay == null) {
+            setupErrorOverlay()
+            cacheViews()
+        }
+        
         post {
             enableAutoFullscreenOnRotate()
             registerWithLifecycle()
@@ -192,16 +197,28 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
     
     private fun setupErrorOverlay() {
+        if (errorOverlay != null) {
+            return
+        }
+        
         val layoutInflater = android.view.LayoutInflater.from(context)
         val overlay = layoutInflater.inflate(R.layout.error_overlay, this, false)
         addView(overlay)
         // Bring error overlay to front so it appears above player controls
         overlay.bringToFront()
+        errorOverlay = overlay
+        errorTextView = overlay.findViewById(R.id.error_message_text)
+        
+        Log.d(TAG, "Error overlay set up: overlay=${errorOverlay != null}, textView=${errorTextView != null}")
     }
     
     private fun cacheViews() {
-        errorOverlay = findViewById(R.id.error_overlay)
-        errorTextView = findViewById(R.id.error_message_text)
+        if (errorOverlay == null) {
+            errorOverlay = findViewById(R.id.error_overlay)
+        }
+        if (errorTextView == null) {
+            errorTextView = findViewById(R.id.error_message_text)
+        }
         bufferingView = findViewById(androidx.media3.ui.R.id.exo_buffering)
     }
     
@@ -307,6 +324,10 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun setPlayer(player: Player?) {
         if (player == getPlayer()) return
+        if (errorOverlay == null) {
+            setupErrorOverlay()
+            cacheViews()
+        }
         
         // Clean up previous player
         val previousPlayer = getPlayer()
@@ -398,6 +419,19 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     fun getActivity() = contextAccess.getActivity()
     
     private fun showErrorMessage(message: String) {
+        if (errorOverlay == null || errorTextView == null) {
+            Log.w(TAG, "Error views not cached, attempting to cache now")
+            cacheViews()
+            if (errorOverlay == null) {
+                setupErrorOverlay()
+            }
+        }
+        
+        if (errorOverlay == null || errorTextView == null) {
+            Log.e(TAG, "Failed to show error message: views are null. overlay=${errorOverlay != null}, textView=${errorTextView != null}")
+            return
+        }
+        
         errorOverlay?.let {
             it.visibility = View.VISIBLE
             it.bringToFront() // Ensure it's above all other views
@@ -410,6 +444,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 it.text = message
             }
         }
+        
+        Log.d(TAG, "Error message displayed: ${message.take(50)}...")
     }
     
     private fun hideErrorMessage() {
