@@ -2,12 +2,18 @@ package com.tpstreams.player
 
 import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
+import android.text.Html
+import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
+import android.widget.TextView
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import com.tpstreams.player.constants.PlaybackError
+import com.tpstreams.player.R
 
 @UnstableApi
 class TPStreamsPlayerView @JvmOverloads constructor(
@@ -38,6 +44,42 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             this@TPStreamsPlayerView.keepScreenOn = isPlaying
             lifecycleManager?.onPlaybackStateChanged(isPlaying)
+        }
+        
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            when (playbackState) {
+                Player.STATE_IDLE -> {
+                    showLoading()
+                }
+                Player.STATE_BUFFERING -> {
+                    showLoading()
+                    hideErrorMessage()
+                }
+                Player.STATE_READY -> {
+                    hideLoading()
+                    hideErrorMessage()
+                }
+                Player.STATE_ENDED -> {
+                    hideLoading()
+                }
+            }
+        }
+        
+        override fun onIsLoadingChanged(isLoading: Boolean) {
+            if (isLoading) {
+                showLoading()
+            } else {
+                val player = getPlayer()
+                if (player?.playbackState == Player.STATE_READY) {
+                    hideLoading()
+                }
+            }
+        }
+        
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (playWhenReady) {
+                hideErrorMessage()
+            }
         }
     }
     
@@ -124,9 +166,18 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         super.onFinishInflate()
         playerControlView = findViewById(androidx.media3.ui.R.id.exo_controller) as? TPStreamsPlayerControlView
         
+        setupErrorOverlay()
         setupSettingsButton()
         setupFullscreenButton()
         showFullscreenButton()
+    }
+    
+    private fun setupErrorOverlay() {
+        val layoutInflater = android.view.LayoutInflater.from(context)
+        val errorOverlay = layoutInflater.inflate(R.layout.error_overlay, this, false)
+        addView(errorOverlay)
+        // Bring error overlay to front so it appears above player controls
+        errorOverlay.bringToFront()
     }
     
     private fun setupSettingsButton() {
@@ -231,11 +282,25 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun setPlayer(player: Player?) {
         if (player == getPlayer()) return
-        getPlayer()?.removeListener(playbackStateListener)
+        
+        // Clean up previous player
+        val previousPlayer = getPlayer()
+        if (previousPlayer is TPStreamsPlayer) {
+            previousPlayer.listener = null
+        }
+        previousPlayer?.removeListener(playbackStateListener)
+        
         super.setPlayer(player)
         
         lifecycleManager = player?.let { PlayerLifecycleManager(it) }
         registerWithLifecycle()
+        
+        // Show loading initially when player is set
+        if (player != null) {
+            showLoading()
+        } else {
+            hideLoading()
+        }
         
         player?.addListener(playbackStateListener)
         
@@ -253,7 +318,22 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 }
             })
             
+            player.listener = object : TPStreamsPlayer.Listener {
+                override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {
+                    // Handle token expiration if needed
+                }
+                
+                override fun onError(error: PlaybackError, message: String) {
+                    hideLoading()
+                    showErrorMessage(message)
+                }
+            }
+            
             captions.updateAvailableCaptions()
+        } else {
+            // Hide error message and loading when player is removed
+            hideErrorMessage()
+            hideLoading()
         }
     }
 
@@ -301,6 +381,53 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     fun getActivity() = contextAccess.getActivity()
+    
+    private fun showErrorMessage(message: String) {
+        val errorOverlay = findViewById<View>(R.id.error_overlay)
+        val errorTextView = findViewById<TextView>(R.id.error_message_text)
+        
+        errorOverlay?.let {
+            it.visibility = View.VISIBLE
+            it.bringToFront() // Ensure it's above all other views
+        }
+        
+        errorTextView?.let {
+            if (isDecoderError(message)) {
+                setHtmlText(it, message)
+            } else {
+                it.text = message
+            }
+        }
+    }
+    
+    private fun hideErrorMessage() {
+        val errorOverlay = findViewById<View>(R.id.error_overlay)
+        errorOverlay?.visibility = View.GONE
+    }
+    
+    private fun showLoading() {
+        val bufferingView = findViewById<View>(androidx.media3.ui.R.id.exo_buffering)
+        bufferingView?.visibility = View.VISIBLE
+    }
+    
+    private fun hideLoading() {
+        val bufferingView = findViewById<View>(androidx.media3.ui.R.id.exo_buffering)
+        bufferingView?.visibility = View.GONE
+    }
+    
+    private fun isDecoderError(message: String): Boolean {
+        return listOf("4001", "4003").any { message.contains(it) }
+    }
+    
+    private fun setHtmlText(textView: TextView, message: String) {
+        textView.movementMethod = LinkMovementMethod.getInstance()
+        textView.text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            Html.fromHtml(message, Html.FROM_HTML_MODE_LEGACY)
+        } else {
+            @Suppress("DEPRECATION")
+            Html.fromHtml(message)
+        }
+    }
 
     companion object {
         private const val TAG = "TPStreamsPlayerView"
