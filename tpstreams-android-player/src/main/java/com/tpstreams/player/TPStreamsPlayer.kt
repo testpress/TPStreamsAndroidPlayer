@@ -111,7 +111,7 @@ private constructor(
                 }
                 
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
-                SentryLogger.logPlaybackException(error, assetId, accessToken, errorPlayerId)
+                SentryLogger.logPlaybackException(error, assetId, errorPlayerId)
                 
                 val errorType = error.toError()
                 val errorMessage = error.getErrorMessage(errorPlayerId)
@@ -164,13 +164,12 @@ private constructor(
                 if (!response.isSuccessful) {
                     val errorPlayerId = SentryLogger.generatePlayerIdString()
                     val exception = Exception("API request failed with code: ${response.code}")
-                    SentryLogger.logAPIException(exception, assetId, accessToken, response.code, errorPlayerId)
+                    SentryLogger.logAPIException(exception, assetId, response.code, errorPlayerId)
                     
                     val errorMessage = exception.getErrorMessage(errorPlayerId, response.code)
-                    val errorType = when {
-                        response.code == 404 -> PlaybackError.INVALID_ASSETS_ID
-                        response.code == 401 || response.code == 403 -> PlaybackError.INVALID_ACCESS_TOKEN_FOR_ASSETS
-                        response.code >= 500 -> PlaybackError.UNSPECIFIED
+                    val errorType = when (response.code) {
+                        404 -> PlaybackError.INVALID_ASSETS_ID
+                        401, 403 -> PlaybackError.INVALID_ACCESS_TOKEN_FOR_ASSETS
                         else -> PlaybackError.UNSPECIFIED
                     }
                     
@@ -281,14 +280,13 @@ private constructor(
                 }
             } catch (e: Exception) {
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
-                SentryLogger.logAPIException(e, assetId, accessToken, null, errorPlayerId)
+                SentryLogger.logAPIException(e, assetId, null, errorPlayerId)
                 
                 val errorMessage = e.getErrorMessage(errorPlayerId, null)
-                val errorType = when {
-                    e.message?.contains("network", ignoreCase = true) == true || 
-                    e.message?.contains("connection", ignoreCase = true) == true -> 
-                        PlaybackError.NETWORK_CONNECTION_FAILED
-                    else -> PlaybackError.UNSPECIFIED
+                val errorType = if (e is java.io.IOException) {
+                    PlaybackError.NETWORK_CONNECTION_FAILED
+                } else {
+                    PlaybackError.UNSPECIFIED
                 }
                 
                 launch(Dispatchers.Main) {

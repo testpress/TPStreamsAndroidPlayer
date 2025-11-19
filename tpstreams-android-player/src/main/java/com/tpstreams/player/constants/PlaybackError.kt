@@ -46,8 +46,7 @@ internal fun Exception.getErrorMessage(playerId: String, responseCode: Int?): St
             "Sorry, you don't have permission to access this video. Please check your credentials and try again.\n Error code: 5002. Player Id: $playerId"
         responseCode != null && responseCode >= 500 -> 
             "We're sorry, but there's an issue on our server. Please try again later.\n Error code: 5005. Player Id: $playerId"
-        message?.contains("network", ignoreCase = true) == true || 
-        message?.contains("connection", ignoreCase = true) == true -> 
+        this is java.io.IOException -> 
             "Oops! It seems like you're not connected to the internet. Please check your connection and try again.\n Error code: 5004. Player Id: $playerId"
         else -> 
             "Oops! Something went wrong. Please contact support for assistance and provide details about the issue.\n Error code: 5100. Player Id: $playerId"

@@ -16,27 +16,18 @@ internal object SentryLogger {
     fun logPlaybackException(
         error: PlaybackException,
         assetId: String?,
-        accessToken: String?,
         playerId: String
     ) {
-        Sentry.captureMessage(
-            "Player error" +
-                    " Code: ${error.errorCode}" +
-                    " Code name: ${error.errorCodeName}" +
-                    " Message: ${error.message}" +
-                    " Asset ID: $assetId"
-        ) { scope ->
+        Sentry.captureException(error) { scope ->
             scope.setTag("playerId", playerId)
-            scope.setTag("assetId", assetId ?: "")
+            assetId?.let { scope.setTag("assetId", it) }
             scope.setContexts(
                 "TPStreamsPlayer",
                 mapOf(
-                    "Error Type" to "Player error",
                     "Error Code" to error.errorCode,
                     "Error Code Name" to error.errorCodeName,
-                    "Error Message" to (error.message ?: ""),
-                    "Asset ID" to (assetId ?: ""),
-                    "Player Id" to playerId
+                    "Asset ID" to (assetId ?: "N/A"),
+                    "Player ID" to playerId
                 )
             )
         }
@@ -45,26 +36,19 @@ internal object SentryLogger {
     fun logAPIException(
         exception: Exception,
         assetId: String?,
-        accessToken: String?,
         responseCode: Int?,
         playerId: String
     ) {
-        Sentry.captureMessage(
-            "Server error" +
-                    " Code: $responseCode" +
-                    " Message: ${exception.message}" +
-                    " Asset ID: $assetId"
-        ) { scope ->
+        Sentry.captureException(exception) { scope ->
             scope.setTag("playerId", playerId)
-            scope.setTag("assetId", assetId ?: "")
+            assetId?.let { scope.setTag("assetId", it) }
+            responseCode?.let { scope.setTag("responseCode", it.toString()) }
             scope.setContexts(
                 "TPStreamsPlayer",
                 mapOf(
-                    "Error Type" to "Server error",
-                    "Error Code" to (responseCode ?: 0),
-                    "Error Message" to (exception.message ?: ""),
-                    "Asset ID" to (assetId ?: ""),
-                    "Player Id" to playerId
+                    "Asset ID" to (assetId ?: "N/A"),
+                    "Player ID" to playerId,
+                    "Response Code" to (responseCode ?: "N/A")
                 )
             )
         }
