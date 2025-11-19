@@ -43,6 +43,7 @@ dependencies {
     api(libs.androidx.media3.ui)
     implementation(libs.kotlinx.coroutines.android)
     api(libs.okhttp)
+    api(libs.sentry.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

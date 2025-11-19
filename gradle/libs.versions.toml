@@ -13,6 +13,7 @@ okhttp = "4.12.0"
 coroutines = "1.10.2"
 constraintlayout = "2.2.1"
 activityKtx = "1.10.1" # You can choose any name for the version alias
+sentry = "7.20.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -30,6 +31,7 @@ androidx-media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

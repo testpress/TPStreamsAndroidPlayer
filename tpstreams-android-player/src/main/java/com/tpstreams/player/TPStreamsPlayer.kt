@@ -34,6 +34,10 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector
 import com.tpstreams.player.download.DownloadConstants
+import com.tpstreams.player.util.SentryLogger
+import com.tpstreams.player.constants.PlaybackError
+import com.tpstreams.player.constants.toError
+import com.tpstreams.player.constants.getErrorMessage
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -52,6 +56,7 @@ private constructor(
 
     interface Listener {
         fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit)
+        fun onError(error: PlaybackError, message: String)
     }
 
     private var isPrepared = false
@@ -104,7 +109,15 @@ private constructor(
                     DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)  
                     return
                 }
+                
+                val errorPlayerId = SentryLogger.generatePlayerIdString()
+                SentryLogger.logPlaybackException(error, assetId, accessToken, errorPlayerId)
+                
+                val errorType = error.toError()
+                val errorMessage = error.getErrorMessage(errorPlayerId)
+                
                 Log.e("TPStreamsPlayer", "Player error: ${error.errorCodeName}", error)
+                _listener?.onError(errorType, errorMessage)
             }
             
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
@@ -149,7 +162,23 @@ private constructor(
                 val response = client.newCall(request).execute()
 
                 if (!response.isSuccessful) {
-                    Log.d("TPStreamsPlayer", "API returned 401 Unauthorized for asset $assetId")
+                    val errorPlayerId = SentryLogger.generatePlayerIdString()
+                    val exception = Exception("API request failed with code: ${response.code}")
+                    SentryLogger.logAPIException(exception, assetId, accessToken, response.code, errorPlayerId)
+                    
+                    val errorMessage = exception.getErrorMessage(errorPlayerId, response.code)
+                    val errorType = when {
+                        response.code == 404 -> PlaybackError.INVALID_ASSETS_ID
+                        response.code == 401 || response.code == 403 -> PlaybackError.INVALID_ACCESS_TOKEN_FOR_ASSETS
+                        response.code >= 500 -> PlaybackError.UNSPECIFIED
+                        else -> PlaybackError.UNSPECIFIED
+                    }
+                    
+                    launch(Dispatchers.Main) {
+                        _listener?.onError(errorType, errorMessage)
+                    }
+                    
+                    Log.d("TPStreamsPlayer", "API returned ${response.code} for asset $assetId")
                     return@launch
                 }
 
@@ -251,6 +280,21 @@ private constructor(
                     }
                 }
             } catch (e: Exception) {
+                val errorPlayerId = SentryLogger.generatePlayerIdString()
+                SentryLogger.logAPIException(e, assetId, accessToken, null, errorPlayerId)
+                
+                val errorMessage = e.getErrorMessage(errorPlayerId, null)
+                val errorType = when {
+                    e.message?.contains("network", ignoreCase = true) == true || 
+                    e.message?.contains("connection", ignoreCase = true) == true -> 
+                        PlaybackError.NETWORK_CONNECTION_FAILED
+                    else -> PlaybackError.UNSPECIFIED
+                }
+                
+                launch(Dispatchers.Main) {
+                    _listener?.onError(errorType, errorMessage)
+                }
+                
                 Log.e("TPStreamsPlayer", "Error preparing video: ${e.message}", e)
             }
         }
@@ -625,7 +669,7 @@ private constructor(
             startAt: Long = 0,
             enableDownload: Boolean = false,
             showDefaultCaptions: Boolean = false,
-            downloadMetadata: Map<String, String>? = null,
+            downloadMetadata: Map<String, Any>? = null,
             offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context)
