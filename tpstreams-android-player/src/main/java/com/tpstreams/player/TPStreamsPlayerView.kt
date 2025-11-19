@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import com.tpstreams.player.constants.PlaybackError
@@ -39,6 +40,10 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var orientationEventListener: OrientationListener? = null
     private var autoFullscreenEnabled = false
     var lifecycleManager: PlayerLifecycleManager? = null
+    
+    private var errorOverlay: View? = null
+    private var errorTextView: TextView? = null
+    private var bufferingView: View? = null
 
     private val playbackStateListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -79,6 +84,19 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (playWhenReady) {
                 hideErrorMessage()
+            }
+        }
+    }
+    
+    private val tracksStateListener = object : Player.Listener {
+        override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+            settingsPanel.updateAvailableResolutions()
+            captions.updateAvailableCaptions()
+        }
+        
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_READY) {
+                captions.updateAvailableCaptions()
             }
         }
     }
@@ -167,6 +185,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         playerControlView = findViewById(androidx.media3.ui.R.id.exo_controller) as? TPStreamsPlayerControlView
         
         setupErrorOverlay()
+        cacheViews()
         setupSettingsButton()
         setupFullscreenButton()
         showFullscreenButton()
@@ -174,10 +193,16 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     private fun setupErrorOverlay() {
         val layoutInflater = android.view.LayoutInflater.from(context)
-        val errorOverlay = layoutInflater.inflate(R.layout.error_overlay, this, false)
-        addView(errorOverlay)
+        val overlay = layoutInflater.inflate(R.layout.error_overlay, this, false)
+        addView(overlay)
         // Bring error overlay to front so it appears above player controls
-        errorOverlay.bringToFront()
+        overlay.bringToFront()
+    }
+    
+    private fun cacheViews() {
+        errorOverlay = findViewById(R.id.error_overlay)
+        errorTextView = findViewById(R.id.error_message_text)
+        bufferingView = findViewById(androidx.media3.ui.R.id.exo_buffering)
     }
     
     private fun setupSettingsButton() {
@@ -287,6 +312,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         val previousPlayer = getPlayer()
         if (previousPlayer is TPStreamsPlayer) {
             previousPlayer.listener = null
+            previousPlayer.removeListener(tracksStateListener)
         }
         previousPlayer?.removeListener(playbackStateListener)
         
@@ -305,18 +331,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         player?.addListener(playbackStateListener)
         
         if (player is TPStreamsPlayer) {
-            player.addListener(object : Player.Listener {
-                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                    settingsPanel.updateAvailableResolutions()
-                    captions.updateAvailableCaptions()
-                }
-                
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    if (playbackState == Player.STATE_READY) {
-                        captions.updateAvailableCaptions()
-                    }
-                }
-            })
+            player.addListener(tracksStateListener)
             
             player.listener = object : TPStreamsPlayer.Listener {
                 override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {
@@ -383,9 +398,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     fun getActivity() = contextAccess.getActivity()
     
     private fun showErrorMessage(message: String) {
-        val errorOverlay = findViewById<View>(R.id.error_overlay)
-        val errorTextView = findViewById<TextView>(R.id.error_message_text)
-        
         errorOverlay?.let {
             it.visibility = View.VISIBLE
             it.bringToFront() // Ensure it's above all other views
@@ -401,22 +413,22 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
     
     private fun hideErrorMessage() {
-        val errorOverlay = findViewById<View>(R.id.error_overlay)
         errorOverlay?.visibility = View.GONE
     }
     
     private fun showLoading() {
-        val bufferingView = findViewById<View>(androidx.media3.ui.R.id.exo_buffering)
         bufferingView?.visibility = View.VISIBLE
     }
     
     private fun hideLoading() {
-        val bufferingView = findViewById<View>(androidx.media3.ui.R.id.exo_buffering)
         bufferingView?.visibility = View.GONE
     }
     
     private fun isDecoderError(message: String): Boolean {
-        return listOf("4001", "4003").any { message.contains(it) }
+        return listOf(
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED.toString(),
+            PlaybackException.ERROR_CODE_DECODING_FAILED.toString()
+        ).any { message.contains(it) }
     }
     
     private fun setHtmlText(textView: TextView, message: String) {
