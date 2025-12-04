@@ -345,14 +345,17 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             
             if (player is TPStreamsPlayer) {
                 player.addListener(tracksStateListener)
+                val existingListener = player.listener
                 player.listener = object : TPStreamsPlayer.Listener {
                     override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {
-                        // Handle token expiration if needed
+                        existingListener?.onAccessTokenExpired(videoId, callback)
+                            ?: callback("")
                     }
                     
                     override fun onError(error: PlaybackError, message: String) {
                         hideLoading()
                         post { showErrorMessage(message) }
+                        existingListener?.onError(error, message)
                     }
                 }
                 captions.updateAvailableCaptions()
