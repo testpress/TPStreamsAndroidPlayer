@@ -44,6 +44,10 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var errorOverlay: View? = null
     private var errorTextView: TextView? = null
     private var bufferingView: View? = null
+    
+    private val liveBadge: View? by lazy { findViewById(R.id.live_badge) }
+    private val durationView: View? by lazy { findViewById(androidx.media3.ui.R.id.exo_duration) }
+    private val separatorView: View? by lazy { findViewById(R.id.exo_time_separator) }
 
     private val playbackStateListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -398,15 +402,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      * Shows LIVE badge and hides duration for active live streams
      */
     private fun updateLiveStreamUI(isLiveStream: Boolean) {
-        val liveBadge = findViewById<View>(R.id.live_badge)
-        if (liveBadge != null) {
-            liveBadge.visibility = if (isLiveStream) View.VISIBLE else View.GONE
-        } else {
-            Log.e(TAG, "LIVE badge not found!")
-        }
-        
-        val durationView = findViewById<View>(androidx.media3.ui.R.id.exo_duration)
-        val separatorView = findViewById<View>(R.id.exo_time_separator)
+        liveBadge?.visibility = if (isLiveStream) View.VISIBLE else View.GONE
         
         if (isLiveStream) {
             durationView?.visibility = View.GONE
@@ -414,13 +410,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         } else {
             durationView?.visibility = View.VISIBLE
             separatorView?.visibility = View.VISIBLE
-        }
-        
-        if (durationView == null) {
-            Log.e(TAG, "Duration view not found!")
-        }
-        if (separatorView == null) {
-            Log.e(TAG, "Separator view not found!")
         }
     }
 

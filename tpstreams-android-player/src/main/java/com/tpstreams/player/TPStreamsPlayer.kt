@@ -172,7 +172,7 @@ private constructor(
         val liveStreamObj = json.getJSONObject("live_stream")
         val liveStreamStatus = liveStreamObj.optString("status", "")
         
-        return when (liveStreamStatus.uppercase()) {
+        return when (liveStreamStatus.uppercase(java.util.Locale.ROOT)) {
             "NOT STARTED" -> {
                 throw Exception("Live stream will begin soon")
             }
@@ -181,9 +181,9 @@ private constructor(
                     val videoObj = json.getJSONObject("video")
                     val enableDrm = videoObj.optBoolean("enable_drm", false)
                     val mediaUrl = if (enableDrm) {
-                        videoObj.getString("dash_url")
+                        videoObj.optString("dash_url")
                     } else {
-                        videoObj.getString("playback_url")
+                        videoObj.optString("playback_url")
                     }
                     val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
                     AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false)
@@ -194,9 +194,9 @@ private constructor(
             else -> {
                 val enableDrm = liveStreamObj.optBoolean("enable_drm", false)
                 val mediaUrl = if (enableDrm) {
-                    liveStreamObj.getString("dash_url")
+                    liveStreamObj.optString("dash_url")
                 } else {
-                    liveStreamObj.getString("hls_url")
+                    liveStreamObj.optString("hls_url")
                 }
                 AssetInfo(mediaUrl, enableDrm, "", null, isLiveStream = true)
             }
@@ -207,9 +207,9 @@ private constructor(
         val videoObj = json.getJSONObject("video")
         val enableDrm = videoObj.optBoolean("enable_drm", false)
         val mediaUrl = if (enableDrm) {
-            videoObj.getString("dash_url")
+            videoObj.optString("dash_url")
         } else {
-            videoObj.getString("playback_url")
+            videoObj.optString("playback_url")
         }
         val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
         return AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false)
