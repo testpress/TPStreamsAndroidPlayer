@@ -38,6 +38,9 @@ import com.tpstreams.player.util.SentryLogger
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.constants.toError
 import com.tpstreams.player.constants.getErrorMessage
+import com.tpstreams.player.constants.LiveStreamNotStartedException
+import com.tpstreams.player.constants.LiveStreamEndedException
+import com.tpstreams.player.constants.toPlaybackError
 import com.tpstreams.player.data.AssetInfo
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
@@ -174,21 +177,27 @@ private constructor(
         
         return when (liveStreamStatus.uppercase(java.util.Locale.ROOT)) {
             "NOT STARTED" -> {
-                throw Exception("Live stream will begin soon")
+                throw LiveStreamNotStartedException("Live stream will begin soon")
             }
             "COMPLETED" -> {
                 if (json.has("video") && !json.isNull("video")) {
                     val videoObj = json.getJSONObject("video")
-                    val enableDrm = videoObj.optBoolean("enable_drm", false)
-                    val mediaUrl = if (enableDrm) {
-                        videoObj.optString("dash_url")
+                    val videoStatus = videoObj.optString("status", "")
+                    
+                    if (videoStatus.equals("Completed", ignoreCase = true)) {
+                        val enableDrm = videoObj.optBoolean("enable_drm", false)
+                        val mediaUrl = if (enableDrm) {
+                            videoObj.optString("dash_url")
+                        } else {
+                            videoObj.optString("playback_url")
+                        }
+                        val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
+                        AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false)
                     } else {
-                        videoObj.optString("playback_url")
+                        throw LiveStreamEndedException("Live stream has ended")
                     }
-                    val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
-                    AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false)
                 } else {
-                    throw Exception("Live stream has ended")
+                    throw LiveStreamEndedException("Live stream has ended")
                 }
             }
             else -> {
@@ -363,11 +372,7 @@ private constructor(
                 SentryLogger.logAPIException(e, assetId, null, errorPlayerId)
                 
                 val errorMessage = e.getErrorMessage(errorPlayerId, null)
-                val errorType = if (e is java.io.IOException) {
-                    PlaybackError.NETWORK_CONNECTION_FAILED
-                } else {
-                    PlaybackError.UNSPECIFIED
-                }
+                val errorType = e.toPlaybackError()
                 
                 launch(Dispatchers.Main) {
                     _listener?.onError(errorType, errorMessage)

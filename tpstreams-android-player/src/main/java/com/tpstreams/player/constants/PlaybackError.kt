@@ -9,8 +9,13 @@ enum class PlaybackError {
     INVALID_ACCESS_TOKEN_FOR_ASSETS,
     EXPIRED_ACCESS_TOKEN_FOR_ASSETS,
     INVALID_ACCESS_TOKEN_FOR_DRM_LICENSE,
+    LIVE_STREAM_NOT_STARTED,
+    LIVE_STREAM_ENDED,
     UNSPECIFIED
 }
+
+class LiveStreamNotStartedException(message: String) : Exception(message)
+class LiveStreamEndedException(message: String) : Exception(message)
 
 internal fun PlaybackException.toError(): PlaybackError {
     return when (this.errorCode) {
@@ -38,6 +43,15 @@ internal fun PlaybackException.getErrorMessage(playerId: String): String {
     }
 }
 
+
+internal fun Exception.toPlaybackError(): PlaybackError {
+    return when (this) {
+        is LiveStreamNotStartedException -> PlaybackError.LIVE_STREAM_NOT_STARTED
+        is LiveStreamEndedException -> PlaybackError.LIVE_STREAM_ENDED
+        is java.io.IOException -> PlaybackError.NETWORK_CONNECTION_FAILED
+        else -> PlaybackError.UNSPECIFIED
+    }
+}
 internal fun Exception.getErrorMessage(playerId: String, responseCode: Int?): String {
     return when {
         responseCode == 404 -> 
@@ -48,6 +62,10 @@ internal fun Exception.getErrorMessage(playerId: String, responseCode: Int?): St
             "We're sorry, but there's an issue on our server. Please try again later.\n Error code: 5005. Player Id: $playerId"
         this is java.io.IOException -> 
             "Oops! It seems like you're not connected to the internet. Please check your connection and try again.\n Error code: 5004. Player Id: $playerId"
+        this is LiveStreamNotStartedException ->
+            this.message ?: "Live stream will begin soon"
+        this is LiveStreamEndedException ->
+            this.message ?: "Live stream has ended"
         else -> 
             "Oops! Something went wrong. Please contact support for assistance and provide details about the issue.\n Error code: 5100. Player Id: $playerId"
     }
