@@ -118,6 +118,6 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
 
     fun isDownloadEnabled(): Boolean {
         val player = view.getPlayer()
-        return player?.enableDownload ?: false
+        return player?.enableDownload == true && player?.isLiveStream == false ?: false
     }
 } 
