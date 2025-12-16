@@ -402,11 +402,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      * Shows LIVE badge and hides duration for active live streams
      */
     private fun updateLiveStreamUI(isLiveStream: Boolean) {
-        liveBadge?.visibility = if (isLiveStream) View.VISIBLE else View.GONE
+        liveBadge?.visibility = if (isLiveStream) View.VISIBLE else View.INVISIBLE
         
         if (isLiveStream) {
-            durationView?.visibility = View.GONE
-            separatorView?.visibility = View.GONE
+            durationView?.visibility = View.INVISIBLE
+            separatorView?.visibility = View.INVISIBLE
         } else {
             durationView?.visibility = View.VISIBLE
             separatorView?.visibility = View.VISIBLE
