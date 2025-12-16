@@ -239,6 +239,13 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     fun toggleFullscreen() {
         if (!fullscreenMode.isInFullscreenMode()) fullscreenMode.enterFullscreen() else fullscreenMode.exitFullscreen()
+        
+        post {
+            val tpPlayer = getPlayer()
+            if (tpPlayer != null) {
+                updateLiveStreamUI(tpPlayer.isLiveStream)
+            }
+        }
     }
 
     fun showFullscreenButton() {
@@ -316,6 +323,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                         player?.pause()
                     }
                     lifecycleManager?.setInTransition(false)
+                    
+                    val tpPlayer = getPlayer()
+                    if (tpPlayer != null) {
+                        updateLiveStreamUI(tpPlayer.isLiveStream)
+                    }
                 }
             }
         }
@@ -330,6 +342,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         val previousPlayer = getPlayer()
         if (previousPlayer is TPStreamsPlayer) {
             previousPlayer.listener = null
+            previousPlayer.onLiveStreamStatusChanged = null
             previousPlayer.removeListener(tracksStateListener)
         }
         previousPlayer?.removeListener(playbackStateListener)
@@ -359,10 +372,55 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                     }
                 }
                 captions.updateAvailableCaptions()
+                
+                player.onLiveStreamStatusChanged = { isLiveStream ->
+                    updateLiveStreamUI(isLiveStream)
+                }
+                updateLiveStreamUI(player.isLiveStream)
+                
+                player.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_READY) {
+                            updateLiveStreamUI(player.isLiveStream)
+                        }
+                    }
+                })
             }
         } else {
             hideErrorMessage()
             hideLoading()
+            updateLiveStreamUI(false)
+        }
+    }
+
+    /**
+     * Updates the UI elements for live stream playback
+     * Shows LIVE badge and hides duration for active live streams
+     */
+    private fun updateLiveStreamUI(isLiveStream: Boolean) {
+        val liveBadge = findViewById<View>(R.id.live_badge)
+        if (liveBadge != null) {
+            liveBadge.visibility = if (isLiveStream) View.VISIBLE else View.GONE
+        } else {
+            Log.e(TAG, "LIVE badge not found!")
+        }
+        
+        val durationView = findViewById<View>(androidx.media3.ui.R.id.exo_duration)
+        val separatorView = findViewById<View>(R.id.exo_time_separator)
+        
+        if (isLiveStream) {
+            durationView?.visibility = View.GONE
+            separatorView?.visibility = View.GONE
+        } else {
+            durationView?.visibility = View.VISIBLE
+            separatorView?.visibility = View.VISIBLE
+        }
+        
+        if (durationView == null) {
+            Log.e(TAG, "Duration view not found!")
+        }
+        if (separatorView == null) {
+            Log.e(TAG, "Separator view not found!")
         }
     }
 

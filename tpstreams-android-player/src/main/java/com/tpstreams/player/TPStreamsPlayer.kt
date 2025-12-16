@@ -38,6 +38,7 @@ import com.tpstreams.player.util.SentryLogger
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.constants.toError
 import com.tpstreams.player.constants.getErrorMessage
+import com.tpstreams.player.data.AssetInfo
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -63,6 +64,12 @@ private constructor(
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
+    private var _isLiveStream = false
+    
+    val isLiveStream: Boolean
+        get() = _isLiveStream
+    
+    internal var onLiveStreamStatusChanged: ((Boolean) -> Unit)? = null
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -150,6 +157,64 @@ private constructor(
                 cause is MediaCodec.CryptoException
     }
 
+    private fun parseAssetInfo(json: JSONObject): AssetInfo? {
+        val assetType = json.optString("type", "video")
+        val isLiveStream = assetType == "livestream"
+        
+        return if (isLiveStream && json.has("live_stream") && !json.isNull("live_stream")) {
+            parseLiveStreamAssetInfo(json)
+        } else {
+            parseVideoAssetInfo(json)
+        }
+    }
+
+    private fun parseLiveStreamAssetInfo(json: JSONObject): AssetInfo? {
+        val liveStreamObj = json.getJSONObject("live_stream")
+        val liveStreamStatus = liveStreamObj.optString("status", "")
+        
+        return when (liveStreamStatus.uppercase()) {
+            "NOT STARTED" -> {
+                throw Exception("Live stream will begin soon")
+            }
+            "COMPLETED" -> {
+                if (json.has("video") && !json.isNull("video")) {
+                    val videoObj = json.getJSONObject("video")
+                    val enableDrm = videoObj.optBoolean("enable_drm", false)
+                    val mediaUrl = if (enableDrm) {
+                        videoObj.getString("dash_url")
+                    } else {
+                        videoObj.getString("playback_url")
+                    }
+                    val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
+                    AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false)
+                } else {
+                    throw Exception("Live stream has ended")
+                }
+            }
+            else -> {
+                val enableDrm = liveStreamObj.optBoolean("enable_drm", false)
+                val mediaUrl = if (enableDrm) {
+                    liveStreamObj.getString("dash_url")
+                } else {
+                    liveStreamObj.getString("hls_url")
+                }
+                AssetInfo(mediaUrl, enableDrm, "", null, isLiveStream = true)
+            }
+        }
+    }
+
+    private fun parseVideoAssetInfo(json: JSONObject): AssetInfo {
+        val videoObj = json.getJSONObject("video")
+        val enableDrm = videoObj.optBoolean("enable_drm", false)
+        val mediaUrl = if (enableDrm) {
+            videoObj.getString("dash_url")
+        } else {
+            videoObj.getString("playback_url")
+        }
+        val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
+        return AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false)
+    }
+
     private fun fetchAndPrepare(orgId: String, assetId: String, accessToken: String) {
         CoroutineScope(Dispatchers.IO).launch {
 
@@ -185,24 +250,39 @@ private constructor(
                 
                 val json = JSONObject(body)
                 val title = json.optString("title", "Undefined")
-                val videoObj = json.getJSONObject("video")
-                val enableDrm = videoObj.optBoolean("enable_drm", false)
-                val mediaUrl = if (enableDrm) {
-                    videoObj.getString("dash_url")
-                } else {
-                    videoObj.getString("playback_url")
-                }
-                val thumbnailsArray = videoObj.optJSONArray("thumbnails")
-                val thumbnailUrl = thumbnailsArray?.optString(0) ?: ""
                 
-                Log.d("TPStreamsPlayer", "Extracted metadata - title: $title, thumbnail: $thumbnailUrl")
+                val assetInfo = try {
+                    parseAssetInfo(json)
+                } catch (e: Exception) {
+                    launch(Dispatchers.Main) {
+                        _listener?.onError(
+                            PlaybackError.UNSPECIFIED,
+                            e.message ?: "Asset is not available for playback"
+                        )
+                    }
+                    return@launch
+                }
+                
+                if (assetInfo == null) {
+                    launch(Dispatchers.Main) {
+                        _listener?.onError(
+                            PlaybackError.UNSPECIFIED,
+                            "Asset is not available for playback"
+                        )
+                    }
+                    return@launch
+                }
+                
+                _isLiveStream = assetInfo.isLiveStream
+                launch(Dispatchers.Main) {
+                    onLiveStreamStatusChanged?.invoke(_isLiveStream)
+                }
 
-                // Extract subtitle tracks from metadata
                 val subtitleConfigurations = mutableListOf<MediaItem.SubtitleConfiguration>()
                 val subtitleMetadata = mutableMapOf<String, Boolean>()
                 
-                if (videoObj.has("tracks")) {
-                    val tracks = videoObj.getJSONArray("tracks")
+                if (assetInfo.videoObj != null && assetInfo.videoObj.has("tracks")) {
+                    val tracks = assetInfo.videoObj.getJSONArray("tracks")
                     for (i in 0 until tracks.length()) {
                         val track = tracks.getJSONObject(i)
                         if (track.getString("type") == "Subtitle") {
@@ -241,16 +321,16 @@ private constructor(
 
                 // Create the MediaItem builder 
                 val mediaItem = MediaItem.Builder()
-                    .setUri(mediaUrl)
+                    .setUri(assetInfo.mediaUrl)
                     .setMediaId(assetId)
                     .apply {
                         val metadata = MediaMetadata.Builder()
                             .setTitle(title)
-                            .setArtworkUri(if (thumbnailUrl.isNotEmpty()) Uri.parse(thumbnailUrl) else null)
+                            .setArtworkUri(if (assetInfo.thumbnailUrl.isNotEmpty()) Uri.parse(assetInfo.thumbnailUrl) else null)
                             .build()
                         setMediaMetadata(metadata)
                         
-                        if (enableDrm) {
+                        if (assetInfo.enableDrm) {
                             val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
                             val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")
                             
