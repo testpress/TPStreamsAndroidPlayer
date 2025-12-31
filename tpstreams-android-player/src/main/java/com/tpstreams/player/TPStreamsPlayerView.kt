@@ -383,9 +383,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 updateLiveStreamUI(player.isLiveStream)
                 
                 if (player.startInFullscreen) {
-                    if (!fullscreenMode.isInFullscreenMode()) {
-                        fullscreenMode.enterFullscreen()
-                    }
+                    fullscreenMode.enterFullscreen()
                 }
                 
                 player.addListener(object : Player.Listener {
