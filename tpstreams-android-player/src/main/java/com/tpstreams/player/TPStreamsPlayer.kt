@@ -54,6 +54,7 @@ private constructor(
     private val startAt: Long = 0,
     val enableDownload: Boolean = false,
     private val showDefaultCaptions: Boolean = false,
+    val startInFullscreen: Boolean = false,
     val downloadMetadata: Map<String, String>? = null,
     val offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
 ) : Player by exoPlayer {
@@ -752,6 +753,7 @@ private constructor(
             startAt: Long = 0,
             enableDownload: Boolean = false,
             showDefaultCaptions: Boolean = false,
+            startInFullscreen: Boolean = false,
             downloadMetadata: Map<String, String>? = null,
             offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
         ): TPStreamsPlayer {
@@ -766,6 +768,7 @@ private constructor(
                 startAt,
                 enableDownload,
                 showDefaultCaptions,
+                startInFullscreen,
                 downloadMetadata,
                 offlineLicenseExpireTime)
         }
