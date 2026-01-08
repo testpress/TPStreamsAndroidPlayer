@@ -74,17 +74,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             }
         }
         
-        override fun onIsLoadingChanged(isLoading: Boolean) {
-            if (isLoading) {
-                showLoading()
-            } else {
-                val player = getPlayer()
-                if (player?.playbackState == Player.STATE_READY) {
-                    hideLoading()
-                }
-            }
-        }
-        
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (playWhenReady) {
                 hideErrorMessage()
