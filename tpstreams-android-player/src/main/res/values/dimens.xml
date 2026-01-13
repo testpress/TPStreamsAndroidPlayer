@@ -2,4 +2,5 @@
 <resources>
     <dimen name="timer_text_padding">2dp</dimen>
     <dimen name="timer_text_size">13sp</dimen>
+    <dimen name="bottom_sheet_horizontal_margin">12dp</dimen>
 </resources> 

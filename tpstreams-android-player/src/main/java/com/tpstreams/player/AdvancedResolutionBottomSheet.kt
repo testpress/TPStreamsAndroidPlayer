@@ -1,21 +1,16 @@
 package com.tpstreams.player
 
-import android.app.Dialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.fragment.app.FragmentManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
-class AdvancedResolutionBottomSheet : BottomSheetDialogFragment() {
+class AdvancedResolutionBottomSheet : BaseBottomSheet() {
 
     interface ResolutionSelectionListener {
         fun onResolutionSelected(resolution: String)
@@ -42,25 +37,6 @@ class AdvancedResolutionBottomSheet : BottomSheetDialogFragment() {
         if (::adapter.isInitialized) {
             adapter.notifyDataSetChanged()
         }
-    }
-
-    override fun getTheme(): Int = R.style.BottomSheetDialogTheme
-
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val dialog = super.onCreateDialog(savedInstanceState) as BottomSheetDialog
-        
-        dialog.setOnShowListener { dialogInterface ->
-            val bottomSheetDialog = dialogInterface as BottomSheetDialog
-            val bottomSheet = bottomSheetDialog.findViewById<FrameLayout>(com.google.android.material.R.id.design_bottom_sheet)
-            
-            bottomSheet?.let {
-                val behavior = BottomSheetBehavior.from(it)
-                behavior.skipCollapsed = true
-                behavior.state = BottomSheetBehavior.STATE_EXPANDED
-            }
-        }
-        
-        return dialog
     }
 
     override fun onCreateView(
