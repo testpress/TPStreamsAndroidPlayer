@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.tpstreams.player"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.tpstreams.player"
