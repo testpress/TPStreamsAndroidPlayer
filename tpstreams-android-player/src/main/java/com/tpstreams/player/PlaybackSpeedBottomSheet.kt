@@ -1,25 +1,20 @@
 package com.tpstreams.player
 
-import android.app.Dialog
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.fragment.app.FragmentManager
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-class PlaybackSpeedBottomSheet : BottomSheetDialogFragment() {
+class PlaybackSpeedBottomSheet : BaseBottomSheet() {
 
     interface PlaybackSpeedListener {
         fun onSpeedSelected(speed: Float)
@@ -50,25 +45,6 @@ class PlaybackSpeedBottomSheet : BottomSheetDialogFragment() {
     
     fun setCurrentSpeed(speed: Float) {
         this.currentSpeed = clampSpeed(speed)
-    }
-    
-    override fun getTheme(): Int = R.style.BottomSheetDialogTheme
-    
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val dialog = super.onCreateDialog(savedInstanceState) as BottomSheetDialog
-        
-        dialog.setOnShowListener { dialogInterface ->
-            val bottomSheetDialog = dialogInterface as BottomSheetDialog
-            val bottomSheet = bottomSheetDialog.findViewById<FrameLayout>(com.google.android.material.R.id.design_bottom_sheet)
-            
-            bottomSheet?.let {
-                val behavior = BottomSheetBehavior.from(it)
-                behavior.skipCollapsed = true
-                behavior.state = BottomSheetBehavior.STATE_EXPANDED
-            }
-        }
-        
-        return dialog
     }
     
     override fun onCreateView(

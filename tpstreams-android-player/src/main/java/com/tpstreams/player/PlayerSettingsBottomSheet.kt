@@ -1,21 +1,16 @@
 package com.tpstreams.player
 
-import android.app.Dialog
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.FragmentManager
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
-class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
+class PlayerSettingsBottomSheet : BaseBottomSheet() {
 
     interface SettingsListener {
         fun onQualitySelected()
@@ -34,25 +29,6 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
 
     fun setSettingsListener(listener: SettingsListener) {
         this.listener = listener
-    }
-
-    override fun getTheme(): Int = R.style.BottomSheetDialogTheme
-
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val dialog = super.onCreateDialog(savedInstanceState) as BottomSheetDialog
-        
-        dialog.setOnShowListener { dialogInterface ->
-            val bottomSheetDialog = dialogInterface as BottomSheetDialog
-            val bottomSheet = bottomSheetDialog.findViewById<FrameLayout>(com.google.android.material.R.id.design_bottom_sheet)
-            
-            bottomSheet?.let {
-                val behavior = BottomSheetBehavior.from(it)
-                behavior.skipCollapsed = true
-                behavior.state = BottomSheetBehavior.STATE_EXPANDED
-            }
-        }
-        
-        return dialog
     }
 
     override fun onCreateView(
@@ -78,7 +54,6 @@ class PlayerSettingsBottomSheet : BottomSheetDialogFragment() {
         val downloadIcon = view.findViewById<ImageView>(R.id.download_icon)
         val downloadText = view.findViewById<TextView>(R.id.download_text)
         
-        // Update values from listener
         listener?.let { listener ->
             qualityValue.text = listener.getCurrentQuality()
             captionsValue.text = listener.getCurrentCaptionStatus()
