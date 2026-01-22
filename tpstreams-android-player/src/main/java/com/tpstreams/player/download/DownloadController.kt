@@ -96,6 +96,8 @@ object DownloadController {
         )
         
         httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(30000)
+            .setReadTimeoutMs(30000)
             .setAllowCrossProtocolRedirects(true)
             .setUserAgent(Util.getUserAgent(appContext, "TPStreams Player"))
         
