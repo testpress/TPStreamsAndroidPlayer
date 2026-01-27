@@ -42,6 +42,7 @@ import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.constants.LiveStreamEndedException
 import com.tpstreams.player.constants.toPlaybackError
 import com.tpstreams.player.data.AssetInfo
+import com.tpstreams.player.util.network.*
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -76,6 +77,27 @@ private constructor(
     internal var onLiveStreamStatusChanged: ((Boolean) -> Unit)? = null
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    private val networkRecoveryHandler = NetworkRecoveryHandler(context)
+
+    private fun retryPlayback() {
+        playerScope.launch {
+            try {
+                if (!isPrepared) {
+                    val org = organizationId
+                    if (org != null) {
+                        Log.d("TPStreamsPlayer", "Retrying initial fetchAndPrepare")
+                        fetchAndPrepare(org, assetId, accessToken)
+                    }
+                } else {
+                    exoPlayer.prepare()
+                    exoPlayer.play()
+                }
+            } catch (e: Exception) {
+                Log.e("TPStreamsPlayer", "Error resuming playback", e)
+            }
+        }
+    }
 
     private var _listener: Listener? = null
     var listener: Listener?
@@ -119,6 +141,10 @@ private constructor(
                     Log.d("TPStreamsPlayer", "DRM error detected for asset: $assetId")
                     DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)  
                     return
+                }
+
+                if (isNetworkError(error)) {
+                     networkRecoveryHandler.startMonitoring { retryPlayback() }
                 }
                 
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
@@ -369,6 +395,12 @@ private constructor(
                     }
                 }
             } catch (e: Exception) {
+                if (isApiNetworkError(e)) {
+                     launch(Dispatchers.Main) {
+                         networkRecoveryHandler.startMonitoring { retryPlayback() }
+                     }
+                }
+
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
                 SentryLogger.logAPIException(e, assetId, null, errorPlayerId)
                 
@@ -499,6 +531,7 @@ private constructor(
     override fun getPlaybackState(): Int = exoPlayer.playbackState
 
     override fun release() {
+        networkRecoveryHandler.stopMonitoring()
         playerScope.cancel()
         exoPlayer.release()
     }
