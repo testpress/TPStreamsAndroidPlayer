@@ -36,8 +36,14 @@ class NetworkRecoveryHandler(context: Context) {
     }
 
     fun stopMonitoring() {
+        if (!isMonitoring) return
+        
         try {
             connectivityManager.unregisterNetworkCallback(networkCallback)
+        } catch (e: IllegalArgumentException) {
+            // Callback was not registered, which is fine since we wanted to unregister it anyway
+        } catch (e: Exception) {
+            Log.w("NetworkRecoveryHandler", "Error unregistering network callback", e)
         } finally {
             isMonitoring = false
             onNetworkAvailable = null

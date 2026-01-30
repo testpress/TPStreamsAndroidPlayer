@@ -531,9 +531,9 @@ private constructor(
     override fun getPlaybackState(): Int = exoPlayer.playbackState
 
     override fun release() {
-        networkRecoveryHandler.stopMonitoring()
         playerScope.cancel()
         exoPlayer.release()
+        networkRecoveryHandler.stopMonitoring()
     }
 
     @OptIn(UnstableApi::class)
