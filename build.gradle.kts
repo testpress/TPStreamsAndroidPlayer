@@ -4,5 +4,5 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.android.library) apply false
-    id("io.sentry.android.gradle") version "4.9.0" apply false
+    id("io.sentry.android.gradle") version "4.14.1" apply false
 }
