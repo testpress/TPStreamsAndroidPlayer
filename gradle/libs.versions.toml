@@ -12,7 +12,7 @@ media3 = "1.7.1"
 okhttp = "4.12.0"
 coroutines = "1.10.2"
 constraintlayout = "2.2.1"
-activityKtx = "1.10.1" # You can choose any name for the version alias
+activityKtx = "1.12.4" # You can choose any name for the version alias
 sentry = "7.20.0"
 
 [libraries]
