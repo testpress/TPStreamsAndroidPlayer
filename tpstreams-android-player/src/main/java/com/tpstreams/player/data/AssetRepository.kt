@@ -5,6 +5,7 @@ import com.tpstreams.player.constants.LiveStreamEndedException
 import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.constants.toPlaybackError
+import com.tpstreams.player.constants.getErrorMessage
 import com.tpstreams.player.util.SentryLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +73,7 @@ object AssetRepository {
             else -> PlaybackError.UNSPECIFIED
         }
 
-        val errorMessage = getErrorMessage(errorPlayerId, code)
+        val errorMessage = Exception().getErrorMessage(errorPlayerId, code)
         CoroutineScope(Dispatchers.Main).launch {
             callback.onError(errorType, errorMessage)
         }
@@ -83,7 +84,7 @@ object AssetRepository {
         SentryLogger.logAPIException(e, assetId, null, errorPlayerId)
 
         val errorType = e.toPlaybackError()
-        val errorMessage = e.message ?: "Asset is not available for playback"
+        val errorMessage = e.getErrorMessage(errorPlayerId, null)
 
         CoroutineScope(Dispatchers.Main).launch {
             callback.onError(errorType, errorMessage)
@@ -153,12 +154,4 @@ object AssetRepository {
         return AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false, durationSeconds = duration)
     }
 
-    private fun getErrorMessage(playerId: String, responseCode: Int?): String {
-        return when {
-            responseCode == 404 -> "The video is not available. Please try another one.\n Error code: 5001. Player Id: $playerId"
-            responseCode == 401 || responseCode == 403 -> "Sorry, you don't have permission to access this video. Please check your credentials and try again.\n Error code: 5002. Player Id: $playerId"
-            responseCode != null && responseCode >= 500 -> "We're sorry, but there's an issue on our server. Please try again later.\n Error code: 5005. Player Id: $playerId"
-            else -> "Oops! Something went wrong. Please contact support for assistance and provide details about the issue.\n Error code: 5100. Player Id: $playerId"
-        }
-    }
 }
