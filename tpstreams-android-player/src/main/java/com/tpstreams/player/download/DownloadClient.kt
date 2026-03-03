@@ -22,6 +22,7 @@ import androidx.media3.common.C
 import androidx.media3.common.util.Util
 import android.net.Uri
 import com.tpstreams.player.util.MediaItemUtils
+import com.tpstreams.player.util.DownloadUtils
 
 @UnstableApi
 class DownloadClient private constructor(private val context: Context) {
@@ -183,7 +184,9 @@ class DownloadClient private constructor(private val context: Context) {
             bottomSheet.setTrackBitrates(bitrates)
             bottomSheet.setDownloadSelectionListener(object : DownloadOptionsBottomSheet.DownloadSelectionListener {
                 override fun onDownloadResolutionSelected(resolution: String) {
-                    performStartDownload(assetInfo, title, orgId, assetId, accessToken, resolution, metadata)
+                    val bitrate = bitrates[resolution] ?: 0
+                    val totalSize = DownloadUtils.calculateDownloadSize(bitrate.toLong(), assetInfo.durationSeconds)
+                    performStartDownload(assetInfo, title, orgId, assetId, accessToken, resolution, metadata, totalSize)
                 }
             })
             bottomSheet.show(activity.supportFragmentManager)
@@ -197,10 +200,11 @@ class DownloadClient private constructor(private val context: Context) {
         assetId: String,
         accessToken: String,
         resolution: String,
-        metadata: Map<String, String>?
+        metadata: Map<String, String>?,
+        totalSize: Long = 0
     ) {
         val mediaItem = MediaItemUtils.buildMediaItem(assetInfo, title, orgId, assetId, accessToken).mediaItem
-        startDownload(mediaItem, resolution, metadata ?: emptyMap())
+        startDownload(mediaItem, resolution, metadata ?: emptyMap(), totalSize)
     }
 
 
