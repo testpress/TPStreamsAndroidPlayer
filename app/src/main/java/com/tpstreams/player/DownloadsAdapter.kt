@@ -6,10 +6,13 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.recyclerview.widget.RecyclerView
 import com.tpstreams.player.download.DownloadItem
 
+@OptIn(UnstableApi::class)
 class DownloadsAdapter(
     private var items: List<DownloadItem>,
     private val onActionClick: (DownloadItem) -> Unit,

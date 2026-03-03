@@ -1,8 +1,11 @@
 package com.tpstreams.player
 
 import android.app.Application
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.lifecycle.AndroidViewModel
 
+@OptIn(UnstableApi::class)
 class PlayerUIViewModel(application: Application) : AndroidViewModel(application) {
 
     private var _player: TPStreamsPlayer? = null
