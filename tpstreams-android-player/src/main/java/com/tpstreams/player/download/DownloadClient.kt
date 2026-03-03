@@ -12,6 +12,16 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import android.widget.Toast
 import org.json.JSONObject
+import com.tpstreams.player.TPStreamsSDK
+import com.tpstreams.player.data.AssetInfo
+import com.tpstreams.player.data.AssetRepository
+import com.tpstreams.player.constants.PlaybackError
+import com.tpstreams.player.DownloadOptionsBottomSheet
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.C
+import androidx.media3.common.util.Util
+import android.net.Uri
+import com.tpstreams.player.util.MediaItemUtils
 
 @UnstableApi
 class DownloadClient private constructor(private val context: Context) {
@@ -37,7 +47,7 @@ class DownloadClient private constructor(private val context: Context) {
                     Log.e(TAG, "Error notifying listener: ${e.message}", e)
                 }
             }
-            
+
             progressHandler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
         }
     }
@@ -110,7 +120,92 @@ class DownloadClient private constructor(private val context: Context) {
     }
 
 
-    fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS) {
+    fun getAssetInfo(
+        assetId: String,
+        accessToken: String,
+        callback: AssetRepository.AssetCallback
+    ) {
+        val orgId = TPStreamsSDK.orgId ?: throw IllegalStateException("TPStreamsSDK.init(orgId) must be called first")
+        AssetRepository.fetchAssetInfo(orgId, assetId, accessToken, callback)
+    }
+
+    fun startDownload(
+        context: Context,
+        assetId: String,
+        accessToken: String,
+        resolution: String? = null,
+        metadata: Map<String, String>? = null
+    ) {
+        val orgId = TPStreamsSDK.orgId ?: throw IllegalStateException("TPStreamsSDK.init(orgId) must be called first")
+
+        getAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
+            override fun onSuccess(assetInfo: AssetInfo, title: String) {
+                if (resolution != null) {
+                    performStartDownload(assetInfo, title, orgId, assetId, accessToken, resolution, metadata)
+                } else {
+                    if (context is androidx.fragment.app.FragmentActivity) {
+                        showDownloadOptions(context, assetInfo, title, orgId, assetId, accessToken, metadata)
+                    } else {
+                        Log.e(TAG, "Resolution is required for non-activity contexts")
+                        Toast.makeText(context, "Resolution is required", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
+            override fun onError(error: PlaybackError, message: String) {
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun showDownloadOptions(
+        activity: androidx.fragment.app.FragmentActivity,
+        assetInfo: AssetInfo,
+        title: String,
+        orgId: String,
+        assetId: String,
+        accessToken: String,
+        metadata: Map<String, String>?
+    ) {
+        val mediaItem = MediaItemUtils.buildMediaItem(assetInfo, title, orgId, assetId, accessToken).mediaItem
+        val bottomSheet = DownloadOptionsBottomSheet()
+        bottomSheet.setDuration((assetInfo.durationSeconds * 1000).toLong())
+        
+        DownloadController.getAvailableResolutions(context, mediaItem) { resolutions, bitrates ->
+            if (activity.isFinishing || activity.isDestroyed) return@getAvailableResolutions
+
+            if (resolutions.isEmpty()) {
+                Toast.makeText(activity, "No download qualities available", Toast.LENGTH_SHORT).show()
+                return@getAvailableResolutions
+            }
+            
+            bottomSheet.setAvailableResolutions(resolutions)
+            bottomSheet.setTrackBitrates(bitrates)
+            bottomSheet.setDownloadSelectionListener(object : DownloadOptionsBottomSheet.DownloadSelectionListener {
+                override fun onDownloadResolutionSelected(resolution: String) {
+                    performStartDownload(assetInfo, title, orgId, assetId, accessToken, resolution, metadata)
+                }
+            })
+            bottomSheet.show(activity.supportFragmentManager)
+        }
+    }
+
+    private fun performStartDownload(
+        assetInfo: AssetInfo,
+        title: String,
+        orgId: String,
+        assetId: String,
+        accessToken: String,
+        resolution: String,
+        metadata: Map<String, String>?
+    ) {
+        val mediaItem = MediaItemUtils.buildMediaItem(assetInfo, title, orgId, assetId, accessToken).mediaItem
+        startDownload(mediaItem, resolution, metadata ?: emptyMap())
+    }
+
+
+
+    internal fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS) {
         if (!hasEnoughStorage(totalSize)) {
             Toast.makeText(
                 context,

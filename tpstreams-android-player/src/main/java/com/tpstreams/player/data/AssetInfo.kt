@@ -17,5 +17,6 @@ data class AssetInfo(
     val enableDrm: Boolean,
     val thumbnailUrl: String,
     val videoObj: JSONObject?,
-    val isLiveStream: Boolean = false
+    val isLiveStream: Boolean = false,
+    val durationSeconds: Double = 0.0
 )

@@ -33,9 +33,16 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
     
     fun setMediaItem(mediaItem: MediaItem, durationMs: Long) {
         this.mediaItem = mediaItem
+        this.setDuration(durationMs)
+    }
+
+    fun setDuration(durationMs: Long) {
         this.videoDurationMs = durationMs
         if (::adapter.isInitialized) {
             adapter.notifyDataSetChanged()
+        }
+        if (isAdded) {
+            updateDownloadSize()
         }
     }
 
