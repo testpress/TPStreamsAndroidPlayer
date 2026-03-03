@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.appcompat.widget.AppCompatButton
 import kotlin.math.roundToInt
+import com.tpstreams.player.util.DownloadUtils
 
 class DownloadOptionsBottomSheet : BaseBottomSheet() {
 
@@ -33,9 +34,16 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
     
     fun setMediaItem(mediaItem: MediaItem, durationMs: Long) {
         this.mediaItem = mediaItem
+        this.setDuration(durationMs)
+    }
+
+    fun setDuration(durationMs: Long) {
         this.videoDurationMs = durationMs
         if (::adapter.isInitialized) {
             adapter.notifyDataSetChanged()
+        }
+        if (isAdded) {
+            updateDownloadSize()
         }
     }
 
@@ -113,16 +121,9 @@ class DownloadOptionsBottomSheet : BaseBottomSheet() {
     }
     
     private fun getDownloadSize(resolution: String?): String {
-        if (resolution == null || videoDurationMs <= 0) return "Unknown"
-        
-        // Check if we have actual bitrate information from the player
-        val actualBitrate = trackBitrates[resolution]
-        if (actualBitrate == null) return "Unknown"
-        
-        val durationSeconds = videoDurationMs / 1000.0
-        val videoSizeBytes = (actualBitrate.toLong() * durationSeconds / 8.0 ).toLong()
-        
-        return formatFileSize(videoSizeBytes)
+        val bitrate = trackBitrates[resolution] ?: return "Unknown"
+        val sizeBytes = DownloadUtils.calculateDownloadSize(bitrate.toLong(), videoDurationMs / 1000.0)
+        return formatFileSize(sizeBytes)
     }
     
     private fun formatFileSize(sizeBytes: Long): String {

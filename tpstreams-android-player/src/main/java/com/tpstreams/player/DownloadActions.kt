@@ -12,6 +12,7 @@ import com.tpstreams.player.download.DownloadPermissionHandler
 import com.tpstreams.player.download.DownloadClient
 import androidx.media3.common.C
 import com.tpstreams.player.download.DownloadConstants
+import com.tpstreams.player.util.DownloadUtils
 
 @UnstableApi
 class DownloadActions(private val view: TPStreamsPlayerView) {
@@ -87,7 +88,8 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val trackBitrates = tpsPlayer.getResolutionBitrates()
         val durationMs = tpsPlayer.duration
 
-        val totalSize = getDownloadSize(trackBitrates, resolution, durationMs)
+        val bitrate = trackBitrates[resolution] ?: 0
+        val totalSize = DownloadUtils.calculateDownloadSize(bitrate.toLong(), durationMs / 1000.0)
 
         tpsPlayer.isTokenValid(assetId) { isValid ->
             if (!isValid) {
@@ -187,13 +189,4 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
             else -> R.drawable.ic_download
         }
     }
-
-    private fun getDownloadSize(trackBitrates: Map<String, Int>, resolution: String, durationMs: Long): Long {
-        val bitrate = trackBitrates[resolution] ?: return 0
-        if (bitrate <= 0 || durationMs <= 0) return 0
-
-        val durationSeconds = durationMs / 1000.0
-        val sizeBytes = (bitrate.toLong() * durationSeconds / 8.0).toLong()
-        return sizeBytes
-    }
-} 
+}

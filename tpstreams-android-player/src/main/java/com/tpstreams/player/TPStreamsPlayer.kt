@@ -209,6 +209,7 @@ private constructor(
         }
     }
 
+    @OptIn(UnstableApi::class)
     private fun preparePlayer(assetInfo: AssetInfo, title: String, orgId: String, assetId: String, accessToken: String) {
         _isLiveStream = assetInfo.isLiveStream
         onLiveStreamStatusChanged?.invoke(_isLiveStream)

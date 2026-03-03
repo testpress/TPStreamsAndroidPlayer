@@ -25,14 +25,14 @@ import androidx.core.app.NotificationCompat
 import androidx.media3.exoplayer.drm.OfflineLicenseHelper
 import androidx.media3.exoplayer.drm.DrmSessionEventListener
 import com.tpstreams.player.R
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Format
+import androidx.media3.common.C
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.ExecutorService
-import androidx.media3.common.Format
-import androidx.media3.common.C
-import androidx.media3.common.TrackSelectionParameters
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import org.json.JSONObject
 import android.net.Uri
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
@@ -206,6 +206,63 @@ object DownloadController {
         return downloadManager
     }
     
+    fun getAvailableResolutions(
+        context: Context,
+        mediaItem: MediaItem,
+        callback: (List<String>, Map<String, Int>) -> Unit
+    ) {
+        val helper = DownloadHelper.forMediaItem(
+            mediaItem,
+            TrackSelectionParameters.Builder().build(),
+            DefaultRenderersFactory(context),
+            getDataSourceFactory(context)
+        )
+
+        helper.prepare(object : DownloadHelper.Callback {
+            override fun onPrepared(helper: DownloadHelper) {
+                try {
+                    val resolutions = mutableListOf<String>()
+                    val bitrates = mutableMapOf<String, Int>()
+
+                    // In Media3, period 0 usually contains the main media tracks
+                    val mappedTrackInfo = helper.getMappedTrackInfo(0)
+                    for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
+                        if (mappedTrackInfo.getRendererType(rendererIndex) != C.TRACK_TYPE_VIDEO) continue
+
+                        val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
+                        for (groupIndex in 0 until trackGroups.length) {
+                            val group = trackGroups[groupIndex]
+                            for (formatIndex in 0 until group.length) {
+                                val format = group.getFormat(formatIndex)
+                                if (format.height != Format.NO_VALUE) {
+                                    val resolution = "${format.height}p"
+                                    if (!resolutions.contains(resolution)) {
+                                        resolutions.add(resolution)
+                                        if (format.bitrate != Format.NO_VALUE) {
+                                            bitrates[resolution] = format.bitrate
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val sortedResolutions = resolutions.sortedByDescending { it.removeSuffix("p").toIntOrNull() ?: 0 }
+                    
+                    callback(sortedResolutions, bitrates)
+                } finally {
+                    helper.release()
+                }
+            }
+
+            override fun onPrepareError(helper: DownloadHelper, e: IOException) {
+                Log.e(TAG, "Error preparing DownloadHelper for resolutions: ${e.message}", e)
+                callback(emptyList(), emptyMap())
+                helper.release()
+            }
+        })
+    }
+
     fun getDataSourceFactory(context: Context): DataSource.Factory {
         if (!isInitialized) {
             initialize(context)
