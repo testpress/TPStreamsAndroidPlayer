@@ -2,7 +2,6 @@ package com.tpstreams.player
 
 import android.os.Build
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.MediaItem
@@ -95,7 +94,6 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
             if (!isValid) {
                 tpsPlayer.getNewToken(assetId) { token ->
                     if (token.isEmpty()) {
-                        showToast("Failed to authorize download", true)
                         return@getNewToken
                     }
     
@@ -126,14 +124,6 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
     
         return buildUpon().setDrmConfiguration(newDrm).build()
     }
-    
-    private fun showToast(message: String, isLong: Boolean) {
-        Toast.makeText(
-            view.context,
-            message,
-            if (isLong) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
-        ).show()
-    }
 
     fun deleteCurrentDownload() {
         val tpsPlayer = view.getPlayer() ?: return
@@ -141,7 +131,6 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val assetId = mediaItem.mediaId
         
         DownloadClient.getInstance(view.context).removeDownload(assetId)
-        showToast("Download deleted", false)
     }
     
     fun pauseCurrentDownload() {
@@ -150,7 +139,6 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val assetId = mediaItem.mediaId
         
         DownloadClient.getInstance(view.context).pauseDownload(assetId)
-        showToast("Download paused", false)
     }
     
     fun resumeCurrentDownload() {
@@ -159,7 +147,6 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         val assetId = mediaItem.mediaId
         
         DownloadClient.getInstance(view.context).resumeDownload(assetId)
-        showToast("Download resumed", false)
     }
 
     fun getCurrentDownloadStatus(): String {

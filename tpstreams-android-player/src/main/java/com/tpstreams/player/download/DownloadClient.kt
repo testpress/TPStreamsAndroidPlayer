@@ -10,7 +10,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
-import android.widget.Toast
 import org.json.JSONObject
 import com.tpstreams.player.TPStreamsSDK
 import com.tpstreams.player.data.AssetInfo
@@ -30,6 +29,11 @@ class DownloadClient private constructor(private val context: Context) {
     interface Listener {
         fun onDownloadsChanged()
         fun onDownloadStateChanged(downloadItem: DownloadItem, error: Exception? = null)
+        fun onDownloadStarted(downloadItem: DownloadItem) {}
+        fun onDownloadResumed(downloadItem: DownloadItem) {}
+        fun onDownloadCompleted(downloadItem: DownloadItem) {}
+        fun onDownloadFailed(downloadItem: DownloadItem, error: Exception) {}
+        fun onDownloadDeleted(downloadItem: DownloadItem) {}
     }
 
     private val listeners = mutableSetOf<Listener>()
@@ -148,13 +152,13 @@ class DownloadClient private constructor(private val context: Context) {
                         showDownloadOptions(context, assetInfo, title, orgId, assetId, accessToken, metadata)
                     } else {
                         Log.e(TAG, "Resolution is required for non-activity contexts")
-                        Toast.makeText(context, "Resolution is required", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
 
             override fun onError(error: PlaybackError, message: String) {
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                val failedItem = DownloadItem(assetId, "", null, 0, 0, 0f, Download.STATE_FAILED, metadata ?: emptyMap())
+                listeners.toList().forEach { it.onDownloadFailed(failedItem, Exception("Failed to fetch asset info: $message")) }
             }
         })
     }
@@ -176,7 +180,6 @@ class DownloadClient private constructor(private val context: Context) {
             if (activity.isFinishing || activity.isDestroyed) return@getAvailableResolutions
 
             if (resolutions.isEmpty()) {
-                Toast.makeText(activity, "No download qualities available", Toast.LENGTH_SHORT).show()
                 return@getAvailableResolutions
             }
             
@@ -211,19 +214,11 @@ class DownloadClient private constructor(private val context: Context) {
 
     internal fun startDownload(mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS) {
         if (!hasEnoughStorage(totalSize)) {
-            Toast.makeText(
-                context,
-                "No available storage space",
-                Toast.LENGTH_LONG
-            ).show()
+            val title = mediaItem.mediaMetadata.title?.toString() ?: "Unknown Title"
+            val failedItem = DownloadItem(mediaItem.mediaId, title, null, totalSize, 0, 0f, Download.STATE_FAILED, metadata)
+            listeners.toList().forEach { it.onDownloadFailed(failedItem, Exception("Insufficient storage space")) }
             return
         }
-        
-        Toast.makeText(
-            context,
-            "Starting download for $resolution",
-            Toast.LENGTH_SHORT
-        ).show()
         
         DownloadController.startDownload(context, mediaItem, resolution, metadata, totalSize, offlineLicenseExpireTime)
     }
@@ -237,11 +232,7 @@ class DownloadClient private constructor(private val context: Context) {
 
         val remainingBytes = downloadItem.totalBytes - downloadItem.downloadedBytes
         if (!hasEnoughStorage(remainingBytes)) {
-            Toast.makeText(
-                context,
-                "No available storage space",
-                Toast.LENGTH_LONG
-            ).show()
+            listeners.toList().forEach { it.onDownloadFailed(downloadItem, Exception("Insufficient storage space to resume")) }
             return
         }
         
@@ -329,7 +320,8 @@ class DownloadClient private constructor(private val context: Context) {
             downloadManager.downloadIndex.getDownloads().use { cursor ->
                 downloads.clear()
                 while (cursor.moveToNext()) {
-                    downloads[cursor.download.request.id] = cursor.download
+                    val download = cursor.download
+                    downloads[download.request.id] = download
                 }
                 onChange()
             }
@@ -354,17 +346,59 @@ class DownloadClient private constructor(private val context: Context) {
         }
 
         override fun onDownloadChanged(dm: DownloadManager, download: Download, ex: Exception?) {
-            downloads[download.request.id] = download
+            val id = download.request.id
+            val previousDownload = downloads[id]
+            val previousState = previousDownload?.state
+            val currentState = download.state
+
+            Log.d(TAG, "onDownloadChanged: ID=$id, Transition=[${DownloadController.getStateString(previousState ?: -1)} -> ${DownloadController.getStateString(currentState)}]")
+
+            downloads[id] = download
             
             val downloadItem = createDownloadItem(download)
-            listeners.toList().forEach { it.onDownloadStateChanged(downloadItem, ex) }
+            listeners.toList().forEach { listener ->
+                listener.onDownloadStateChanged(downloadItem, ex)
+
+                when (currentState) {
+                    Download.STATE_QUEUED -> {
+                        if (previousState == null) {
+                            listener.onDownloadStarted(downloadItem)
+                        } else if (previousState == Download.STATE_STOPPED) {
+                            listener.onDownloadResumed(downloadItem)
+                        }
+                    }
+                    Download.STATE_DOWNLOADING -> {
+                        // If we skipped QUEUED or this is the first time we see it
+                        if (previousState == null) {
+                            listener.onDownloadStarted(downloadItem)
+                        }
+                    }
+                    Download.STATE_COMPLETED -> {
+                        if (previousState != Download.STATE_COMPLETED) {
+                            listener.onDownloadCompleted(downloadItem)
+                        }
+                    }
+                    Download.STATE_FAILED -> {
+                        if (previousState != Download.STATE_FAILED) {
+                            val failureMessage = when (download.failureReason) {
+                                Download.FAILURE_REASON_UNKNOWN -> "Unknown error occurred during download."
+                                else -> "Download failed (error code: ${download.failureReason})"
+                            }
+                            listener.onDownloadFailed(downloadItem, ex ?: Exception(failureMessage))
+                        }
+                    }
+                }
+            }
             
             onChange()
         }
 
         override fun onDownloadRemoved(dm: DownloadManager, download: Download) {
-            downloads.remove(download.request.id)
-            Log.d(TAG, "Download removed: ${download.request.id}")
+            val id = download.request.id
+            val downloadItem = createDownloadItem(download)
+            downloads.remove(id)
+            Log.d(TAG, "Download removed: $id")
+            listeners.toList().forEach { it.onDownloadDeleted(downloadItem) }
             onChange()
         }
     }
