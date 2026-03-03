@@ -42,6 +42,8 @@ import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.constants.LiveStreamEndedException
 import com.tpstreams.player.constants.toPlaybackError
 import com.tpstreams.player.data.AssetInfo
+import com.tpstreams.player.data.AssetRepository
+import com.tpstreams.player.util.MediaItemUtils
 import com.tpstreams.player.util.network.*
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
@@ -84,7 +86,7 @@ private constructor(
         playerScope.launch {
             try {
                 if (!isPrepared) {
-                    val org = organizationId
+                    val org = TPStreamsSDK.orgId
                     if (org != null) {
                         Log.d("TPStreamsPlayer", "Retrying initial fetchAndPrepare")
                         fetchAndPrepare(org, assetId, accessToken)
@@ -166,8 +168,8 @@ private constructor(
             }
         })
 
-        val org = organizationId
-            ?: throw IllegalStateException("TPStreamsPlayer.init(organizationId) must be called before using the player.")
+        val org = TPStreamsSDK.orgId
+            ?: throw IllegalStateException("TPStreamsSDK.init(orgId) must be called before using the player.")
         fetchAndPrepare(org, assetId, accessToken)
     }
 
@@ -187,232 +189,39 @@ private constructor(
                 cause is MediaCodec.CryptoException
     }
 
-    private fun parseAssetInfo(json: JSONObject): AssetInfo? {
-        val assetType = json.optString("type", "video")
-        val isLiveStream = assetType == "livestream"
-        
-        return if (isLiveStream && json.has("live_stream") && !json.isNull("live_stream")) {
-            parseLiveStreamAssetInfo(json)
-        } else {
-            parseVideoAssetInfo(json)
-        }
-    }
-
-    private fun parseLiveStreamAssetInfo(json: JSONObject): AssetInfo? {
-        val liveStreamObj = json.getJSONObject("live_stream")
-        val liveStreamStatus = liveStreamObj.optString("status", "")
-        
-        return when (liveStreamStatus.uppercase(java.util.Locale.ROOT)) {
-            "NOT STARTED" -> {
-                throw LiveStreamNotStartedException("Live stream will begin soon")
-            }
-            "COMPLETED" -> {
-                if (json.has("video") && !json.isNull("video")) {
-                    val videoObj = json.getJSONObject("video")
-                    val videoStatus = videoObj.optString("status", "")
-                    
-                    if (videoStatus.equals("Completed", ignoreCase = true)) {
-                        val enableDrm = videoObj.optBoolean("enable_drm", false)
-                        val mediaUrl = if (enableDrm) {
-                            videoObj.optString("dash_url")
-                        } else {
-                            videoObj.optString("playback_url")
-                        }
-                        val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
-                        AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false)
-                    } else {
-                        throw LiveStreamEndedException("Live stream has ended")
-                    }
-                } else {
-                    throw LiveStreamEndedException("Live stream has ended")
-                }
-            }
-            else -> {
-                val enableDrm = liveStreamObj.optBoolean("enable_drm", false)
-                val mediaUrl = if (enableDrm) {
-                    liveStreamObj.optString("dash_url")
-                } else {
-                    liveStreamObj.optString("hls_url")
-                }
-                AssetInfo(mediaUrl, enableDrm, "", null, isLiveStream = true)
-            }
-        }
-    }
-
-    private fun parseVideoAssetInfo(json: JSONObject): AssetInfo {
-        val videoObj = json.getJSONObject("video")
-        val enableDrm = videoObj.optBoolean("enable_drm", false)
-        val mediaUrl = if (enableDrm) {
-            videoObj.optString("dash_url")
-        } else {
-            videoObj.optString("playback_url")
-        }
-        val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
-        return AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false)
-    }
-
     private fun fetchAndPrepare(orgId: String, assetId: String, accessToken: String) {
         CoroutineScope(Dispatchers.IO).launch {
-
             if (playFromDownload(assetId)) return@launch
-            
-            try {
-                val assetApiUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/?access_token=$accessToken"
-                
-                val request = Request.Builder().url(assetApiUrl).build()
-                val response = client.newCall(request).execute()
 
-                if (!response.isSuccessful) {
-                    val errorPlayerId = SentryLogger.generatePlayerIdString()
-                    val exception = Exception("API request failed with code: ${response.code}")
-                    SentryLogger.logAPIException(exception, assetId, response.code, errorPlayerId)
-                    
-                    val errorMessage = exception.getErrorMessage(errorPlayerId, response.code)
-                    val errorType = when (response.code) {
-                        404 -> PlaybackError.INVALID_ASSETS_ID
-                        401, 403 -> PlaybackError.INVALID_ACCESS_TOKEN_FOR_ASSETS
-                        else -> PlaybackError.UNSPECIFIED
-                    }
-                    
-                    launch(Dispatchers.Main) {
-                        _listener?.onError(errorType, errorMessage)
-                    }
-                    
-                    Log.d("TPStreamsPlayer", "API returned ${response.code} for asset $assetId")
-                    return@launch
+            AssetRepository.fetchAssetInfo(orgId, assetId, accessToken, object : AssetRepository.AssetCallback {
+                override fun onSuccess(assetInfo: AssetInfo, title: String) {
+                    preparePlayer(assetInfo, title, orgId, assetId, accessToken)
                 }
 
-                val body = response.body?.string() ?: return@launch
-                
-                val json = JSONObject(body)
-                val title = json.optString("title", "Undefined")
-                
-                val assetInfo = try {
-                    parseAssetInfo(json)
-                } catch (e: Exception) {
-                    launch(Dispatchers.Main) {
-                        _listener?.onError(
-                            PlaybackError.UNSPECIFIED,
-                            e.message ?: "Asset is not available for playback"
-                        )
+                override fun onError(error: PlaybackError, message: String) {
+                    if (error == PlaybackError.NETWORK_CONNECTION_FAILED || 
+                        error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
+                        networkRecoveryHandler.startMonitoring { retryPlayback() }
                     }
-                    return@launch
+                    _listener?.onError(error, message)
                 }
-                
-                if (assetInfo == null) {
-                    launch(Dispatchers.Main) {
-                        _listener?.onError(
-                            PlaybackError.UNSPECIFIED,
-                            "Asset is not available for playback"
-                        )
-                    }
-                    return@launch
-                }
-                
-                _isLiveStream = assetInfo.isLiveStream
-                launch(Dispatchers.Main) {
-                    onLiveStreamStatusChanged?.invoke(_isLiveStream)
-                }
+            })
+        }
+    }
 
-                val subtitleConfigurations = mutableListOf<MediaItem.SubtitleConfiguration>()
-                val subtitleMetadata = mutableMapOf<String, Boolean>()
-                
-                if (assetInfo.videoObj != null && assetInfo.videoObj.has("tracks")) {
-                    val tracks = assetInfo.videoObj.getJSONArray("tracks")
-                    for (i in 0 until tracks.length()) {
-                        val track = tracks.getJSONObject(i)
-                        if (track.getString("type") == "Subtitle") {
-                            val language = track.getString("language")
-                            val url = track.getString("url")
-                            
-                            // Get the name/label for the subtitle
-                            val name = if (track.has("name") && !track.getString("name").isNullOrEmpty()) {
-                                track.getString("name")
-                            } else {
-                                language.replaceFirstChar { it.uppercase() }
-                            }
-                            
-                            val isAutoGenerated = track.has("subtitle_type") && 
-                                track.getString("subtitle_type") == "Auto Generated"
-                            
-                            subtitleMetadata[language] = isAutoGenerated
-                            
-                            try {
-                                // Create subtitle configuration
-                                val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(Uri.parse(url))
-                                    .setLanguage(language)
-                                    .setLabel(name)
-                                    .setMimeType(MimeTypes.TEXT_VTT)
-                                    .build()
-                                
-                                subtitleConfigurations.add(subtitleConfig)
-                            } catch (e: Exception) {
-                                Log.e("TPStreamsPlayer", "Error adding subtitle track: ${e.message}", e)
-                            }
-                        }
-                    }
-                }
-                
-                setSubtitleMetadata(subtitleMetadata)
+    private fun preparePlayer(assetInfo: AssetInfo, title: String, orgId: String, assetId: String, accessToken: String) {
+        _isLiveStream = assetInfo.isLiveStream
+        onLiveStreamStatusChanged?.invoke(_isLiveStream)
 
-                // Create the MediaItem builder 
-                val mediaItem = MediaItem.Builder()
-                    .setUri(assetInfo.mediaUrl)
-                    .setMediaId(assetId)
-                    .apply {
-                        val metadata = MediaMetadata.Builder()
-                            .setTitle(title)
-                            .setArtworkUri(if (assetInfo.thumbnailUrl.isNotEmpty()) Uri.parse(assetInfo.thumbnailUrl) else null)
-                            .build()
-                        setMediaMetadata(metadata)
-                        
-                        if (assetInfo.enableDrm) {
-                            val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
-                            val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")
-                            
-                            val drmConfig = DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                                .setLicenseUri(licenseUrl)
-                                .setLicenseRequestHeaders(drmHeaders)
-                                .setMultiSession(true)
-                                .build()
-                            
-                            setDrmConfiguration(drmConfig)
-                        }
-                        
-                        if (subtitleConfigurations.isNotEmpty()) {
-                            setSubtitleConfigurations(subtitleConfigurations)
-                        }
-                    }
-                    .build()
+        val result = MediaItemUtils.buildMediaItem(assetInfo, title, orgId, assetId, accessToken)
+        setSubtitleMetadata(result.subtitleMetadata)
 
-                launch(Dispatchers.Main) {
-                    exoPlayer.setMediaItem(mediaItem)
-                    exoPlayer.prepare()
-                    isPrepared = true
+        exoPlayer.setMediaItem(result.mediaItem)
+        exoPlayer.prepare()
+        isPrepared = true
 
-                    if (shouldAutoPlay || requestedPlay) {
-                        exoPlayer.play()
-                    }
-                }
-            } catch (e: Exception) {
-                if (isApiNetworkError(e)) {
-                     launch(Dispatchers.Main) {
-                         networkRecoveryHandler.startMonitoring { retryPlayback() }
-                     }
-                }
-
-                val errorPlayerId = SentryLogger.generatePlayerIdString()
-                SentryLogger.logAPIException(e, assetId, null, errorPlayerId)
-                
-                val errorMessage = e.getErrorMessage(errorPlayerId, null)
-                val errorType = e.toPlaybackError()
-                
-                launch(Dispatchers.Main) {
-                    _listener?.onError(errorType, errorMessage)
-                }
-                
-                Log.e("TPStreamsPlayer", "Error preparing video: ${e.message}", e)
-            }
+        if (shouldAutoPlay || requestedPlay) {
+            exoPlayer.play()
         }
     }
 
@@ -696,7 +505,7 @@ private constructor(
                 return@launch
             }
             
-            val orgId = organizationId ?: run {
+            val orgId = TPStreamsSDK.orgId ?: run {
                 callback(false)
                 return@launch
             }
@@ -713,12 +522,12 @@ private constructor(
                     val isValid = response.isSuccessful
                     Log.d("TPStreamsPlayer", "Token validation result: ${if (isValid) "valid" else "invalid"}")
                     
-                    launch(Dispatchers.Main) {
+                    CoroutineScope(Dispatchers.Main).launch {
                         callback(isValid)
                     }
                 } catch (e: Exception) {
                     Log.e("TPStreamsPlayer", "Error checking token validity: ${e.message}")
-                    launch(Dispatchers.Main) {
+                    CoroutineScope(Dispatchers.Main).launch {
                         callback(false)
                     }
                 }
@@ -744,14 +553,10 @@ private constructor(
     }
 
     companion object {
-        private var organizationId: String? = null
         private val client = OkHttpClient()
         private const val LICENSE_URL_TEMPLATE = "https://app.tpstreams.com/api/v1/%s/assets/%s/drm_license/?access_token=%s&download=%s&license_duration_seconds=%s"
 
 
-        internal fun init(orgId: String) {
-            organizationId = orgId
-        }
 
         @OptIn(UnstableApi::class)
         private fun createExoPlayer(context: Context): Pair<ExoPlayer, DefaultTrackSelector> {
@@ -816,7 +621,7 @@ private constructor(
                     listener?.onAccessTokenExpired(assetId) { newToken ->
                         if (newToken.isNotEmpty()) {
                             Log.d("TPStreamsPlayer", "Received fresh token")
-                            organizationId?.let {
+                            TPStreamsSDK.orgId?.let {
                                 val licenseUrl = LICENSE_URL_TEMPLATE.format(
                                     it,
                                     assetId,
@@ -840,7 +645,7 @@ private constructor(
                     }
                 } else {
                     Log.d("TPStreamsPlayer", "Token is valid, using current token")
-                    organizationId?.let {
+                    TPStreamsSDK.orgId?.let {
                         val licenseUrl = LICENSE_URL_TEMPLATE.format(
                             it,
                             assetId,
