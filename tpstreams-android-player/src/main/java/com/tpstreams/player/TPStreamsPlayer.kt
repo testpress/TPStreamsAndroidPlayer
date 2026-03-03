@@ -199,6 +199,10 @@ private constructor(
                 }
 
                 override fun onError(error: PlaybackError, message: String) {
+                    if (error == PlaybackError.NETWORK_CONNECTION_FAILED || 
+                        error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
+                        networkRecoveryHandler.startMonitoring { retryPlayback() }
+                    }
                     _listener?.onError(error, message)
                 }
             })
