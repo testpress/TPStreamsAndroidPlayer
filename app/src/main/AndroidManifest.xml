@@ -16,14 +16,23 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.TPStreamsAndroidPlayer"
-            >
+            android:theme="@style/Theme.TPStreamsAndroidPlayer">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TPStreamsAndroidPlayer" />
+
+        <activity
+            android:name=".DownloadActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TPStreamsAndroidPlayer" />
     </application>
 
 </manifest>
