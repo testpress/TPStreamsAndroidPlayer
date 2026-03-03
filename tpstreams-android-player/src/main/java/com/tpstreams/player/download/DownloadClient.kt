@@ -157,7 +157,8 @@ class DownloadClient private constructor(private val context: Context) {
             }
 
             override fun onError(error: PlaybackError, message: String) {
-                val failedItem = DownloadItem(assetId, "", null, 0, 0, 0f, Download.STATE_FAILED, metadata ?: emptyMap())
+                val title = "Video $assetId"
+                val failedItem = DownloadItem(assetId, title, null, 0, 0, 0f, Download.STATE_FAILED, metadata ?: emptyMap())
                 listeners.toList().forEach { it.onDownloadFailed(failedItem, Exception("Failed to fetch asset info: $message")) }
             }
         })
@@ -180,6 +181,8 @@ class DownloadClient private constructor(private val context: Context) {
             if (activity.isFinishing || activity.isDestroyed) return@getAvailableResolutions
 
             if (resolutions.isEmpty()) {
+                val failedItem = DownloadItem(assetId, title, null, 0, 0, 0f, Download.STATE_FAILED, metadata ?: emptyMap())
+                listeners.toList().forEach { it.onDownloadFailed(failedItem, Exception("No download qualities available for this asset")) }
                 return@getAvailableResolutions
             }
             
@@ -371,6 +374,8 @@ class DownloadClient private constructor(private val context: Context) {
                         // If we skipped QUEUED or this is the first time we see it
                         if (previousState == null) {
                             listener.onDownloadStarted(downloadItem)
+                        } else if (previousState == Download.STATE_STOPPED) {
+                            listener.onDownloadResumed(downloadItem)
                         }
                     }
                     Download.STATE_COMPLETED -> {
