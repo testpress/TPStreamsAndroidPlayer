@@ -1,25 +1,31 @@
 package com.tpstreams.player
 
 import android.app.Application
-import android.util.Log
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.lifecycle.AndroidViewModel
 
-const val TAG = "PlayerUIViewModel"
-
+@OptIn(UnstableApi::class)
 class PlayerUIViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Use application context to avoid memory leaks
-    val player: TPStreamsPlayer by lazy {
-        TPStreamsPlayer.create(
-            context = application.applicationContext,
-            assetId = "8rEx9apZHFF",
-            accessToken = "19aa0055-d965-4654-8fce-b804e70a46b0",
-            shouldAutoPlay = false
-        )
+    private var _player: TPStreamsPlayer? = null
+    val player: TPStreamsPlayer?
+        get() = _player
+
+    fun initPlayer(assetId: String, accessToken: String) {
+        if (_player == null) {
+            _player = TPStreamsPlayer.create(
+                context = getApplication<Application>().applicationContext,
+                assetId = assetId,
+                accessToken = accessToken,
+                shouldAutoPlay = true,
+                enableDownload = true
+            )
+        }
     }
 
     override fun onCleared() {
         super.onCleared()
-        player.release()
+        _player?.release()
     }
 }
