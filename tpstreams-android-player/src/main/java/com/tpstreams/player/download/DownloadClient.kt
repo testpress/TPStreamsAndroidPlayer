@@ -33,7 +33,7 @@ class DownloadClient private constructor(private val context: Context) {
         fun onDownloadResumed(downloadItem: DownloadItem) {}
         fun onDownloadCompleted(downloadItem: DownloadItem) {}
         fun onDownloadFailed(downloadItem: DownloadItem, error: Exception) {}
-        fun onDownloadDeleted(downloadItem: DownloadItem) {}
+        fun onDownloadDeleted(assetId: String) {}
     }
 
     private val listeners = mutableSetOf<Listener>()
@@ -284,6 +284,7 @@ class DownloadClient private constructor(private val context: Context) {
 
 
     fun addListener(listener: Listener) {
+        Log.d(TAG, "addListener: $listener. Total listeners before add: ${listeners.size}")
         listeners.add(listener)
         if (listeners.size == 1) {
             startProgressUpdates()
@@ -400,11 +401,12 @@ class DownloadClient private constructor(private val context: Context) {
 
         override fun onDownloadRemoved(dm: DownloadManager, download: Download) {
             val id = download.request.id
-            val downloadItem = createDownloadItem(download)
-            downloads.remove(id)
-            Log.d(TAG, "Download removed: $id")
-            listeners.toList().forEach { it.onDownloadDeleted(downloadItem) }
-            onChange()
+            if (downloads.containsKey(id)) {
+                downloads.remove(id)
+                Log.d(TAG, "Download removed: $id")
+                listeners.toList().forEach { it.onDownloadDeleted(id) }
+                onChange()
+            }
         }
     }
 
