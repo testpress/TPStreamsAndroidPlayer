@@ -618,7 +618,7 @@ object DownloadController {
     fun buildMediaItemFromDownload(download: Download): MediaItem? {
         val request = download.request
         val builder = request.toMediaItem().buildUpon()
-            .setMediaId(request.id) // Explicitly set the mediaId to ensure it matches the assetId
+            .setMediaId(request.id)
     
         val keySetId = request.keySetId
         val licenseUri = request.data.toString(Charsets.UTF_8)
@@ -626,6 +626,11 @@ object DownloadController {
         if (keySetId != null) {
             if (licenseUri.isEmpty()) {
                 Log.e("TPStreamsPlayer", "Missing DRM license URI for ${request.id}, skipping playback")
+                return null
+            }
+    
+            if (!isValidLicenseUri(licenseUri)) {
+                Log.e("TPStreamsPlayer", "Invalid DRM license URI for ${request.id}, skipping playback")
                 return null
             }
     
@@ -641,6 +646,15 @@ object DownloadController {
         
         Log.d("TPStreamsPlayer", "Building media item from download with ID: ${request.id}")
         return builder.build()
+    }
+
+    private fun isValidLicenseUri(uri: String): Boolean {
+        return try {
+            val parsedUri = Uri.parse(uri)
+            parsedUri.scheme == "https" && parsedUri.host == "app.tpstreams.com"
+        } catch (e: Exception) {
+            false
+        }
     }
 
     
