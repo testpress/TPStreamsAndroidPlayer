@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaCodec
 import android.util.Log
 import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaItem.DrmConfiguration
@@ -217,9 +218,24 @@ private constructor(
         val result = MediaItemUtils.buildMediaItem(assetInfo, title, orgId, assetId, accessToken)
         setSubtitleMetadata(result.subtitleMetadata)
 
-        exoPlayer.setMediaItem(result.mediaItem)
-        exoPlayer.prepare()
-        isPrepared = true
+        playerScope.launch(Dispatchers.Main) {
+                    val capturePolicy = if (assetInfo.enableDrm) {
+                        C.ALLOW_CAPTURE_BY_NONE
+                    } else {
+                        C.ALLOW_CAPTURE_BY_ALL
+                    }
+
+                    val audioAttributes = AudioAttributes.Builder()
+                        .setUsage(C.USAGE_MEDIA)
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                        .setAllowedCapturePolicy(capturePolicy)
+                        .build()
+
+                    exoPlayer.setAudioAttributes(audioAttributes, true)
+                    exoPlayer.setMediaItem(result.mediaItem)
+                    exoPlayer.prepare()
+                    isPrepared = true
+                }
 
         if (shouldAutoPlay || requestedPlay) {
             exoPlayer.play()
@@ -246,13 +262,27 @@ private constructor(
             if (download != null) {
                 Log.d("TPStreamsPlayer", "Found downloaded content for $assetId, using local version")
 
-                val downloadedMediaItem = DownloadController.buildMediaItemFromDownload(download)
-                if (downloadedMediaItem == null) {
-                    Log.e("TPStreamsPlayer", "Failed to build media item from download for $assetId")
-                    return false
-                }
-                
                 playerScope.launch {
+                    val downloadedMediaItem = DownloadController.buildMediaItemFromDownload(download)
+                    if (downloadedMediaItem == null) {
+                        Log.e("TPStreamsPlayer", "Failed to build media item from download for $assetId")
+                        return@launch
+                    }
+
+                    val isDrm = download.request.keySetId != null
+                    val capturePolicy = if (isDrm) {
+                        C.ALLOW_CAPTURE_BY_NONE
+                    } else {
+                        C.ALLOW_CAPTURE_BY_ALL
+                    }
+
+                    val audioAttributes = AudioAttributes.Builder()
+                        .setUsage(C.USAGE_MEDIA)
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                        .setAllowedCapturePolicy(capturePolicy)
+                        .build()
+
+                    exoPlayer.setAudioAttributes(audioAttributes, true)
                     exoPlayer.setMediaItem(downloadedMediaItem)
                     exoPlayer.prepare()
                     isPrepared = true
@@ -272,8 +302,22 @@ private constructor(
     @OptIn(UnstableApi::class)
     fun refreshPlaybackWithDownloadMediaItem(mediaItem: MediaItem) {
         playerScope.launch {
+            val isDrm = mediaItem.localConfiguration?.drmConfiguration != null
+            val capturePolicy = if (isDrm) {
+                C.ALLOW_CAPTURE_BY_NONE
+            } else {
+                C.ALLOW_CAPTURE_BY_ALL
+            }
+
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .setAllowedCapturePolicy(capturePolicy)
+                .build()
+
             val currentPosition = exoPlayer.currentPosition
             exoPlayer.stop()
+            exoPlayer.setAudioAttributes(audioAttributes, true)
             exoPlayer.clearMediaItems()
             
             exoPlayer.setMediaItem(mediaItem)
@@ -580,6 +624,14 @@ private constructor(
             return ExoPlayer.Builder(context)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setTrackSelector(trackSelector)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(C.USAGE_MEDIA)
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                        .setAllowedCapturePolicy(C.ALLOW_CAPTURE_BY_NONE)
+                        .build(), 
+                    true
+                )
                 .build() to trackSelector
         }
 
