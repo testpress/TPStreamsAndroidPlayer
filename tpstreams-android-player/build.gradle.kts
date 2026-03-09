@@ -52,7 +52,7 @@ dependencies {
 }
 apply(from = rootProject.file("gradle/gradle-mvn-build-packages.gradle"))
 group = "com.github.testpress"
-version = "1.1.9"
+version = "1.1.10"
 
 afterEvaluate {
     tasks.findByName("publishReleasePublicationToMavenLocal")?.let { publishTask ->
