@@ -219,17 +219,7 @@ private constructor(
         setSubtitleMetadata(result.subtitleMetadata)
 
         playerScope.launch(Dispatchers.Main) {
-                    val capturePolicy = if (assetInfo.enableDrm) {
-                        C.ALLOW_CAPTURE_BY_NONE
-                    } else {
-                        C.ALLOW_CAPTURE_BY_ALL
-                    }
-
-                    val audioAttributes = AudioAttributes.Builder()
-                        .setUsage(C.USAGE_MEDIA)
-                        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                        .setAllowedCapturePolicy(capturePolicy)
-                        .build()
+                    val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
 
                     exoPlayer.setAudioAttributes(audioAttributes, true)
                     exoPlayer.setMediaItem(result.mediaItem)
@@ -262,25 +252,15 @@ private constructor(
             if (download != null) {
                 Log.d("TPStreamsPlayer", "Found downloaded content for $assetId, using local version")
 
+                val downloadedMediaItem = DownloadController.buildMediaItemFromDownload(download)
+                if (downloadedMediaItem == null) {
+                    Log.e("TPStreamsPlayer", "Failed to build media item from download for $assetId")
+                    return false
+                }
+
                 playerScope.launch {
-                    val downloadedMediaItem = DownloadController.buildMediaItemFromDownload(download)
-                    if (downloadedMediaItem == null) {
-                        Log.e("TPStreamsPlayer", "Failed to build media item from download for $assetId")
-                        return@launch
-                    }
-
                     val isDrm = download.request.keySetId != null
-                    val capturePolicy = if (isDrm) {
-                        C.ALLOW_CAPTURE_BY_NONE
-                    } else {
-                        C.ALLOW_CAPTURE_BY_ALL
-                    }
-
-                    val audioAttributes = AudioAttributes.Builder()
-                        .setUsage(C.USAGE_MEDIA)
-                        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                        .setAllowedCapturePolicy(capturePolicy)
-                        .build()
+                    val audioAttributes = buildAudioAttributes(isDrm)
 
                     exoPlayer.setAudioAttributes(audioAttributes, true)
                     exoPlayer.setMediaItem(downloadedMediaItem)
@@ -299,21 +279,25 @@ private constructor(
         return false
     }
 
+    private fun buildAudioAttributes(isDrm: Boolean): AudioAttributes {
+        val capturePolicy = if (isDrm) {
+            C.ALLOW_CAPTURE_BY_NONE
+        } else {
+            C.ALLOW_CAPTURE_BY_ALL
+        }
+
+        return AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .setAllowedCapturePolicy(capturePolicy)
+            .build()
+    }
+
     @OptIn(UnstableApi::class)
     fun refreshPlaybackWithDownloadMediaItem(mediaItem: MediaItem) {
         playerScope.launch {
             val isDrm = mediaItem.localConfiguration?.drmConfiguration != null
-            val capturePolicy = if (isDrm) {
-                C.ALLOW_CAPTURE_BY_NONE
-            } else {
-                C.ALLOW_CAPTURE_BY_ALL
-            }
-
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(C.USAGE_MEDIA)
-                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                .setAllowedCapturePolicy(capturePolicy)
-                .build()
+            val audioAttributes = buildAudioAttributes(isDrm)
 
             val currentPosition = exoPlayer.currentPosition
             exoPlayer.stop()
