@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.11-beta.1] - 2026-04-02
+### Added
+- Add `CodecManager` for real-time hardware decoder instance tracking and capacity diagnostics.
+- Add `PlaybackHistoryManager` to maintain a global 500-line buffer of player events.
+- Attach full playback history to Sentry crash reports for enhanced production debugging.
+- Add support for `onAccessTokenExpired` event in `TPStreamsPlayer.Listener` for dynamic token refreshing during playback and renewal.
+
+### Fixed
+- Resolve offline DRM playback failure where metadata JSON in the download request incorrectly blocked initialization.
+- Fix DRM background license renewal flow to correctly handle expired licenses for downloaded content.
+
 ## [1.1.10] - 2026-03-10
 ### Fixed
 - Prevent audio capture for DRM-protected videos (#85)
@@ -76,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.1.11-beta.1]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.10...1.1.11-beta.1
 [1.1.10]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.9...1.1.10
 [1.1.9]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.8...1.1.9
 [1.1.8]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.7...1.1.8
