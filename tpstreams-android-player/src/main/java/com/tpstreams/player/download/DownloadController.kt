@@ -621,22 +621,9 @@ object DownloadController {
             .setMediaId(request.id)
     
         val keySetId = request.keySetId
-        val licenseUri = request.data.toString(Charsets.UTF_8)
     
         if (keySetId != null) {
-            if (licenseUri.isEmpty()) {
-                Log.e("TPStreamsPlayer", "Missing DRM license URI for ${request.id}, skipping playback")
-                return null
-            }
-    
-            if (!isValidLicenseUri(licenseUri)) {
-                Log.e("TPStreamsPlayer", "Invalid DRM license URI for ${request.id}, skipping playback")
-                return null
-            }
-    
-            Log.d("TPStreamsPlayer", "Applying DRM configuration for ${request.id}")
             val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                .setLicenseUri(licenseUri)
                 .setKeySetId(keySetId)
                 .setMultiSession(false)
                 .build()
@@ -648,14 +635,6 @@ object DownloadController {
         return builder.build()
     }
 
-    private fun isValidLicenseUri(uri: String): Boolean {
-        return try {
-            val parsedUri = Uri.parse(uri)
-            parsedUri.scheme == "https" && parsedUri.host == "app.tpstreams.com"
-        } catch (e: Exception) {
-            false
-        }
-    }
 
     
     @Synchronized
