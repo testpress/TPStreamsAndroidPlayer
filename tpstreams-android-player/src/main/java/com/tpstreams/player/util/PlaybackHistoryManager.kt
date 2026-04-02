@@ -17,11 +17,13 @@ internal object PlaybackHistoryManager {
      */
     fun recordLog(message: String) {
         logHistory.addLast(message)
-        val currentCount = logCount.incrementAndGet()
+        logCount.incrementAndGet()
 
-        if (currentCount > MAX_LOG_LINES) {
+        while (logCount.get() > MAX_LOG_LINES) {
             if (logHistory.pollFirst() != null) {
                 logCount.decrementAndGet()
+            } else {
+                break
             }
         }
     }
