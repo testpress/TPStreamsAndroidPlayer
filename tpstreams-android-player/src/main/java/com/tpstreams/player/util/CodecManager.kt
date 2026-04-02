@@ -37,6 +37,10 @@ object CodecManager {
      * Note: This is an expensive system call; use only for diagnostics.
      */
     fun getMaxSupportedInstances(codecName: String, mimeType: String): Int {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) {
+            return -1
+        }
+        
         return try {
             val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
             val info = codecList.codecInfos.find { it.name == codecName }
