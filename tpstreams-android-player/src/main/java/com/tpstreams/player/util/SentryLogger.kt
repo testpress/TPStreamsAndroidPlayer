@@ -1,5 +1,6 @@
 package com.tpstreams.player.util
 
+import android.util.Log
 import androidx.media3.common.PlaybackException
 import com.tpstreams.player.TPStreamsPlayer
 import com.tpstreams.player.util.PlaybackHistoryManager
@@ -31,9 +32,9 @@ internal object SentryLogger {
                     "Player ID" to playerId
                 )
             )
-            scope.setContext(
-                "Playback Timeline History",
-                PlaybackHistoryManager.getFullHistory()
+            scope.setContexts(
+                "Playback History",
+                mapOf("Timeline" to PlaybackHistoryManager.getFullHistory())
             )
         }
     }

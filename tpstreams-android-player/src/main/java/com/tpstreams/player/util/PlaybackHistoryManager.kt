@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * Stores a chronological list of video events to help trace decoder/memory issues across multiple sessions.
  */
 internal object PlaybackHistoryManager {
-    private const val MAX_LOG_LINES = 1000
+    private const val MAX_LOG_LINES = 500
     private val logHistory = ConcurrentLinkedDeque<String>()
     private val logCount = AtomicInteger(0)
 
