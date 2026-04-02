@@ -49,6 +49,7 @@ import com.tpstreams.player.util.network.*
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import com.tpstreams.player.util.PlaybackHistoryManager
+import com.tpstreams.player.util.CodecManager
 
 
 
@@ -142,7 +143,16 @@ private constructor(
                 initializedTimestampMs: Long,
                 initializationDurationMs: Long
             ) {
-                debugLog("Decoder INIT - Codec: $decoderName")
+                CodecManager.onDecoderInitialized()
+                CodecManager.logCodecStatus(decoderName, "video/avc")
+            }
+
+            override fun onVideoDecoderReleased(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String
+            ) {
+                CodecManager.onDecoderReleased()
+                debugLog("Decoder RELEASED - Codec: $decoderName")
             }
 
             override fun onVideoInputFormatChanged(
