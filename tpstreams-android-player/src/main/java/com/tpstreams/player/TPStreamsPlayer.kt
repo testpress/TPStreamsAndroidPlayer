@@ -46,6 +46,11 @@ import com.tpstreams.player.data.AssetInfo
 import com.tpstreams.player.data.AssetRepository
 import com.tpstreams.player.util.MediaItemUtils
 import com.tpstreams.player.util.network.*
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.DecoderReuseEvaluation
+import com.tpstreams.player.util.PlaybackHistoryManager
+
+
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -62,6 +67,16 @@ private constructor(
     val downloadMetadata: Map<String, String>? = null,
     val offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
 ) : Player by exoPlayer {
+
+    val playbackSessionId = (1..6)
+        .map { (('a'..'z') + ('0'..'9')).random() }
+        .joinToString("")
+
+    private fun debugLog(message: String) {
+        val fullMessage = "[$playbackSessionId] $message"
+        Log.d(DEBUG_TAG, fullMessage)
+        PlaybackHistoryManager.recordLog(fullMessage)
+    }
 
     interface Listener {
         fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit)
@@ -93,6 +108,7 @@ private constructor(
                         fetchAndPrepare(org, assetId, accessToken)
                     }
                 } else {
+                    debugLog("Player PREPARE (Retry)")
                     exoPlayer.prepare()
                     exoPlayer.play()
                 }
@@ -113,6 +129,77 @@ private constructor(
         }
 
     init {
+        debugLog("Player INIT - Instance created for assetId: $assetId")
+        synchronized(TPStreamsPlayer::class.java) {
+            activePlayerCount++
+            debugLog("Active Player COUNT: $activePlayerCount")
+        }
+
+        exoPlayer.addAnalyticsListener(object : AnalyticsListener {
+            override fun onVideoDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+                initializationDurationMs: Long
+            ) {
+                debugLog("Decoder INIT - Codec: $decoderName")
+            }
+
+            override fun onVideoInputFormatChanged(
+                eventTime: AnalyticsListener.EventTime,
+                format: Format,
+                decoderReuseEvaluation: DecoderReuseEvaluation?
+            ) {
+                debugLog("Decoder Format - ${format.sampleMimeType}, Res: ${format.width}x${format.height}, Bitrate: ${format.bitrate}")
+                if (decoderReuseEvaluation != null) {
+                    val resultLabel = when (decoderReuseEvaluation.result) {
+                        DecoderReuseEvaluation.REUSE_RESULT_NO -> "NO"
+                        DecoderReuseEvaluation.REUSE_RESULT_YES_WITH_FLUSH -> "YES_WITH_FLUSH"
+                        DecoderReuseEvaluation.REUSE_RESULT_YES_WITH_RECONFIGURATION -> "YES_WITH_RECONFIGURATION"
+                        DecoderReuseEvaluation.REUSE_RESULT_YES_WITHOUT_RECONFIGURATION -> "YES_WITHOUT_RECONFIGURATION"
+                        else -> "UNKNOWN (${decoderReuseEvaluation.result})"
+                    }
+                    debugLog("Decoder RE-INIT / REPLACEMENT - Result: $resultLabel")
+                }
+            }
+
+            override fun onPlaybackStateChanged(eventTime: AnalyticsListener.EventTime, state: Int) {
+                val stateName = when (state) {
+                    Player.STATE_IDLE -> "IDLE"
+                    Player.STATE_BUFFERING -> "BUFFERING"
+                    Player.STATE_READY -> "READY"
+                    Player.STATE_ENDED -> "ENDED"
+                    else -> "UNKNOWN"
+                }
+                debugLog("Playback STATE CHANGE - $stateName")
+            }
+
+            override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
+                debugLog("First Frame Rendered")
+            }
+
+            override fun onSurfaceSizeChanged(eventTime: AnalyticsListener.EventTime, width: Int, height: Int) {
+                debugLog("Surface SIZE CHANGED - ${width}x${height}")
+            }
+
+            override fun onMediaItemTransition(
+                eventTime: AnalyticsListener.EventTime,
+                mediaItem: MediaItem?,
+                reason: Int
+            ) {
+                if (mediaItem != null) {
+                    val transitionReason = when (reason) {
+                        Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "AUTO"
+                        Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> "PLAYLIST_CHANGED"
+                        Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> "REPEAT"
+                        Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> "SEEK"
+                        else -> "UNKNOWN ($reason)"
+                    }
+                    debugLog("MediaItem TRANSITION - ${mediaItem.mediaId}, Reason: $transitionReason")
+                }
+            }
+        })
+
         Log.d("TPStreamsPlayer", "Initializing TPStreamsPlayer with assetId: $assetId")
         
         exoPlayer.addListener(object : Player.Listener {
@@ -150,6 +237,7 @@ private constructor(
                      networkRecoveryHandler.startMonitoring { retryPlayback() }
                 }
                 
+                debugLog("Player ERROR - ${error.errorCodeName}")
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
                 SentryLogger.logPlaybackException(error, assetId, errorPlayerId)
                 
@@ -222,7 +310,9 @@ private constructor(
                     val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
 
                     exoPlayer.setAudioAttributes(audioAttributes, true)
+                    debugLog("MediaItem SET - ${result.mediaItem.mediaId}")
                     exoPlayer.setMediaItem(result.mediaItem)
+                    debugLog("Player PREPARE")
                     exoPlayer.prepare()
                     isPrepared = true
                 }
@@ -304,7 +394,9 @@ private constructor(
             exoPlayer.setAudioAttributes(audioAttributes, true)
             exoPlayer.clearMediaItems()
             
+            debugLog("MediaItem SET (Download) - ${mediaItem.mediaId}")
             exoPlayer.setMediaItem(mediaItem)
+            debugLog("Player PREPARE")
             exoPlayer.prepare()
             val duration = exoPlayer.duration
             if ((currentPosition > 0) && (duration == C.TIME_UNSET || currentPosition < duration)) {
@@ -369,6 +461,12 @@ private constructor(
     override fun getPlaybackState(): Int = exoPlayer.playbackState
 
     override fun release() {
+        debugLog("Surface DETACH (Player Released)")
+        debugLog("Player RELEASE - assetId: $assetId")
+        synchronized(TPStreamsPlayer::class.java) {
+            activePlayerCount--
+            debugLog("Active Player COUNT: $activePlayerCount")
+        }
         playerScope.cancel()
         exoPlayer.release()
         networkRecoveryHandler.stopMonitoring()
@@ -582,6 +680,8 @@ private constructor(
     }
 
     companion object {
+        private var activePlayerCount = 0
+        private const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
         private val client = OkHttpClient()
         private const val LICENSE_URL_TEMPLATE = "https://app.tpstreams.com/api/v1/%s/assets/%s/drm_license/?access_token=%s&download=%s&license_duration_seconds=%s"
 

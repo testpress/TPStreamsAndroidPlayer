@@ -14,6 +14,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import com.tpstreams.player.constants.PlaybackError
+import com.tpstreams.player.util.PlaybackHistoryManager
 import com.tpstreams.player.R
 
 @UnstableApi
@@ -334,6 +335,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         // Clean up previous player
         val previousPlayer = getPlayer()
         if (previousPlayer is TPStreamsPlayer) {
+            val message = "[${previousPlayer.playbackSessionId}] Surface DETACH"
+            Log.d("PLAYBACK_ERROR_DEBUG", message)
+            PlaybackHistoryManager.recordLog(message)
             previousPlayer.listener = null
             previousPlayer.onLiveStreamStatusChanged = null
             previousPlayer.removeListener(tracksStateListener)
@@ -341,6 +345,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         previousPlayer?.removeListener(playbackStateListener)
         
         super.setPlayer(player)
+        
+        if (player is TPStreamsPlayer) {
+            val message = "[${player.playbackSessionId}] Surface ATTACH"
+            Log.d("PLAYBACK_ERROR_DEBUG", message)
+            PlaybackHistoryManager.recordLog(message)
+        }
         
         lifecycleManager = player?.let { PlayerLifecycleManager(it) }
         registerWithLifecycle()
