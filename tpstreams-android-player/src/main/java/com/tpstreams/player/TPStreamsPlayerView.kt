@@ -336,7 +336,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         val previousPlayer = getPlayer()
         if (previousPlayer is TPStreamsPlayer) {
             val message = "[${previousPlayer.playbackSessionId}] Surface DETACH"
-            Log.d("PLAYBACK_ERROR_DEBUG", message)
+            Log.d(TPStreamsPlayer.DEBUG_TAG, message)
             PlaybackHistoryManager.recordLog(message)
             previousPlayer.listener = null
             previousPlayer.onLiveStreamStatusChanged = null
@@ -348,7 +348,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         
         if (player is TPStreamsPlayer) {
             val message = "[${player.playbackSessionId}] Surface ATTACH"
-            Log.d("PLAYBACK_ERROR_DEBUG", message)
+            Log.d(TPStreamsPlayer.DEBUG_TAG, message)
             PlaybackHistoryManager.recordLog(message)
         }
         

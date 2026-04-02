@@ -1,6 +1,7 @@
 package com.tpstreams.player.util
 
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Singleton to manage global playback history for production debugging.
@@ -9,15 +10,19 @@ import java.util.concurrent.ConcurrentLinkedDeque
 internal object PlaybackHistoryManager {
     private const val MAX_LOG_LINES = 1000
     private val logHistory = ConcurrentLinkedDeque<String>()
+    private val logCount = AtomicInteger(0)
 
     /**
      * Records a log message in the global history.
      */
     fun recordLog(message: String) {
-        logHistory.add(message)
-        // Keep the history size within limits
-        while (logHistory.size > MAX_LOG_LINES) {
-            logHistory.pollFirst()
+        logHistory.addLast(message)
+        val currentCount = logCount.incrementAndGet()
+
+        if (currentCount > MAX_LOG_LINES) {
+            if (logHistory.pollFirst() != null) {
+                logCount.decrementAndGet()
+            }
         }
     }
 
@@ -41,5 +46,6 @@ internal object PlaybackHistoryManager {
      */
     fun clearHistory() {
         logHistory.clear()
+        logCount.set(0)
     }
 }

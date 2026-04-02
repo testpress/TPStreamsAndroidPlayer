@@ -681,7 +681,7 @@ private constructor(
 
     companion object {
         private var activePlayerCount = 0
-        private const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
+        internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
         private val client = OkHttpClient()
         private const val LICENSE_URL_TEMPLATE = "https://app.tpstreams.com/api/v1/%s/assets/%s/drm_license/?access_token=%s&download=%s&license_duration_seconds=%s"
 
