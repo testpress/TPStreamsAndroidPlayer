@@ -50,6 +50,8 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import com.tpstreams.player.util.PlaybackHistoryManager
 import com.tpstreams.player.util.CodecManager
+import com.tpstreams.player.util.ApiHistoryManager
+import com.tpstreams.player.util.TPStreamsDrmSessionManagerProvider
 
 
 
@@ -657,6 +659,14 @@ private constructor(
                     
                     val response = client.newCall(request).execute()
                     val isValid = response.isSuccessful
+                    
+                    ApiHistoryManager.recordLog(
+                        endpoint = assetApiUrl,
+                        method = "HEAD",
+                        responseCode = response.code,
+                        responseBody = if (isValid) "Token valid" else "Token invalid"
+                    )
+                    
                     Log.d("TPStreamsPlayer", "Token validation result: ${if (isValid) "valid" else "invalid"}")
                     
                     CoroutineScope(Dispatchers.Main).launch {
@@ -714,6 +724,7 @@ private constructor(
             
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(cacheDataSourceFactory)
+                .setDrmSessionManagerProvider(TPStreamsDrmSessionManagerProvider())
 
             return ExoPlayer.Builder(context)
                 .setMediaSourceFactory(mediaSourceFactory)

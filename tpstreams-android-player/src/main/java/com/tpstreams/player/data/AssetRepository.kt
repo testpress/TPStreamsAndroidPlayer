@@ -7,6 +7,7 @@ import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.constants.toPlaybackError
 import com.tpstreams.player.constants.getErrorMessage
 import com.tpstreams.player.util.SentryLogger
+import com.tpstreams.player.util.ApiHistoryManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -33,17 +34,25 @@ object AssetRepository {
         callback: AssetCallback
     ) {
         CoroutineScope(Dispatchers.IO).launch {
+            val assetApiUrl = "$BASE_URL/$orgId/assets/$assetId/?access_token=$accessToken"
             try {
-                val assetApiUrl = "$BASE_URL/$orgId/assets/$assetId/?access_token=$accessToken"
                 val request = Request.Builder().url(assetApiUrl).build()
                 val response = client.newCall(request).execute()
+                val responseCode = response.code
+                val body = response.body?.string()
+
+                ApiHistoryManager.recordLog(
+                    endpoint = assetApiUrl,
+                    responseCode = responseCode,
+                    responseBody = body
+                )
 
                 if (!response.isSuccessful) {
-                    handleApiError(assetId, response.code, callback)
+                    handleApiError(assetId, responseCode, callback)
                     return@launch
                 }
 
-                val body = response.body?.string() ?: run {
+                if (body.isNullOrEmpty()) {
                     CoroutineScope(Dispatchers.Main).launch {
                         callback.onError(PlaybackError.UNSPECIFIED, "Empty response from server")
                     }
@@ -58,6 +67,10 @@ object AssetRepository {
                     callback.onSuccess(assetInfo, title)
                 }
             } catch (e: Exception) {
+                ApiHistoryManager.recordLog(
+                    endpoint = assetApiUrl,
+                    responseBody = "Exception: ${e.message}"
+                )
                 handleException(assetId, e, callback)
             }
         }
