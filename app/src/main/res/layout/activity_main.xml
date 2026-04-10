@@ -52,6 +52,22 @@
                 android:padding="16dp"
                 android:text="Non-DRM Video" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_testpress_drm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:padding="16dp"
+                android:text="Testpress DRM Video" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_testpress_non_drm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:padding="16dp"
+                android:text="Testpress Non-DRM Video" />
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

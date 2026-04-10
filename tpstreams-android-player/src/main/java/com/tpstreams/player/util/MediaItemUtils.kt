@@ -7,7 +7,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
-import com.tpstreams.player.data.AssetInfo
+import com.tpstreams.player.TPStreamsSDK
+import com.tpstreams.player.data.network.model.AssetInfo
 
 @UnstableApi
 object MediaItemUtils {
@@ -72,12 +73,11 @@ object MediaItemUtils {
                 setMediaMetadata(metadata)
                 
                 if (assetInfo.enableDrm) {
-                    val licenseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
-                    val drmHeaders = mapOf("Authorization" to "Bearer $accessToken")
-                    
+                    val apiService = TPStreamsSDK.apiService
+                    val licenseUrl = apiService.drmLicenseUrl(orgId, assetId, accessToken)
+
                     val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                         .setLicenseUri(licenseUrl)
-                        .setLicenseRequestHeaders(drmHeaders)
                         .setMultiSession(true)
                         .build()
                     

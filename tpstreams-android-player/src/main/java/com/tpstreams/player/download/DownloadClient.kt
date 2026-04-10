@@ -12,8 +12,8 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import org.json.JSONObject
 import com.tpstreams.player.TPStreamsSDK
-import com.tpstreams.player.data.AssetInfo
 import com.tpstreams.player.data.AssetRepository
+import com.tpstreams.player.data.network.model.AssetInfo
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.DownloadOptionsBottomSheet
 import androidx.media3.common.MimeTypes
@@ -130,8 +130,8 @@ class DownloadClient private constructor(private val context: Context) {
         accessToken: String,
         callback: AssetRepository.AssetCallback
     ) {
-        val orgId = TPStreamsSDK.orgId ?: throw IllegalStateException("TPStreamsSDK.init(orgId) must be called first")
-        AssetRepository.fetchAssetInfo(orgId, assetId, accessToken, callback)
+        TPStreamsSDK.requireOrgId()
+        AssetRepository.fetchAssetInfo(assetId, accessToken, callback)
     }
 
     fun startDownload(
@@ -141,15 +141,15 @@ class DownloadClient private constructor(private val context: Context) {
         resolution: String? = null,
         metadata: Map<String, String>? = null
     ) {
-        val orgId = TPStreamsSDK.orgId ?: throw IllegalStateException("TPStreamsSDK.init(orgId) must be called first")
+        val orgId = TPStreamsSDK.requireOrgId()
 
         getAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
-            override fun onSuccess(assetInfo: AssetInfo, title: String) {
+            override fun onSuccess(assetInfo: AssetInfo) {
                 if (resolution != null) {
-                    performStartDownload(assetInfo, title, orgId, assetId, accessToken, resolution, metadata)
+                    performStartDownload(assetInfo, assetInfo.title, orgId, assetId, accessToken, resolution, metadata)
                 } else {
                     if (context is androidx.fragment.app.FragmentActivity) {
-                        showDownloadOptions(context, assetInfo, title, orgId, assetId, accessToken, metadata)
+                        showDownloadOptions(context, assetInfo, assetInfo.title, orgId, assetId, accessToken, metadata)
                     } else {
                         Log.e(TAG, "Resolution is required for non-activity contexts")
                     }
