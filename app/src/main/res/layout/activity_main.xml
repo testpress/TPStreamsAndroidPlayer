@@ -7,104 +7,164 @@
     android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
-    <ScrollView
+    <FrameLayout
+        android:id="@+id/content_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:clipToPadding="false"
-        android:padding="24dp">
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
+        app:layout_constraintTop_toTopOf="parent">
 
-        <LinearLayout
+        <!-- TPStreams Content -->
+        <ScrollView
+            android:id="@+id/layout_tpstreams"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:layout_height="match_parent"
+            android:padding="24dp"
+            android:visibility="visible">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:text="TPStreams Provider"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_drm_video"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:padding="16dp"
+                    android:text="Watch DRM Video" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_non_drm_video"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:padding="16dp"
+                    android:text="Watch Non-DRM Video" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:text="Download Samples"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_download_drm_720"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:padding="16dp"
+                    android:text="Download DRM (720p)" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_download_drm_select"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:padding="16dp"
+                    android:text="Download DRM (Select Quality)" />
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- Testpress Content -->
+        <ScrollView
+            android:id="@+id/layout_testpress"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="24dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:text="Testpress Provider"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_testpress_drm"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:padding="16dp"
+                    android:text="Watch Testpress DRM" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_testpress_non_drm"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:padding="16dp"
+                    android:text="Watch Testpress Non-DRM" />
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- Downloads List Container -->
+        <LinearLayout
+            android:id="@+id/layout_downloads"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="gone">
 
             <TextView
-                android:id="@+id/tv_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
-                android:text="TPStreams Player Testing"
+                android:layout_margin="8dp"
+                android:text="My Downloads"
                 android:textSize="24sp"
                 android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/tv_subtitle"
+            <!-- The ListActivity/Fragment logic will be triggered by btn_view_downloads or handled in MainActivity -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_downloads"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Select a video scenario to test playback and DRM integration."
-                android:textSize="14sp"
-                android:textColor="#666666" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_drm_video"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
-                android:padding="16dp"
-                android:text="DRM Video" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_non_drm_video"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:padding="16dp"
-                android:text="Non-DRM Video" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_testpress_drm"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:padding="16dp"
-                android:text="Testpress DRM Video" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_testpress_non_drm"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:padding="16dp"
-                android:text="Testpress Non-DRM Video" />
+                android:layout_height="match_parent"
+                android:visibility="gone"
+                tools:listitem="@layout/item_download" />
 
             <TextView
+                android:id="@+id/tv_empty_downloads"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
-                android:text="Download Testing"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_download_drm_720"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:padding="16dp"
-                android:text="Download DRM Video (720p)" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_download_drm_select"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:padding="16dp"
-                android:text="Download DRM Video (Select Quality)" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_downloads"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:padding="16dp"
-                android:text="Downloads List"
+                android:layout_gravity="center"
+                android:layout_marginTop="64dp"
+                android:text="No downloads found"
+                android:textColor="#999999"
                 android:visibility="visible" />
 
         </LinearLayout>
-    </ScrollView>
+
+    </FrameLayout>
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_navigation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?android:attr/windowBackground"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:menu="@menu/bottom_nav_menu" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
