@@ -144,12 +144,12 @@ class DownloadClient private constructor(private val context: Context) {
         val orgId = TPStreamsSDK.requireOrgId()
 
         getAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
-            override fun onSuccess(assetInfo: AssetInfo, title: String) {
+            override fun onSuccess(assetInfo: AssetInfo) {
                 if (resolution != null) {
-                    performStartDownload(assetInfo, title, orgId, assetId, accessToken, resolution, metadata)
+                    performStartDownload(assetInfo, assetInfo.title, orgId, assetId, accessToken, resolution, metadata)
                 } else {
                     if (context is androidx.fragment.app.FragmentActivity) {
-                        showDownloadOptions(context, assetInfo, title, orgId, assetId, accessToken, metadata)
+                        showDownloadOptions(context, assetInfo, assetInfo.title, orgId, assetId, accessToken, metadata)
                     } else {
                         Log.e(TAG, "Resolution is required for non-activity contexts")
                     }

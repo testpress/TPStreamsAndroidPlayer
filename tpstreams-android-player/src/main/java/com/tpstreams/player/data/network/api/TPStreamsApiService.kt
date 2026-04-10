@@ -25,16 +25,17 @@ class TPStreamsApiService : BaseApiService() {
     }
 
     override fun parseAsset(json: JSONObject): AssetInfo {
+        val title = json.optString("title", "Undefined")
         val assetType = json.optString("type", "video")
         val isLiveStream = assetType == "livestream"
         return if (isLiveStream && json.has("live_stream") && !json.isNull("live_stream")) {
-            parseLiveStreamAssetInfo(json)
+            parseLiveStreamAssetInfo(json, title)
         } else {
-            parseVideoAssetInfo(json)
+            parseVideoAssetInfo(json, title)
         }
     }
 
-    private fun parseLiveStreamAssetInfo(json: JSONObject): AssetInfo {
+    private fun parseLiveStreamAssetInfo(json: JSONObject, title: String): AssetInfo {
         val liveStreamObj = json.getJSONObject("live_stream")
         val liveStreamStatus = liveStreamObj.optString("status", "")
 
@@ -53,7 +54,8 @@ class TPStreamsApiService : BaseApiService() {
                             thumbnailUrl = getThumbnail(videoObj),
                             videoObj = videoObj,
                             isLiveStream = false,
-                            durationSeconds = videoObj.optDouble("duration", 0.0)
+                            durationSeconds = videoObj.optDouble("duration", 0.0),
+                            title = title
                         )
                     } else {
                         throw LiveStreamEndedException("Live stream has ended")
@@ -76,13 +78,14 @@ class TPStreamsApiService : BaseApiService() {
                     thumbnailUrl = "",
                     videoObj = null,
                     isLiveStream = true,
-                    durationSeconds = liveStreamObj.optDouble("duration", 0.0)
+                    durationSeconds = liveStreamObj.optDouble("duration", 0.0),
+                    title = title
                 )
             }
         }
     }
 
-    private fun parseVideoAssetInfo(json: JSONObject): AssetInfo {
+    private fun parseVideoAssetInfo(json: JSONObject, title: String): AssetInfo {
         val videoObj = json.getJSONObject("video")
         val enableDrm = videoObj.optBoolean("enable_drm", false)
         return AssetInfo(
@@ -91,7 +94,8 @@ class TPStreamsApiService : BaseApiService() {
             thumbnailUrl = getThumbnail(videoObj),
             videoObj = videoObj,
             isLiveStream = false,
-            durationSeconds = videoObj.optDouble("duration", 0.0)
+            durationSeconds = videoObj.optDouble("duration", 0.0),
+            title = title
         )
     }
 
@@ -101,11 +105,12 @@ class TPStreamsApiService : BaseApiService() {
             ?.optJSONObject("h265")
 
         if (h265OutputUrl != null) {
-            return if (enableDrm) {
+            val h265Url = if (enableDrm) {
                 h265OutputUrl.optString("dash_url")
             } else {
                 h265OutputUrl.optString("hls_url")
             }
+            if (h265Url.isNotEmpty()) return h265Url
         }
 
         return if (enableDrm) {

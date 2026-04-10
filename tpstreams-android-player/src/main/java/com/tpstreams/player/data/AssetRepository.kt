@@ -20,7 +20,7 @@ object AssetRepository {
     private val client = OkHttpClient()
 
     interface AssetCallback {
-        fun onSuccess(assetInfo: AssetInfo, title: String)
+        fun onSuccess(assetInfo: AssetInfo)
         fun onError(error: PlaybackError, message: String)
     }
 
@@ -30,9 +30,10 @@ object AssetRepository {
         accessToken: String,
         callback: AssetCallback
     ) {
+        TPStreamsSDK.requireOrgId()
+        val apiService = TPStreamsSDK.apiService
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val apiService = TPStreamsSDK.apiService
                 val assetApiUrl = apiService.assetInfoUrl(orgId, assetId, accessToken)
                 val request = Request.Builder().url(assetApiUrl).build()
                 val response = client.newCall(request).execute()
@@ -50,11 +51,10 @@ object AssetRepository {
                 }
 
                 val json = JSONObject(body)
-                val title = json.optString("title", "Undefined")
                 val assetInfo = apiService.parseAsset(json)
 
                 CoroutineScope(Dispatchers.Main).launch {
-                    callback.onSuccess(assetInfo, title)
+                    callback.onSuccess(assetInfo)
                 }
             } catch (e: Exception) {
                 handleException(assetId, e, callback)

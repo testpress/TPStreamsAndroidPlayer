@@ -292,8 +292,8 @@ private constructor(
             if (playFromDownload(assetId)) return@launch
 
             AssetRepository.fetchAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
-                override fun onSuccess(assetInfo: AssetInfo, title: String) {
-                    preparePlayer(assetInfo, title, assetId, accessToken)
+                override fun onSuccess(assetInfo: AssetInfo) {
+                    preparePlayer(assetInfo, assetId, accessToken)
                 }
 
                 override fun onError(error: PlaybackError, message: String) {
@@ -308,12 +308,12 @@ private constructor(
     }
 
     @OptIn(UnstableApi::class)
-    private fun preparePlayer(assetInfo: AssetInfo, title: String, assetId: String, accessToken: String) {
+    private fun preparePlayer(assetInfo: AssetInfo, assetId: String, accessToken: String) {
         val orgId = TPStreamsSDK.requireOrgId()
         _isLiveStream = assetInfo.isLiveStream
         onLiveStreamStatusChanged?.invoke(_isLiveStream)
 
-        val result = MediaItemUtils.buildMediaItem(assetInfo, title, orgId, assetId, accessToken)
+        val result = MediaItemUtils.buildMediaItem(assetInfo, assetInfo.title, orgId, assetId, accessToken)
         setSubtitleMetadata(result.subtitleMetadata)
 
         playerScope.launch(Dispatchers.Main) {

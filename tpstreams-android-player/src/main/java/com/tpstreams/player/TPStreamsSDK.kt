@@ -16,7 +16,7 @@ object TPStreamsSDK {
 
     internal var orgId: String?
         get() = _orgCode
-        set(value) {
+        private set(value) {
             _orgCode = value
         }
 

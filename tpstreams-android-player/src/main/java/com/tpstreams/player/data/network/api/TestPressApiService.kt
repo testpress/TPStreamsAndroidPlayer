@@ -22,17 +22,18 @@ class TestPressApiService : BaseApiService() {
     }
 
     override fun parseAsset(json: JSONObject): AssetInfo {
+        val title = json.optString("title").ifEmpty { json.optString("name", "Undefined") }
         val contentType = json.optString("content_type", "video")
         val isLiveStream = contentType == "livestream"
 
         return if (isLiveStream && json.has("live_stream") && !json.isNull("live_stream")) {
-            parseLiveStreamAssetInfo(json)
+            parseLiveStreamAssetInfo(json, title)
         } else {
-            parseVideoAssetInfo(json)
+            parseVideoAssetInfo(json, title)
         }
     }
 
-    private fun parseLiveStreamAssetInfo(json: JSONObject): AssetInfo {
+    private fun parseLiveStreamAssetInfo(json: JSONObject, title: String): AssetInfo {
         val liveStreamObj = json.getJSONObject("live_stream")
         val liveStreamStatus = liveStreamObj.optString("status", "")
         val shouldShowRecordedVideo = liveStreamObj.optBoolean("show_recorded_video", false)
@@ -51,7 +52,8 @@ class TestPressApiService : BaseApiService() {
                             thumbnailUrl = getThumbnail(videoObj),
                             videoObj = videoObj,
                             isLiveStream = false,
-                            durationSeconds = videoObj.optDouble("duration", 0.0)
+                            durationSeconds = videoObj.optDouble("duration", 0.0),
+                            title = title
                         )
                     } else {
                         throw LiveStreamEndedException("Live stream has ended")
@@ -68,13 +70,14 @@ class TestPressApiService : BaseApiService() {
                     thumbnailUrl = "",
                     videoObj = null,
                     isLiveStream = true,
-                    durationSeconds = liveStreamObj.optDouble("duration", 0.0)
+                    durationSeconds = liveStreamObj.optDouble("duration", 0.0),
+                    title = title
                 )
             }
         }
     }
 
-    private fun parseVideoAssetInfo(json: JSONObject): AssetInfo {
+    private fun parseVideoAssetInfo(json: JSONObject, title: String): AssetInfo {
         val videoObj = json.getJSONObject("video")
         val enableDrm = videoObj.optBoolean("drm_enabled", false)
         return AssetInfo(
@@ -83,7 +86,8 @@ class TestPressApiService : BaseApiService() {
             thumbnailUrl = getThumbnail(videoObj),
             videoObj = videoObj,
             isLiveStream = false,
-            durationSeconds = videoObj.optDouble("duration", 0.0)
+            durationSeconds = videoObj.optDouble("duration", 0.0),
+            title = title
         )
     }
 
