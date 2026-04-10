@@ -1,11 +1,10 @@
 package com.tpstreams.player.data
 
-import android.util.Log
-import com.tpstreams.player.constants.LiveStreamEndedException
-import com.tpstreams.player.constants.LiveStreamNotStartedException
+import com.tpstreams.player.TPStreamsSDK
 import com.tpstreams.player.constants.PlaybackError
-import com.tpstreams.player.constants.toPlaybackError
 import com.tpstreams.player.constants.getErrorMessage
+import com.tpstreams.player.constants.toPlaybackError
+import com.tpstreams.player.data.network.model.AssetInfo
 import com.tpstreams.player.util.SentryLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,11 +14,10 @@ import okhttp3.Request
 import org.json.JSONObject
 
 /**
- * Repository for fetching and parsing asset metadata from the TPStreams API.
+ * Repository for fetching and parsing asset metadata from configured backend providers.
  */
 object AssetRepository {
     private val client = OkHttpClient()
-    private const val BASE_URL = "https://app.tpstreams.com/api/v1"
 
     interface AssetCallback {
         fun onSuccess(assetInfo: AssetInfo, title: String)
@@ -34,7 +32,8 @@ object AssetRepository {
     ) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val assetApiUrl = "$BASE_URL/$orgId/assets/$assetId/?access_token=$accessToken"
+                val apiService = TPStreamsSDK.apiService
+                val assetApiUrl = apiService.assetInfoUrl(orgId, assetId, accessToken)
                 val request = Request.Builder().url(assetApiUrl).build()
                 val response = client.newCall(request).execute()
 
@@ -52,7 +51,7 @@ object AssetRepository {
 
                 val json = JSONObject(body)
                 val title = json.optString("title", "Undefined")
-                val assetInfo = parseAssetInfo(json)
+                val assetInfo = apiService.parseAsset(json)
 
                 CoroutineScope(Dispatchers.Main).launch {
                     callback.onSuccess(assetInfo, title)
@@ -61,6 +60,14 @@ object AssetRepository {
                 handleException(assetId, e, callback)
             }
         }
+    }
+
+    fun fetchAssetInfo(
+        assetId: String,
+        accessToken: String,
+        callback: AssetCallback
+    ) {
+        fetchAssetInfo(TPStreamsSDK.requireOrgId(), assetId, accessToken, callback)
     }
 
     private fun handleApiError(assetId: String, code: Int, callback: AssetCallback) {
@@ -90,68 +97,4 @@ object AssetRepository {
             callback.onError(errorType, errorMessage)
         }
     }
-
-    private fun parseAssetInfo(json: JSONObject): AssetInfo {
-        val assetType = json.optString("type", "video")
-        val isLiveStream = assetType == "livestream"
-
-        return if (isLiveStream && json.has("live_stream") && !json.isNull("live_stream")) {
-            parseLiveStreamAssetInfo(json)
-        } else {
-            parseVideoAssetInfo(json)
-        }
-    }
-
-    private fun parseLiveStreamAssetInfo(json: JSONObject): AssetInfo {
-        val liveStreamObj = json.getJSONObject("live_stream")
-        val liveStreamStatus = liveStreamObj.optString("status", "")
-
-        return when (liveStreamStatus.uppercase(java.util.Locale.ROOT)) {
-            "NOT STARTED" -> throw LiveStreamNotStartedException("Live stream will begin soon")
-            "COMPLETED" -> {
-                if (json.has("video") && !json.isNull("video")) {
-                    val videoObj = json.getJSONObject("video")
-                    val videoStatus = videoObj.optString("status", "")
-
-                    if (videoStatus.equals("Completed", ignoreCase = true)) {
-                        val enableDrm = videoObj.optBoolean("enable_drm", false)
-                        val mediaUrl = if (enableDrm) {
-                            videoObj.optString("dash_url")
-                        } else {
-                            videoObj.optString("playback_url")
-                        }
-                        val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
-                        AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false, durationSeconds = videoObj.optDouble("duration", 0.0))
-                    } else {
-                        throw LiveStreamEndedException("Live stream has ended")
-                    }
-                } else {
-                    throw LiveStreamEndedException("Live stream has ended")
-                }
-            }
-            else -> {
-                val enableDrm = liveStreamObj.optBoolean("enable_drm", false)
-                val mediaUrl = if (enableDrm) {
-                    liveStreamObj.optString("dash_url")
-                } else {
-                    liveStreamObj.optString("hls_url")
-                }
-                AssetInfo(mediaUrl, enableDrm, "", null, isLiveStream = true, durationSeconds = liveStreamObj.optDouble("duration", 0.0))
-            }
-        }
-    }
-
-    private fun parseVideoAssetInfo(json: JSONObject): AssetInfo {
-        val videoObj = json.getJSONObject("video")
-        val enableDrm = videoObj.optBoolean("enable_drm", false)
-        val mediaUrl = if (enableDrm) {
-            videoObj.optString("dash_url")
-        } else {
-            videoObj.optString("playback_url")
-        }
-        val thumbnailUrl = videoObj.optJSONArray("thumbnails")?.optString(0) ?: ""
-        val duration = videoObj.optDouble("duration", 0.0)
-        return AssetInfo(mediaUrl, enableDrm, thumbnailUrl, videoObj, isLiveStream = false, durationSeconds = duration)
-    }
-
 }

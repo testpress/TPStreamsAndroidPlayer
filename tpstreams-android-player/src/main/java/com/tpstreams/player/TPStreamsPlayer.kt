@@ -42,7 +42,7 @@ import com.tpstreams.player.constants.getErrorMessage
 import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.constants.LiveStreamEndedException
 import com.tpstreams.player.constants.toPlaybackError
-import com.tpstreams.player.data.AssetInfo
+import com.tpstreams.player.data.network.model.AssetInfo
 import com.tpstreams.player.data.AssetRepository
 import com.tpstreams.player.util.MediaItemUtils
 import com.tpstreams.player.util.network.*
@@ -106,7 +106,7 @@ private constructor(
                     val org = TPStreamsSDK.orgId
                     if (org != null) {
                         Log.d("TPStreamsPlayer", "Retrying initial fetchAndPrepare")
-                        fetchAndPrepare(org, assetId, accessToken)
+                        fetchAndPrepare(assetId, accessToken)
                     }
                 } else {
                     debugLog("Player PREPARE (Retry)")
@@ -267,9 +267,8 @@ private constructor(
             }
         })
 
-        val org = TPStreamsSDK.orgId
-            ?: throw IllegalStateException("TPStreamsSDK.init(orgId) must be called before using the player.")
-        fetchAndPrepare(org, assetId, accessToken)
+        TPStreamsSDK.requireOrgId()
+        fetchAndPrepare(assetId, accessToken)
     }
 
     private fun enableDefaultCaptions() {
@@ -288,13 +287,13 @@ private constructor(
                 cause is MediaCodec.CryptoException
     }
 
-    private fun fetchAndPrepare(orgId: String, assetId: String, accessToken: String) {
+    private fun fetchAndPrepare(assetId: String, accessToken: String) {
         CoroutineScope(Dispatchers.IO).launch {
             if (playFromDownload(assetId)) return@launch
 
-            AssetRepository.fetchAssetInfo(orgId, assetId, accessToken, object : AssetRepository.AssetCallback {
+            AssetRepository.fetchAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
                 override fun onSuccess(assetInfo: AssetInfo, title: String) {
-                    preparePlayer(assetInfo, title, orgId, assetId, accessToken)
+                    preparePlayer(assetInfo, title, assetId, accessToken)
                 }
 
                 override fun onError(error: PlaybackError, message: String) {
@@ -309,7 +308,8 @@ private constructor(
     }
 
     @OptIn(UnstableApi::class)
-    private fun preparePlayer(assetInfo: AssetInfo, title: String, orgId: String, assetId: String, accessToken: String) {
+    private fun preparePlayer(assetInfo: AssetInfo, title: String, assetId: String, accessToken: String) {
+        val orgId = TPStreamsSDK.requireOrgId()
         _isLiveStream = assetInfo.isLiveStream
         onLiveStreamStatusChanged?.invoke(_isLiveStream)
 
@@ -649,7 +649,7 @@ private constructor(
             
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    val assetApiUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/?access_token=$accessToken"
+                    val assetApiUrl = TPStreamsSDK.apiService.tokenValidationUrl(orgId, assetId, accessToken)
                     val request = Request.Builder()
                         .url(assetApiUrl)
                         .head()
@@ -693,7 +693,6 @@ private constructor(
         private var activePlayerCount = 0
         internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
         private val client = OkHttpClient()
-        private const val LICENSE_URL_TEMPLATE = "https://app.tpstreams.com/api/v1/%s/assets/%s/drm_license/?access_token=%s&download=%s&license_duration_seconds=%s"
 
 
 
@@ -769,12 +768,12 @@ private constructor(
                         if (newToken.isNotEmpty()) {
                             Log.d("TPStreamsPlayer", "Received fresh token")
                             TPStreamsSDK.orgId?.let {
-                                val licenseUrl = LICENSE_URL_TEMPLATE.format(
-                                    it,
-                                    assetId,
-                                    newToken,
-                                    "true",
-                                    offlineLicenseExpireTime.toString()
+                                val licenseUrl = TPStreamsSDK.apiService.drmLicenseUrl(
+                                    orgId = it,
+                                    assetId = assetId,
+                                    accessToken = newToken,
+                                    download = true,
+                                    licenseDurationSeconds = offlineLicenseExpireTime
                                 )
                                 Log.d("TPStreamsPlayer", "Built license URL with fresh token: $licenseUrl")
                                 callback(licenseUrl)
@@ -793,12 +792,12 @@ private constructor(
                 } else {
                     Log.d("TPStreamsPlayer", "Token is valid, using current token")
                     TPStreamsSDK.orgId?.let {
-                        val licenseUrl = LICENSE_URL_TEMPLATE.format(
-                            it,
-                            assetId,
-                            accessToken,
-                            "true",
-                            offlineLicenseExpireTime.toString()
+                        val licenseUrl = TPStreamsSDK.apiService.drmLicenseUrl(
+                            orgId = it,
+                            assetId = assetId,
+                            accessToken = accessToken,
+                            download = true,
+                            licenseDurationSeconds = offlineLicenseExpireTime
                         )
                         Log.d("TPStreamsPlayer", "Built license URL with current token: $licenseUrl")
                         callback(licenseUrl)
@@ -811,5 +810,3 @@ private constructor(
         }
     }
 }
-
-

@@ -34,7 +34,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         
         // Initialize SDK once
-        TPStreamsSDK.init("9q94nm")
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -45,18 +44,32 @@ class MainActivity : AppCompatActivity() {
         updateDownloadsButtonVisibility()
 
         binding.btnDrmVideo.setOnClickListener {
+            TPStreamsSDK.init("9q94nm")
             startPlayer("42h2tZ5fmNf", "9327e2d0-fa13-4288-902d-840f32cd0eed")
         }
 
         binding.btnNonDrmVideo.setOnClickListener {
+            TPStreamsSDK.init("9q94nm")
             startPlayer("4Zs4MNd5Ksj", "c4f36a4f-3859-4b24-aca8-189b7e8cfeb0")
         }
 
+        binding.btnTestpressDrm.setOnClickListener {
+            TPStreamsSDK.init("lmsdemo", TPStreamsSDK.Provider.TestPress)
+            startPlayer("ATJfRdHIUC9", "a4c04ca8-9c0e-4c9c-a889-bd3bf8ea586a")
+        }
+
+        binding.btnTestpressNonDrm.setOnClickListener {
+            TPStreamsSDK.init("lmsdemo", TPStreamsSDK.Provider.TestPress)
+            startPlayer("z1TLpfuZzXh", "5c49285b-0557-4cef-b214-66034d0b77c3")
+        }
+
         binding.btnDownloadDrm720.setOnClickListener {
+            TPStreamsSDK.init("9q94nm")
             downloadClient.startDownload(this, "7xbZeQzR36h", "3d9838f3-db51-4fc3-8472-075ab5e40b64", "480p")
         }
 
         binding.btnDownloadDrmSelect.setOnClickListener {
+            TPStreamsSDK.init("9q94nm")
             downloadClient.startDownload(this, "37jGF3sXcHh", "df9d3cd8-cec5-41db-bfae-748233d66313")
         }
 

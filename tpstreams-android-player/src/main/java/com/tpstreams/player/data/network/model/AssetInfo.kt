@@ -1,9 +1,9 @@
-package com.tpstreams.player.data
+package com.tpstreams.player.data.network.model
 
 import org.json.JSONObject
 
 /**
- * Data class representing parsed asset information from the TPStreams API response.
+ * Data class representing parsed asset information from backend API responses.
  * This class holds the essential playback information for both regular videos and live streams.
  *
  * @property mediaUrl The URL to the media content (HLS or DASH)
