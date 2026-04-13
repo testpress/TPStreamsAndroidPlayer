@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.12] - 2026-04-13
+### Added
+- Multi-provider support for TPStreams and Testpress backends (#90)
+- Integrated bottom navigation in the example app for managing multiple providers and downloads.
+
 ## [1.1.11-beta.1] - 2026-04-02
 ### Added
 - Add `CodecManager` for real-time hardware decoder instance tracking and capacity diagnostics.
@@ -87,6 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.1.12]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.11-beta.1...1.1.12
 [1.1.11-beta.1]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.10...1.1.11-beta.1
 [1.1.10]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.9...1.1.10
 [1.1.9]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.8...1.1.9
