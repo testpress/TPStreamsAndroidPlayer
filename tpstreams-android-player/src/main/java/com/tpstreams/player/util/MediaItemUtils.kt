@@ -76,12 +76,15 @@ object MediaItemUtils {
                     val apiService = TPStreamsSDK.apiService
                     val licenseUrl = apiService.drmLicenseUrl(orgId, assetId, accessToken)
 
-                    val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                    val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                         .setLicenseUri(licenseUrl)
                         .setMultiSession(true)
-                        .build()
-                    
-                    setDrmConfiguration(drmConfig)
+
+                    val authHeaders = TPStreamsSDK.getAuthHeaders()
+                    if (authHeaders.isNotEmpty()) {
+                        drmConfigBuilder.setLicenseRequestHeaders(authHeaders)
+                    }
+                    setDrmConfiguration(drmConfigBuilder.build())
                 }
                 
                 if (subtitleConfigurations.isNotEmpty()) {

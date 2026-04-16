@@ -650,10 +650,15 @@ private constructor(
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val assetApiUrl = TPStreamsSDK.apiService.tokenValidationUrl(orgId, assetId, accessToken)
-                    val request = Request.Builder()
+                    val requestBuilder = Request.Builder()
                         .url(assetApiUrl)
                         .head()
-                        .build()
+
+                    TPStreamsSDK.getAuthHeaders().forEach { (name, value) ->
+                        requestBuilder.addHeader(name, value)
+                    }
+
+                    val request = requestBuilder.build()
                     
                     val response = client.newCall(request).execute()
                     val isValid = response.isSuccessful
