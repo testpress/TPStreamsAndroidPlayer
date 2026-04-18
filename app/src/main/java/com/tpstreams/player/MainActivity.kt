@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.tpstreams.player.download.DownloadClient
 import com.tpstreams.player.download.DownloadItem
+import com.tpstreams.player.TestpressSDK
 
 @OptIn(UnstableApi::class)
 class MainActivity : AppCompatActivity() {
@@ -79,7 +80,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initTestpress() {
-        TPStreamsSDK.init("lmsdemo", TPStreamsSDK.Provider.TestPress)
+        TestpressSDK.init("lmsdemo")
     }
 
     private fun setupDownloadsList() {
@@ -169,6 +170,7 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_ASSET_ID, "ATJfRdHIUC9")
                 putExtra(EXTRA_ACCESS_TOKEN, "a4c04ca8-9c0e-4c9c-a889-bd3bf8ea586a")
+                putExtra(EXTRA_IS_TESTPRESS, true)
             }
             startActivity(intent)
         }
@@ -177,6 +179,7 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_ASSET_ID, "z1TLpfuZzXh")
                 putExtra(EXTRA_ACCESS_TOKEN, "5c49285b-0557-4cef-b214-66034d0b77c3")
+                putExtra(EXTRA_IS_TESTPRESS, true)
             }
             startActivity(intent)
         }
@@ -190,5 +193,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_ASSET_ID = "extra_asset_id"
         const val EXTRA_ACCESS_TOKEN = "extra_access_token"
+        const val EXTRA_IS_TESTPRESS = "extra_is_testpress"
     }
 }

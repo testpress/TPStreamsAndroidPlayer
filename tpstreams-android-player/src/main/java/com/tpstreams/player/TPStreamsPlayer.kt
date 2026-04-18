@@ -636,7 +636,7 @@ private constructor(
         Log.d("TPStreamsPlayer", "Checking if token is valid for asset: $assetId")
         
         CoroutineScope(Dispatchers.Main).launch {
-            if (accessToken.isEmpty()) {
+            if (accessToken.isEmpty() && TPStreamsSDK.getAuthHeaders().isEmpty()) {
                 Log.d("TPStreamsPlayer", "No current token available")
                 callback(false)
                 return@launch
