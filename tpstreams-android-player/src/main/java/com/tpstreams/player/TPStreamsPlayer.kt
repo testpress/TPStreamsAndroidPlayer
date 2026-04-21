@@ -704,6 +704,9 @@ private constructor(
                     .build()
             }
 
+            val renderersFactory = DefaultRenderersFactory(context)
+                .setEnableDecoderFallback(true)
+
             DownloadController.initialize(context)
 
             val cacheDataSourceFactory = CacheDataSource.Factory()
@@ -714,7 +717,7 @@ private constructor(
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(cacheDataSourceFactory)
 
-            return ExoPlayer.Builder(context)
+            return ExoPlayer.Builder(context, renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setTrackSelector(trackSelector)
                 .setAudioAttributes(
