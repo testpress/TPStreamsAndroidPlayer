@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.13-beta.1] - 2026-04-21
+### Added
+- Enable decoder fallback to automatically roll over to software decoders on hardware failure.
+- Include global auth headers in token validation to support extended authentication flows.
+- Add `TestpressSDK` and `TestpressPlayer` wrappers for simplified authentication and initialization for testpress usecases.
+
 ## [1.1.12] - 2026-04-13
 ### Added
 - Multi-provider support for TPStreams and Testpress backends (#90)
@@ -92,6 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.1.13-beta.1]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.12...1.1.13-beta.1
 [1.1.12]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.11-beta.1...1.1.12
 [1.1.11-beta.1]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.10...1.1.11-beta.1
 [1.1.10]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.9...1.1.10
