@@ -21,8 +21,9 @@ class PlayerActivity : AppCompatActivity() {
 
         val assetId = intent.getStringExtra(MainActivity.EXTRA_ASSET_ID) ?: return
         val accessToken = intent.getStringExtra(MainActivity.EXTRA_ACCESS_TOKEN) ?: return
+        val isTestpress = intent.getBooleanExtra(MainActivity.EXTRA_IS_TESTPRESS, false)
 
-        viewModel.initPlayer(assetId, accessToken)
+        viewModel.initPlayer(assetId, accessToken, isTestpress)
         binding.playerView.player = viewModel.player
     }
 }

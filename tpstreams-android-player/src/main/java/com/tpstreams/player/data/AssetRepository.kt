@@ -35,7 +35,11 @@ object AssetRepository {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val assetApiUrl = apiService.assetInfoUrl(orgId, assetId, accessToken)
-                val request = Request.Builder().url(assetApiUrl).build()
+                val requestBuilder = Request.Builder().url(assetApiUrl)
+                TPStreamsSDK.getAuthHeaders().forEach { (name, value) ->
+                    requestBuilder.addHeader(name, value)
+                }
+                val request = requestBuilder.build()
                 val response = client.newCall(request).execute()
 
                 if (!response.isSuccessful) {

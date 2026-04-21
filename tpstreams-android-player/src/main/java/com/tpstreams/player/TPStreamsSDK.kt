@@ -13,6 +13,8 @@ object TPStreamsSDK {
 
     internal lateinit var apiService: BaseApiService
     private var _orgCode: String? = null
+    internal var authToken: String? = null
+        private set
 
     internal var orgId: String?
         get() = _orgCode
@@ -22,13 +24,22 @@ object TPStreamsSDK {
 
     @JvmStatic
     @JvmOverloads
-    fun init(orgId: String, provider: Provider = Provider.TPStreams) {
+    fun init(orgId: String, provider: Provider = Provider.TPStreams, authToken: String? = null) {
         require(orgId.isNotBlank()) { "orgId cannot be empty." }
+        if (provider == Provider.TPStreams && authToken != null) {
+            throw IllegalArgumentException("authToken must be null for TPStreams provider")
+        }
+
         apiService = when (provider) {
             Provider.TPStreams -> TPStreamsApiService()
             Provider.TestPress -> TestPressApiService()
         }
         _orgCode = orgId
+        this.authToken = authToken
+    }
+
+    internal fun getAuthHeaders(): Map<String, String> {
+        return authToken?.let { mapOf("Authorization" to "JWT $it") } ?: emptyMap()
     }
 
     internal fun requireOrgId(): String {

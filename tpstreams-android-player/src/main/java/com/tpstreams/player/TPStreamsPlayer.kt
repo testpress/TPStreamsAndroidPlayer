@@ -636,7 +636,7 @@ private constructor(
         Log.d("TPStreamsPlayer", "Checking if token is valid for asset: $assetId")
         
         CoroutineScope(Dispatchers.Main).launch {
-            if (accessToken.isEmpty()) {
+            if (accessToken.isEmpty() && TPStreamsSDK.getAuthHeaders().isEmpty()) {
                 Log.d("TPStreamsPlayer", "No current token available")
                 callback(false)
                 return@launch
@@ -650,10 +650,15 @@ private constructor(
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val assetApiUrl = TPStreamsSDK.apiService.tokenValidationUrl(orgId, assetId, accessToken)
-                    val request = Request.Builder()
+                    val requestBuilder = Request.Builder()
                         .url(assetApiUrl)
                         .head()
-                        .build()
+
+                    TPStreamsSDK.getAuthHeaders().forEach { (name, value) ->
+                        requestBuilder.addHeader(name, value)
+                    }
+
+                    val request = requestBuilder.build()
                     
                     val response = client.newCall(request).execute()
                     val isValid = response.isSuccessful

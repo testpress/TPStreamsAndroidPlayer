@@ -115,14 +115,17 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
             .clearQuery()
             .appendQueryParameter("access_token", token)
             .build()
-    
-        val newDrm = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+
+        val authHeaders = TPStreamsSDK.getAuthHeaders()
+        val drmBuilder = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
             .setLicenseUri(newUri)
-            .setLicenseRequestHeaders(mapOf("Authorization" to "Bearer $token"))
             .setMultiSession(true)
-            .build()
+
+        if (authHeaders.isNotEmpty()) {
+            drmBuilder.setLicenseRequestHeaders(authHeaders)
+        }
     
-        return buildUpon().setDrmConfiguration(newDrm).build()
+        return buildUpon().setDrmConfiguration(drmBuilder.build()).build()
     }
 
     fun deleteCurrentDownload() {
