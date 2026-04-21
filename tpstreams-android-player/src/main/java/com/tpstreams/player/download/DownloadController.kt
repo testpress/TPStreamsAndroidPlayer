@@ -271,7 +271,7 @@ object DownloadController {
     }
     
     private fun createRenderersFactory(context: Context): DefaultRenderersFactory {
-        return DefaultRenderersFactory(context).setEnableDecoderFallback(true)
+        return DefaultRenderersFactory(context.applicationContext).setEnableDecoderFallback(true)
     }
     
     fun startDownload(context: Context, mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS) {
