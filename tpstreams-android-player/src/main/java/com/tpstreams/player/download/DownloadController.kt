@@ -270,7 +270,7 @@ object DownloadController {
         return DefaultDataSource.Factory(context, httpDataSourceFactory)
     }
     
-    private fun createRenderersFactory(context: Context): DefaultRenderersFactory {
+    internal fun createRenderersFactory(context: Context): DefaultRenderersFactory {
         return DefaultRenderersFactory(context.applicationContext).setEnableDecoderFallback(true)
     }
     
