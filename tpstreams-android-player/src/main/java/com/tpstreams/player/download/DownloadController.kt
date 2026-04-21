@@ -214,7 +214,7 @@ object DownloadController {
         val helper = DownloadHelper.forMediaItem(
             mediaItem,
             TrackSelectionParameters.Builder().build(),
-            DefaultRenderersFactory(context),
+            createRenderersFactory(context),
             getDataSourceFactory(context)
         )
 
@@ -270,6 +270,10 @@ object DownloadController {
         return DefaultDataSource.Factory(context, httpDataSourceFactory)
     }
     
+    internal fun createRenderersFactory(context: Context): DefaultRenderersFactory {
+        return DefaultRenderersFactory(context.applicationContext).setEnableDecoderFallback(true)
+    }
+    
     fun startDownload(context: Context, mediaItem: MediaItem, resolution: String, metadata: Map<String, String>, totalSize: Long = 0, offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS) {
         Log.d(TAG, "Preparing download for: ${mediaItem.mediaId}")
         val title = mediaItem.mediaMetadata.title?.toString() ?: "Undefined"
@@ -280,7 +284,7 @@ object DownloadController {
         val helper = DownloadHelper.forMediaItem(
             mediaItem,
             trackSelectionParameters,
-            DefaultRenderersFactory(context),
+            createRenderersFactory(context),
             getDataSourceFactory(context)
         )
         
@@ -448,7 +452,7 @@ object DownloadController {
         val helper = DownloadHelper.forMediaItem(
             newMediaItem,
             TrackSelectionParameters.Builder().build(),
-            DefaultRenderersFactory(context),
+            createRenderersFactory(context),
             getDataSourceFactory(context)
         )
         

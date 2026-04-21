@@ -12,6 +12,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import kotlinx.coroutines.CoroutineScope
@@ -709,6 +710,9 @@ private constructor(
                     .build()
             }
 
+            val renderersFactory = DefaultRenderersFactory(context.applicationContext)
+                .setEnableDecoderFallback(true)
+
             DownloadController.initialize(context)
 
             val cacheDataSourceFactory = CacheDataSource.Factory()
@@ -719,7 +723,7 @@ private constructor(
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(cacheDataSourceFactory)
 
-            return ExoPlayer.Builder(context)
+            return ExoPlayer.Builder(context, renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setTrackSelector(trackSelector)
                 .setAudioAttributes(
