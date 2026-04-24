@@ -219,7 +219,13 @@ object DownloadController {
         )
 
         helper.prepare(object : DownloadHelper.Callback {
-            override fun onPrepared(helper: DownloadHelper) {
+            override fun onPrepared(helper: DownloadHelper, tracksInfoAvailable: Boolean) {
+                if (!tracksInfoAvailable) {
+                    callback(emptyList(), emptyMap())
+                    helper.release()
+                    return
+                }
+
                 try {
                     val resolutions = mutableListOf<String>()
                     val bitrates = mutableMapOf<String, Int>()
@@ -289,7 +295,12 @@ object DownloadController {
         )
         
         helper.prepare(object : DownloadHelper.Callback {
-            override fun onPrepared(helper: DownloadHelper) {
+            override fun onPrepared(helper: DownloadHelper, tracksInfoAvailable: Boolean) {
+                if (!tracksInfoAvailable) {
+                    helper.release()
+                    return
+                }
+
                 try {
                     Log.d(TAG, "Download prepared for: ${mediaItem.mediaId}")
                     val baseRequest = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
@@ -457,7 +468,13 @@ object DownloadController {
         )
         
         helper.prepare(object : DownloadHelper.Callback {
-            override fun onPrepared(helper: DownloadHelper) {
+            override fun onPrepared(helper: DownloadHelper, tracksInfoAvailable: Boolean) {
+                if (!tracksInfoAvailable) {
+                    onError?.invoke("No tracks available")
+                    helper.release()
+                    return
+                }
+
                 try {
                     val drmFormat = findDrmFormat(helper)
                     if (drmFormat != null) {
