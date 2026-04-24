@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.13-beta.2] - 2026-04-24
+### Added
+- Implement clock drift diagnostics to track time differences between device and server in error reports.
+- Add `ServerDateHeaderInterceptor` to capture server time from HTTP responses.
+- Enrich Sentry error logs with human-readable time drift and timing context.
+
 ## [1.1.13-beta.1] - 2026-04-21
 ### Added
 - Enable decoder fallback to automatically roll over to software decoders on hardware failure.
@@ -98,6 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.1.13-beta.2]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.13-beta.1...1.1.13-beta.2
 [1.1.13-beta.1]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.12...1.1.13-beta.1
 [1.1.12]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.11-beta.1...1.1.12
 [1.1.11-beta.1]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.10...1.1.11-beta.1
