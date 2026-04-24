@@ -1,9 +1,6 @@
 package com.tpstreams.player.util
 
-import android.util.Log
 import androidx.media3.common.PlaybackException
-import com.tpstreams.player.TPStreamsPlayer
-import com.tpstreams.player.util.PlaybackHistoryManager
 import io.sentry.Sentry
 
 internal object SentryLogger {
@@ -21,6 +18,11 @@ internal object SentryLogger {
         playerId: String
     ) {
         Sentry.captureException(error) { scope ->
+            val nowEpochMs = System.currentTimeMillis()
+            ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
+                scope.setTag(key, value)
+            }
+            scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
             scope.setContexts(
@@ -46,6 +48,11 @@ internal object SentryLogger {
         playerId: String
     ) {
         Sentry.captureException(exception) { scope ->
+            val nowEpochMs = System.currentTimeMillis()
+            ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
+                scope.setTag(key, value)
+            }
+            scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
             responseCode?.let { scope.setTag("responseCode", it.toString()) }

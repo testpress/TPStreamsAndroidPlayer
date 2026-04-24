@@ -51,6 +51,7 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import com.tpstreams.player.util.PlaybackHistoryManager
 import com.tpstreams.player.util.CodecManager
+import com.tpstreams.player.util.ServerDateHeaderInterceptor
 
 
 
@@ -698,7 +699,9 @@ private constructor(
     companion object {
         private var activePlayerCount = 0
         internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
-        private val client = OkHttpClient()
+        private val client = OkHttpClient.Builder()
+            .addInterceptor(ServerDateHeaderInterceptor())
+            .build()
 
 
 

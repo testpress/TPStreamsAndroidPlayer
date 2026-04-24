@@ -5,6 +5,7 @@ import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.constants.getErrorMessage
 import com.tpstreams.player.constants.toPlaybackError
 import com.tpstreams.player.data.network.model.AssetInfo
+import com.tpstreams.player.util.ServerDateHeaderInterceptor
 import com.tpstreams.player.util.SentryLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +18,9 @@ import org.json.JSONObject
  * Repository for fetching and parsing asset metadata from configured backend providers.
  */
 object AssetRepository {
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .addInterceptor(ServerDateHeaderInterceptor())
+        .build()
 
     interface AssetCallback {
         fun onSuccess(assetInfo: AssetInfo)
