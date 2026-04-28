@@ -111,15 +111,13 @@ object DownloadController {
             object : ResolvingDataSource.Resolver {
                 override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
                     var currentUri = dataSpec.uri
-                    val originalUriString = currentUri.toString()
-
                     var currentHeaders = dataSpec.httpRequestHeaders.toMutableMap()
 
-                    currentUri = captureAndStripTransientToken(currentUri, tokenCache)
+                    currentUri = extractTpToken(currentUri, tokenCache)
 
-                    if (isAesKeyRequest(currentUri)) {
-                        currentHeaders = addAesAuthHeaders(currentHeaders)
-                        currentUri = addAccessTokenIfMissing(currentUri, tokenCache)
+                    if (isEncryptionKeyRequest(currentUri)) {
+                        currentHeaders = withAuthHeaders(currentHeaders)
+                        currentUri = withAccessToken(currentUri, tokenCache)
                     }
 
                     return dataSpec.buildUpon()
@@ -128,7 +126,7 @@ object DownloadController {
                         .build()
                 }
 
-                private fun captureAndStripTransientToken(
+                private fun extractTpToken(
                     uri: Uri,
                     tokenCache: java.util.concurrent.ConcurrentHashMap<String, String>
                 ): Uri {
@@ -149,7 +147,7 @@ object DownloadController {
                     return newUriBuilder.build()
                 }
 
-                private fun addAesAuthHeaders(headers: MutableMap<String, String>): MutableMap<String, String> {
+                private fun withAuthHeaders(headers: MutableMap<String, String>): MutableMap<String, String> {
                     val authHeaders = TPStreamsSDK.getAuthHeaders()
                     if (authHeaders.isNotEmpty()) {
                         headers.putAll(authHeaders)
@@ -157,7 +155,7 @@ object DownloadController {
                     return headers
                 }
 
-                private fun addAccessTokenIfMissing(
+                private fun withAccessToken(
                     uri: Uri,
                     tokenCache: java.util.concurrent.ConcurrentHashMap<String, String>
                 ): Uri {
@@ -170,7 +168,7 @@ object DownloadController {
                         .build()
                 }
 
-                private fun isAesKeyRequest(uri: Uri): Boolean {
+                private fun isEncryptionKeyRequest(uri: Uri): Boolean {
                     val normalized = uri.toString()
                     return normalized.contains("encryption_key", ignoreCase = true) ||
                         normalized.contains("aes_key", ignoreCase = true)
