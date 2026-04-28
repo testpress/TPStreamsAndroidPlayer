@@ -13,6 +13,7 @@ import org.json.JSONObject
  * @property videoObj The video JSON object containing additional metadata like tracks and thumbnails (null for active live streams)
  * @property isLiveStream Whether this asset is an active live stream (not recorded)
  * @property durationSeconds Duration of the video in seconds
+ * @property isAes Whether the stream uses AES content protection
  */
 data class AssetInfo(
     val title: String,
@@ -21,5 +22,6 @@ data class AssetInfo(
     val thumbnailUrl: String,
     val videoObj: JSONObject?,
     val isLiveStream: Boolean = false,
-    val durationSeconds: Double = 0.0
+    val durationSeconds: Double = 0.0,
+    val isAes: Boolean = false
 )

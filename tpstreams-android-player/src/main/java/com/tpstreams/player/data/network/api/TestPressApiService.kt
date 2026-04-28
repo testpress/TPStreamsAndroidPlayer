@@ -8,7 +8,8 @@ import java.util.Locale
 
 class TestPressApiService : BaseApiService() {
     override fun assetInfoUrl(orgId: String, assetId: String, accessToken: String): String {
-        return "https://$orgId.testpress.in/api/v2.5/video_info/$assetId/?v=2&access_token=$accessToken"
+        val baseUrl = "https://$orgId.testpress.in/api/v2.5/video_info/$assetId/?v=2"
+        return if (accessToken.isNotBlank()) "$baseUrl&access_token=$accessToken" else baseUrl
     }
 
     override fun drmLicenseUrl(
@@ -18,7 +19,8 @@ class TestPressApiService : BaseApiService() {
         download: Boolean,
         licenseDurationSeconds: Long?
     ): String {
-        return "https://$orgId.testpress.in/api/v2.5/drm_license_key/$assetId/?access_token=$accessToken"
+        val baseUrl = "https://$orgId.testpress.in/api/v2.5/drm_license_key/$assetId/"
+        return if (accessToken.isNotBlank()) "$baseUrl?access_token=$accessToken" else baseUrl
     }
 
     override fun parseAsset(json: JSONObject): AssetInfo {
@@ -45,16 +47,7 @@ class TestPressApiService : BaseApiService() {
                     val videoObj = json.getJSONObject("video")
                     val videoStatus = videoObj.optString("transcoding_status", "")
                     if (videoStatus.equals("Completed", ignoreCase = true)) {
-                        val enableDrm = videoObj.optBoolean("drm_enabled", false)
-                        AssetInfo(
-                            mediaUrl = getVideoPlaybackUrl(videoObj, enableDrm),
-                            enableDrm = enableDrm,
-                            thumbnailUrl = getThumbnail(videoObj),
-                            videoObj = videoObj,
-                            isLiveStream = false,
-                            durationSeconds = videoObj.optDouble("duration", 0.0),
-                            title = title
-                        )
+                        createVideoAssetInfo(videoObj, title)
                     } else {
                         throw LiveStreamEndedException("Live stream has ended")
                     }
@@ -79,6 +72,10 @@ class TestPressApiService : BaseApiService() {
 
     private fun parseVideoAssetInfo(json: JSONObject, title: String): AssetInfo {
         val videoObj = json.getJSONObject("video")
+        return createVideoAssetInfo(videoObj, title)
+    }
+
+    private fun createVideoAssetInfo(videoObj: JSONObject, title: String): AssetInfo {
         val enableDrm = videoObj.optBoolean("drm_enabled", false)
         return AssetInfo(
             mediaUrl = getVideoPlaybackUrl(videoObj, enableDrm),
@@ -87,8 +84,13 @@ class TestPressApiService : BaseApiService() {
             videoObj = videoObj,
             isLiveStream = false,
             durationSeconds = videoObj.optDouble("duration", 0.0),
-            title = title
+            title = title,
+            isAes = isAesProtected(videoObj)
         )
+    }
+
+    private fun isAesProtected(videoObj: JSONObject): Boolean {
+        return videoObj.optString("content_protection_type").equals("aes", ignoreCase = true)
     }
 
     private fun getVideoPlaybackUrl(videoObj: JSONObject, enableDrm: Boolean): String {
