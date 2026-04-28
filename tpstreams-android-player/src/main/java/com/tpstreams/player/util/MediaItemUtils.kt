@@ -62,37 +62,47 @@ object MediaItemUtils {
             }
         }
 
-        val mediaItem = MediaItem.Builder()
-            .setUri(assetInfo.mediaUrl)
-            .setMediaId(assetId)
-            .apply {
-                val metadata = MediaMetadata.Builder()
-                    .setTitle(title)
-                    .setArtworkUri(if (assetInfo.thumbnailUrl.isNotEmpty()) Uri.parse(assetInfo.thumbnailUrl) else null)
-                    .build()
-                setMediaMetadata(metadata)
-                
-                if (assetInfo.enableDrm) {
-                    val apiService = TPStreamsSDK.apiService
-                    val licenseUrl = apiService.drmLicenseUrl(orgId, assetId, accessToken)
+        val playbackUri = buildPlaybackUri(assetInfo.mediaUrl, assetInfo.isAes, accessToken)
 
-                    val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                        .setLicenseUri(licenseUrl)
-                        .setMultiSession(true)
-
-                    val authHeaders = TPStreamsSDK.getAuthHeaders()
-                    if (authHeaders.isNotEmpty()) {
-                        drmConfigBuilder.setLicenseRequestHeaders(authHeaders)
-                    }
-                    setDrmConfiguration(drmConfigBuilder.build())
-                }
-                
-                if (subtitleConfigurations.isNotEmpty()) {
-                    setSubtitleConfigurations(subtitleConfigurations)
-                }
-            }
+        val metadata = MediaMetadata.Builder()
+            .setTitle(title)
+            .setArtworkUri(if (assetInfo.thumbnailUrl.isNotEmpty()) Uri.parse(assetInfo.thumbnailUrl) else null)
             .build()
+
+        val builder = MediaItem.Builder()
+            .setUri(playbackUri)
+            .setMediaId(assetId)
+            .setMediaMetadata(metadata)
+
+        if (assetInfo.enableDrm) {
+            val apiService = TPStreamsSDK.apiService
+            val licenseUrl = apiService.drmLicenseUrl(orgId, assetId, accessToken)
+
+            val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                .setLicenseUri(licenseUrl)
+                .setMultiSession(true)
+
+            val authHeaders = TPStreamsSDK.getAuthHeaders()
+            if (authHeaders.isNotEmpty()) {
+                drmConfigBuilder.setLicenseRequestHeaders(authHeaders)
+            }
+            builder.setDrmConfiguration(drmConfigBuilder.build())
+        }
+
+        if (subtitleConfigurations.isNotEmpty()) {
+            builder.setSubtitleConfigurations(subtitleConfigurations)
+        }
+
+        val mediaItem = builder.build()
             
         return MediaItemResult(mediaItem, subtitleMetadata)
+    }
+
+    private fun buildPlaybackUri(mediaUrl: String, isAes: Boolean, accessToken: String): Uri {
+        val baseUri = Uri.parse(mediaUrl)
+        if (!isAes || accessToken.isBlank()) return baseUri
+        return baseUri.buildUpon()
+            .appendQueryParameter("tp_token", accessToken)
+            .build()
     }
 }

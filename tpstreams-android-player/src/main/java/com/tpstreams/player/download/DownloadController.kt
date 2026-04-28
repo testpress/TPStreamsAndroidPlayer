@@ -11,8 +11,10 @@ import androidx.media3.common.util.Util
 import androidx.media3.database.DatabaseProvider
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
@@ -37,6 +39,7 @@ import org.json.JSONObject
 import android.net.Uri
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import com.tpstreams.player.TPStreamsPlayer
+import com.tpstreams.player.TPStreamsSDK
 
 
 @UnstableApi
@@ -95,11 +98,89 @@ object DownloadController {
             databaseProvider
         )
         
-        httpDataSourceFactory = DefaultHttpDataSource.Factory()
+        val baseDataSourceFactory = DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(30000)
             .setReadTimeoutMs(30000)
             .setAllowCrossProtocolRedirects(true)
             .setUserAgent(Util.getUserAgent(appContext, "TPStreams Player"))
+
+        val tokenCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+        httpDataSourceFactory = ResolvingDataSource.Factory(
+            baseDataSourceFactory,
+            object : ResolvingDataSource.Resolver {
+                override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
+                    var currentUri = dataSpec.uri
+                    var currentHeaders = dataSpec.httpRequestHeaders.toMutableMap()
+
+                    currentUri = extractTpToken(currentUri, tokenCache)
+
+                    if (isEncryptionKeyRequest(currentUri)) {
+                        currentHeaders = withAuthHeaders(currentHeaders)
+                        currentUri = withAccessToken(currentUri, tokenCache)
+                    }
+
+                    return dataSpec.buildUpon()
+                        .setUri(currentUri)
+                        .setHttpRequestHeaders(currentHeaders)
+                        .build()
+                }
+
+                private fun extractTpToken(
+                    uri: Uri,
+                    tokenCache: java.util.concurrent.ConcurrentHashMap<String, String>
+                ): Uri {
+                    val token = uri.getQueryParameter("tp_token") ?: return uri
+                    val assetId = getAssetIdFromUri(uri)
+                    if (assetId.isNotEmpty()) {
+                        tokenCache[assetId] = token
+                    }
+
+                    val newUriBuilder = uri.buildUpon().clearQuery()
+                    uri.queryParameterNames.forEach { name ->
+                        if (name != "tp_token") {
+                            uri.getQueryParameters(name).forEach { value ->
+                                newUriBuilder.appendQueryParameter(name, value)
+                            }
+                        }
+                    }
+                    return newUriBuilder.build()
+                }
+
+                private fun withAuthHeaders(headers: MutableMap<String, String>): MutableMap<String, String> {
+                    val authHeaders = TPStreamsSDK.getAuthHeaders()
+                    if (authHeaders.isNotEmpty()) {
+                        headers.putAll(authHeaders)
+                    }
+                    return headers
+                }
+
+                private fun withAccessToken(
+                    uri: Uri,
+                    tokenCache: java.util.concurrent.ConcurrentHashMap<String, String>
+                ): Uri {
+                    if (uri.getQueryParameter("access_token")?.isNotBlank() == true) return uri
+                    val assetId = getAssetIdFromUri(uri)
+                    val accessToken = tokenCache[assetId]
+                    if (accessToken.isNullOrBlank()) return uri
+                    return uri.buildUpon()
+                        .appendQueryParameter("access_token", accessToken)
+                        .build()
+                }
+
+                private fun isEncryptionKeyRequest(uri: Uri): Boolean {
+                    val normalized = uri.toString()
+                    return normalized.contains("encryption_key", ignoreCase = true) ||
+                        normalized.contains("aes_key", ignoreCase = true)
+                }
+
+                private fun getAssetIdFromUri(uri: Uri): String {
+                    // TPStreams and Testpress IDs are characteristically 11 characters long.
+                    // This finds the ID segment anywhere in the path (master, variant, or key URL).
+                    return uri.pathSegments.find { it.length == 11 } ?: ""
+                }
+            }
+        )
         
         notificationHelper = DownloadNotificationHelper(
             appContext,

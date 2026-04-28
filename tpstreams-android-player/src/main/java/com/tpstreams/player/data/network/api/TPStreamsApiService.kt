@@ -8,7 +8,8 @@ import java.util.Locale
 
 class TPStreamsApiService : BaseApiService() {
     override fun assetInfoUrl(orgId: String, assetId: String, accessToken: String): String {
-        return "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/?access_token=$accessToken"
+        val baseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/"
+        return if (accessToken.isNotBlank()) "$baseUrl?access_token=$accessToken" else baseUrl
     }
 
     override fun drmLicenseUrl(
@@ -18,10 +19,12 @@ class TPStreamsApiService : BaseApiService() {
         download: Boolean,
         licenseDurationSeconds: Long?
     ): String {
-        val baseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
-        if (!download) return baseUrl
+        val baseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/"
+        val withToken = if (accessToken.isNotBlank()) "$baseUrl?access_token=$accessToken" else baseUrl
+        if (!download) return withToken
         val duration = licenseDurationSeconds ?: 0L
-        return "$baseUrl&download=true&license_duration_seconds=$duration"
+        val separator = if (withToken.contains("?")) "&" else "?"
+        return "$withToken${separator}download=true&license_duration_seconds=$duration"
     }
 
     override fun parseAsset(json: JSONObject): AssetInfo {
@@ -48,6 +51,7 @@ class TPStreamsApiService : BaseApiService() {
 
                     if (videoStatus.equals("Completed", ignoreCase = true)) {
                         val enableDrm = videoObj.optBoolean("enable_drm", false)
+                        val isAes = videoObj.optString("content_protection_type").equals("aes", ignoreCase = true)
                         AssetInfo(
                             mediaUrl = getVideoPlaybackUrl(videoObj, enableDrm),
                             enableDrm = enableDrm,
@@ -55,7 +59,8 @@ class TPStreamsApiService : BaseApiService() {
                             videoObj = videoObj,
                             isLiveStream = false,
                             durationSeconds = videoObj.optDouble("duration", 0.0),
-                            title = title
+                            title = title,
+                            isAes = isAes
                         )
                     } else {
                         throw LiveStreamEndedException("Live stream has ended")
@@ -88,6 +93,7 @@ class TPStreamsApiService : BaseApiService() {
     private fun parseVideoAssetInfo(json: JSONObject, title: String): AssetInfo {
         val videoObj = json.getJSONObject("video")
         val enableDrm = videoObj.optBoolean("enable_drm", false)
+        val isAes = videoObj.optString("content_protection_type").equals("aes", ignoreCase = true)
         return AssetInfo(
             mediaUrl = getVideoPlaybackUrl(videoObj, enableDrm),
             enableDrm = enableDrm,
@@ -95,7 +101,8 @@ class TPStreamsApiService : BaseApiService() {
             videoObj = videoObj,
             isLiveStream = false,
             durationSeconds = videoObj.optDouble("duration", 0.0),
-            title = title
+            title = title,
+            isAes = isAes
         )
     }
 
