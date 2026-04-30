@@ -38,11 +38,12 @@ class TestPressApiService : BaseApiService() {
     private fun parseLiveStreamAssetInfo(json: JSONObject, title: String): AssetInfo {
         val liveStreamObj = json.getJSONObject("live_stream")
         val liveStreamStatus = liveStreamObj.optString("status", "")
+        val status = liveStreamStatus.uppercase(Locale.ROOT)
         val shouldShowRecordedVideo = liveStreamObj.optBoolean("show_recorded_video", false)
-        val defaultMessage = if (liveStreamStatus.uppercase(Locale.ROOT) == "NOT STARTED") "Live stream will begin soon" else "Live stream has ended"
-        val noticeMessage = liveStreamObj.optString("notice_message", defaultMessage)
+        val defaultMessage = if (status == "NOT STARTED") "Live stream will begin soon" else "Live stream has ended"
+        val noticeMessage = liveStreamObj.optString("notice_message").ifBlank { defaultMessage }
 
-        return when (liveStreamStatus.uppercase(Locale.ROOT)) {
+        return when (status) {
             "NOT STARTED" -> throw LiveStreamNotStartedException(noticeMessage)
             "COMPLETED" -> {
                 if (shouldShowRecordedVideo && json.has("video") && !json.isNull("video")) {
