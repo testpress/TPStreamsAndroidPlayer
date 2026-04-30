@@ -26,7 +26,7 @@ class TestPressApiService : BaseApiService() {
     override fun parseAsset(json: JSONObject): AssetInfo {
         val title = json.optString("title").ifEmpty { json.optString("name", "Undefined") }
         val contentType = json.optString("content_type", "video")
-        val isLiveStream = contentType == "livestream"
+        val isLiveStream = contentType.equals("Live Stream", ignoreCase = true) || contentType.equals("livestream", ignoreCase = true)
 
         return if (isLiveStream && json.has("live_stream") && !json.isNull("live_stream")) {
             parseLiveStreamAssetInfo(json, title)
@@ -39,9 +39,11 @@ class TestPressApiService : BaseApiService() {
         val liveStreamObj = json.getJSONObject("live_stream")
         val liveStreamStatus = liveStreamObj.optString("status", "")
         val shouldShowRecordedVideo = liveStreamObj.optBoolean("show_recorded_video", false)
+        val defaultMessage = if (liveStreamStatus.uppercase(Locale.ROOT) == "NOT STARTED") "Live stream will begin soon" else "Live stream has ended"
+        val noticeMessage = liveStreamObj.optString("notice_message", defaultMessage)
 
         return when (liveStreamStatus.uppercase(Locale.ROOT)) {
-            "NOT STARTED" -> throw LiveStreamNotStartedException("Live stream will begin soon")
+            "NOT STARTED" -> throw LiveStreamNotStartedException(noticeMessage)
             "COMPLETED" -> {
                 if (shouldShowRecordedVideo && json.has("video") && !json.isNull("video")) {
                     val videoObj = json.getJSONObject("video")
@@ -49,10 +51,10 @@ class TestPressApiService : BaseApiService() {
                     if (videoStatus.equals("Completed", ignoreCase = true)) {
                         createVideoAssetInfo(videoObj, title)
                     } else {
-                        throw LiveStreamEndedException("Live stream has ended")
+                        throw LiveStreamEndedException(noticeMessage)
                     }
                 } else {
-                    throw LiveStreamEndedException("Live stream has ended")
+                    throw LiveStreamEndedException(noticeMessage)
                 }
             }
 
