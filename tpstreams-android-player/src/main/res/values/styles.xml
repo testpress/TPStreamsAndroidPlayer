@@ -51,4 +51,8 @@
         <item name="android:paddingStart">@dimen/timer_text_padding</item>
         <item name="android:paddingLeft">@dimen/timer_text_padding</item>
     </style>
+
+    <style name="TPStreamsPlayerView" parent="">
+        <item name="surface_type">texture_view</item>
+    </style>
 </resources> 
