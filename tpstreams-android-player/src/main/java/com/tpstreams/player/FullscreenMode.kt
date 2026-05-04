@@ -30,7 +30,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     
     private fun moveToDecorView(activity: ComponentActivity) {
         val decorView = activity.window.decorView as ViewGroup
-        val contentView = decorView.findViewById<ViewGroup>(android.R.id.content) ?: return
+        val contentView = decorView.findViewById<ViewGroup>(android.R.id.content)
     
         originalParent = view.parent as? ViewGroup
         originalLayoutParams = view.layoutParams
@@ -38,7 +38,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         originalParent?.removeView(view)
         view.setBackgroundColor(Color.BLACK)
     
-        contentView.addView(
+        contentView?.addView(
             view,
             ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -85,8 +85,8 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
 
     private fun restoreOriginalView(activity: ComponentActivity) {
         val decorView = activity.window.decorView as ViewGroup
-        val contentView = decorView.findViewById<ViewGroup>(android.R.id.content) ?: return
-        contentView.removeView(view)
+        val contentView = decorView.findViewById<ViewGroup>(android.R.id.content)
+        contentView?.removeView(view)
         originalParent?.addView(view, originalLayoutParams)
     }
 

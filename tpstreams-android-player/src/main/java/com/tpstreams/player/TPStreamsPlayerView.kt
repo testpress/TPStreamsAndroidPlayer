@@ -21,7 +21,7 @@ import com.tpstreams.player.R
 class TPStreamsPlayerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-    defStyleAttr: Int = R.style.TPStreamsPlayerView
+    defStyleAttr: Int = 0
 ) : PlayerView(context, attrs, defStyleAttr), 
     PlayerSettingsBottomSheet.SettingsListener, 
     QualityOptionsBottomSheet.QualityOptionsListener,
