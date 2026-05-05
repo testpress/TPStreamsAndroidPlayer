@@ -51,5 +51,4 @@
         <item name="android:paddingStart">@dimen/timer_text_padding</item>
         <item name="android:paddingLeft">@dimen/timer_text_padding</item>
     </style>
-
 </resources> 
