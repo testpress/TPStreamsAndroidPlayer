@@ -357,7 +357,22 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         registerWithLifecycle()
         
         if (player != null) {
-            showLoading()
+            when (player.playbackState) {
+                Player.STATE_IDLE -> {
+                    showLoading()
+                }
+                Player.STATE_BUFFERING -> {
+                    showLoading()
+                    hideErrorMessage()
+                }
+                Player.STATE_READY -> {
+                    hideLoading()
+                    hideErrorMessage()
+                }
+                Player.STATE_ENDED -> {
+                    hideLoading()
+                }
+            }
             player.addListener(playbackStateListener)
             
             if (player is TPStreamsPlayer) {
