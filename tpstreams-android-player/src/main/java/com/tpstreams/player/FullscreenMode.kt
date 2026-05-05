@@ -19,8 +19,13 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         val activity = view.getActivity() as? ComponentActivity ?: return
         if (isFullscreen) return
     
+        val player = view.getPlayer()
         view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+            view.setPlayer(null)
             moveToDecorView(activity)
+            if (player != null) {
+                view.setPlayer(player)
+            }
             switchToLandscape(activity)
             hideSystemUI(activity)
             updateFullscreenState()
@@ -30,7 +35,6 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     
     private fun moveToDecorView(activity: ComponentActivity) {
         val decorView = activity.window.decorView as ViewGroup
-        val contentView = decorView.findViewById<ViewGroup>(android.R.id.content)
     
         originalParent = view.parent as? ViewGroup
         originalLayoutParams = view.layoutParams
@@ -38,7 +42,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         originalParent?.removeView(view)
         view.setBackgroundColor(Color.BLACK)
     
-        contentView?.addView(
+        decorView.addView(
             view,
             ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -74,8 +78,13 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         val activity = view.getActivity() as? ComponentActivity ?: return
         if (!isFullscreen) return
 
+        val player = view.getPlayer()
         view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+            view.setPlayer(null)
             restoreOriginalView(activity)
+            if (player != null) {
+                view.setPlayer(player)
+            }
             switchToPortrait(activity)
             showSystemUI(activity)
             clearBackPressHandler()
@@ -85,8 +94,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
 
     private fun restoreOriginalView(activity: ComponentActivity) {
         val decorView = activity.window.decorView as ViewGroup
-        val contentView = decorView.findViewById<ViewGroup>(android.R.id.content)
-        contentView?.removeView(view)
+        decorView.removeView(view)
         originalParent?.addView(view, originalLayoutParams)
     }
 
