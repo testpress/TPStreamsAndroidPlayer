@@ -19,8 +19,13 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         val activity = view.getActivity() as? ComponentActivity ?: return
         if (isFullscreen) return
     
+        val player = view.getPlayer()
         view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+            view.setPlayer(null)
             moveToDecorView(activity)
+            if (player != null) {
+                view.setPlayer(player)
+            }
             switchToLandscape(activity)
             hideSystemUI(activity)
             updateFullscreenState()
@@ -73,8 +78,13 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         val activity = view.getActivity() as? ComponentActivity ?: return
         if (!isFullscreen) return
 
+        val player = view.getPlayer()
         view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+            view.setPlayer(null)
             restoreOriginalView(activity)
+            if (player != null) {
+                view.setPlayer(player)
+            }
             switchToPortrait(activity)
             showSystemUI(activity)
             clearBackPressHandler()
