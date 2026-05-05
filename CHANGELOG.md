@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.16] - 2026-05-05
+### Fixed
+- Prevent fullscreen reattachment from showing the loading spinner when playback is already ready.
+
 ## [1.1.15] - 2026-05-05
 ### Fixed
 - Prevent fullscreen transitions from crashing with `Detaching surface timed out` by detaching and reattaching the player around view reparenting.
@@ -120,6 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.1.16]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.15...1.1.16
 [1.1.15]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.14...1.1.15
 [1.1.14]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.13...1.1.14
 [1.1.13]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.13-beta.1...1.1.13
