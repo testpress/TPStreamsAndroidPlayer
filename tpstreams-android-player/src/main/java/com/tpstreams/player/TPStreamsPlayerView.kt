@@ -352,6 +352,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             PlaybackHistoryManager.recordLog(message)
         }
         
+        unregisterFromLifecycle()
         lifecycleManager = player?.let { PlayerLifecycleManager(it) }
         registerWithLifecycle()
         
