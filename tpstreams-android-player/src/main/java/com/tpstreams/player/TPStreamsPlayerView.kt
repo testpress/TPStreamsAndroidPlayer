@@ -39,7 +39,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     private var playerControlView: TPStreamsPlayerControlView? = null
     private var orientationEventListener: OrientationListener? = null
-    private var autoFullscreenEnabled = false
+    private var autoFullscreenEnabled = true
     var lifecycleManager: PlayerLifecycleManager? = null
     
     private var errorOverlay: View? = null
@@ -171,8 +171,18 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         ensureErrorOverlaySetup()
         
         post {
-            enableAutoFullscreenOnRotate()
+            if (autoFullscreenEnabled) {
+                enableAutoFullscreenOnRotate()
+            }
             registerWithLifecycle()
+        }
+    }
+
+    fun setAutoFullscreenOnRotateEnabled(enabled: Boolean) {
+        if (enabled) {
+            enableAutoFullscreenOnRotate()
+        } else {
+            disableAutoFullscreenOnRotate()
         }
     }
 
