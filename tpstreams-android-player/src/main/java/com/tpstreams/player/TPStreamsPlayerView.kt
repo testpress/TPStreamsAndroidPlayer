@@ -179,6 +179,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     fun setAutoFullscreenOnRotateEnabled(enabled: Boolean) {
+        if (autoFullscreenEnabled == enabled) return
         if (enabled) {
             enableAutoFullscreenOnRotate()
         } else {
@@ -304,7 +305,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         
-        if (!autoFullscreenEnabled) {
+        if (autoFullscreenEnabled) {
             val wasPlayingBefore = player?.isPlaying ?: false
             
             lifecycleManager?.setInTransition(true)
