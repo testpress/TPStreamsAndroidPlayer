@@ -39,6 +39,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     private var playerControlView: TPStreamsPlayerControlView? = null
     private var orientationEventListener: OrientationListener? = null
+    private var autoFullscreenOnRotateEnabled = true
     private var autoFullscreenEnabled = false
     var lifecycleManager: PlayerLifecycleManager? = null
     
@@ -171,8 +172,20 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         ensureErrorOverlaySetup()
         
         post {
-            enableAutoFullscreenOnRotate()
+            if (autoFullscreenOnRotateEnabled) {
+                enableAutoFullscreenOnRotate()
+            }
             registerWithLifecycle()
+        }
+    }
+
+    fun setAutoFullscreenOnRotateEnabled(enabled: Boolean) {
+        if (autoFullscreenOnRotateEnabled == enabled) return
+        autoFullscreenOnRotateEnabled = enabled
+        if (enabled) {
+            enableAutoFullscreenOnRotate()
+        } else {
+            disableAutoFullscreenOnRotate()
         }
     }
 
@@ -294,7 +307,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         
-        if (!autoFullscreenEnabled) {
+        if (autoFullscreenOnRotateEnabled && !autoFullscreenEnabled) {
             val wasPlayingBefore = player?.isPlaying ?: false
             
             lifecycleManager?.setInTransition(true)
