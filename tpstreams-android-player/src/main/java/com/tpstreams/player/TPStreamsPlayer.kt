@@ -699,6 +699,7 @@ private constructor(
     companion object {
         private var activePlayerCount = 0
         internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
+        private const val DEFAULT_SEEK_INCREMENT_MS = 10000L
         private val client = OkHttpClient.Builder()
             .addInterceptor(ServerDateHeaderInterceptor())
             .build()
@@ -706,7 +707,13 @@ private constructor(
 
 
         @OptIn(UnstableApi::class)
-        private fun createExoPlayer(context: Context,seekBackIncrementMs: Long = 10000L,seekForwardIncrementMs: Long = 10000L): Pair<ExoPlayer, DefaultTrackSelector> {
+        private fun createExoPlayer(
+            context: Context,
+            seekBackIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
+            seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS
+        ): Pair<ExoPlayer, DefaultTrackSelector> {
+            require(seekBackIncrementMs > 0) { "seekBackIncrementMs must be greater than 0, was $seekBackIncrementMs" }
+            require(seekForwardIncrementMs > 0) { "seekForwardIncrementMs must be greater than 0, was $seekForwardIncrementMs" }
             val trackSelector = DefaultTrackSelector(context).apply {
                 parameters = DefaultTrackSelector.Parameters.Builder()
                     .setAllowVideoMixedMimeTypeAdaptiveness(true)
@@ -754,8 +761,8 @@ private constructor(
             startInFullscreen: Boolean = false,
             downloadMetadata: Map<String, String>? = null,
             offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
-            seekBackIncrementMs: Long = 10000L,
-            seekForwardIncrementMs: Long = 10000L
+            seekBackIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
+            seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context, seekBackIncrementMs, seekForwardIncrementMs)
             return TPStreamsPlayer(
