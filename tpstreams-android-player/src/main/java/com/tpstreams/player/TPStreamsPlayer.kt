@@ -706,7 +706,7 @@ private constructor(
 
 
         @OptIn(UnstableApi::class)
-        private fun createExoPlayer(context: Context): Pair<ExoPlayer, DefaultTrackSelector> {
+        private fun createExoPlayer(context: Context,seekBackIncrementMs: Long = 10000L,seekForwardIncrementMs: Long = 10000L): Pair<ExoPlayer, DefaultTrackSelector> {
             val trackSelector = DefaultTrackSelector(context).apply {
                 parameters = DefaultTrackSelector.Parameters.Builder()
                     .setAllowVideoMixedMimeTypeAdaptiveness(true)
@@ -737,6 +737,8 @@ private constructor(
                         .build(), 
                     true
                 )
+                .setSeekBackIncrementMs(seekBackIncrementMs)
+                .setSeekForwardIncrementMs(seekForwardIncrementMs)
                 .build() to trackSelector
         }
 
@@ -751,9 +753,11 @@ private constructor(
             showDefaultCaptions: Boolean = false,
             startInFullscreen: Boolean = false,
             downloadMetadata: Map<String, String>? = null,
-            offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
+            offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
+            seekBackIncrementMs: Long = 10000L,
+            seekForwardIncrementMs: Long = 10000L
         ): TPStreamsPlayer {
-            val (exo, trackSelector) = createExoPlayer(context)
+            val (exo, trackSelector) = createExoPlayer(context, seekBackIncrementMs, seekForwardIncrementMs)
             return TPStreamsPlayer(
                 context,
                 exo,
