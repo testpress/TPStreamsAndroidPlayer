@@ -116,6 +116,7 @@ private constructor(
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val networkRecoveryHandler = NetworkRecoveryHandler(context)
+    @Volatile
     private var cdnHostname: String? = null
 
     private val networkDiagnosticsManager = NetworkDiagnosticsManager(
@@ -369,7 +370,9 @@ private constructor(
                     debugLog("fetchAndPrepare onError — error=$error, message=$message")
                     if (error == PlaybackError.NETWORK_CONNECTION_FAILED || 
                         error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
-                        networkDiagnosticsManager.handleError(error, cdnHostname = cdnHostname)
+                        playerScope.launch {
+                            networkDiagnosticsManager.handleError(error, cdnHostname = cdnHostname)
+                        }
                     } else {
                         Sentry.captureMessage("Non-network error from asset fetch: $error", SentryLevel.WARNING)
                         Sentry.addBreadcrumb(Breadcrumb().apply {
@@ -389,11 +392,6 @@ private constructor(
     @OptIn(UnstableApi::class)
     private fun preparePlayer(assetInfo: AssetInfo, assetId: String, accessToken: String) {
         val orgId = TPStreamsSDK.requireOrgId()
-        _isLiveStream = assetInfo.isLiveStream
-        onLiveStreamStatusChanged?.invoke(_isLiveStream)
-
-        networkDiagnosticsManager.onMediaLoaded()
-
         cdnHostname = try {
             Uri.parse(assetInfo.mediaUrl).host?.takeIf { it.isNotBlank() }
         } catch (_: Exception) { null }
@@ -403,18 +401,22 @@ private constructor(
         setSubtitleMetadata(result.subtitleMetadata)
 
         playerScope.launch(Dispatchers.Main) {
-                    val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
+            _isLiveStream = assetInfo.isLiveStream
+            onLiveStreamStatusChanged?.invoke(_isLiveStream)
 
-                    exoPlayer.setAudioAttributes(audioAttributes, true)
-                    debugLog("MediaItem SET - ${result.mediaItem.mediaId}")
-                    exoPlayer.setMediaItem(result.mediaItem)
-                    debugLog("Player PREPARE")
-                    exoPlayer.prepare()
-                    isPrepared = true
-                }
+            networkDiagnosticsManager.onMediaLoaded()
 
-        if (shouldAutoPlay || requestedPlay) {
-            exoPlayer.play()
+            val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
+            exoPlayer.setAudioAttributes(audioAttributes, true)
+            debugLog("MediaItem SET - ${result.mediaItem.mediaId}")
+            exoPlayer.setMediaItem(result.mediaItem)
+            debugLog("Player PREPARE")
+            exoPlayer.prepare()
+            isPrepared = true
+
+            if (shouldAutoPlay || requestedPlay) {
+                exoPlayer.play()
+            }
         }
     }
 

@@ -108,16 +108,14 @@ internal class NetworkProbeRunner(
 
     private fun tcpInternetProbe(): Boolean {
         return try {
-            java.net.Socket().apply {
-                connect(java.net.InetSocketAddress(INTERNET_PROBE_HOST_PRIMARY, INTERNET_PROBE_PORT), SINGLE_PROBE_TIMEOUT_MS)
-                close()
+            java.net.Socket().use { socket ->
+                socket.connect(java.net.InetSocketAddress(INTERNET_PROBE_HOST_PRIMARY, INTERNET_PROBE_PORT), SINGLE_PROBE_TIMEOUT_MS)
             }
             true
         } catch (_: Exception) {
             try {
-                java.net.Socket().apply {
-                    connect(java.net.InetSocketAddress(INTERNET_PROBE_HOST_FALLBACK, INTERNET_PROBE_PORT), SINGLE_PROBE_TIMEOUT_MS)
-                    close()
+                java.net.Socket().use { socket ->
+                    socket.connect(java.net.InetSocketAddress(INTERNET_PROBE_HOST_FALLBACK, INTERNET_PROBE_PORT), SINGLE_PROBE_TIMEOUT_MS)
                 }
                 true
             } catch (e2: Exception) {
@@ -200,9 +198,9 @@ internal class NetworkProbeRunner(
         }
         val start = System.currentTimeMillis()
         val (ok, detail) = try {
-            java.net.Socket().apply {
-                connect(java.net.InetSocketAddress(cdnHostname, CDN_PORT), SINGLE_PROBE_TIMEOUT_MS)
-            }.close()
+            java.net.Socket().use { socket ->
+                socket.connect(java.net.InetSocketAddress(cdnHostname, CDN_PORT), SINGLE_PROBE_TIMEOUT_MS)
+            }
             logDebug("CDN socket to $cdnHostname:$CDN_PORT succeeded")
             true to null
         } catch (e: Exception) {

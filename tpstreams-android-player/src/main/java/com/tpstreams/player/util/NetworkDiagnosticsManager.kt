@@ -111,8 +111,10 @@ internal class NetworkDiagnosticsManager(
                 logDebug("NETWORK_PROBE: no internet — starting recovery monitoring")
                 autoRetryJob?.cancel()
                 networkRecoveryHandler.startMonitoring {
-                    autoRetryJob?.cancel()
-                    retryPlayback()
+                    playerScope.launch {
+                        autoRetryJob?.cancel()
+                        retryPlayback()
+                    }
                 }
             }
 
