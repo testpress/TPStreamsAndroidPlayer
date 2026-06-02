@@ -16,8 +16,8 @@ internal object SentryLogger {
         error: PlaybackException,
         assetId: String?,
         playerId: String
-    ) {
-        Sentry.captureException(error) { scope ->
+    ): String? {
+        return Sentry.captureException(error) { scope ->
             val nowEpochMs = System.currentTimeMillis()
             ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
                 scope.setTag(key, value)
@@ -38,7 +38,7 @@ internal object SentryLogger {
                 "Playback History",
                 mapOf("Timeline" to PlaybackHistoryManager.getFullHistory())
             )
-        }
+        }?.toString()
     }
 
     fun logAPIException(
@@ -46,8 +46,8 @@ internal object SentryLogger {
         assetId: String?,
         responseCode: Int?,
         playerId: String
-    ) {
-        Sentry.captureException(exception) { scope ->
+    ): String? {
+        return Sentry.captureException(exception) { scope ->
             val nowEpochMs = System.currentTimeMillis()
             ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
                 scope.setTag(key, value)
@@ -64,7 +64,7 @@ internal object SentryLogger {
                     "Response Code" to (responseCode ?: "N/A")
                 )
             )
-        }
+        }?.toString()
     }
 }
 

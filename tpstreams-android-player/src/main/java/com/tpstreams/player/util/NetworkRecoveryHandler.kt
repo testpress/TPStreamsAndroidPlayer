@@ -3,6 +3,7 @@ package com.tpstreams.player.util.network
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.util.Log
 import androidx.media3.common.PlaybackException
@@ -14,7 +15,12 @@ class NetworkRecoveryHandler(context: Context) {
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
-            if (isMonitoring) {
+        }
+
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            val hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            val isValidated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            if (isMonitoring && hasInternet && isValidated) {
                 val action = onNetworkAvailable
                 stopMonitoring()
                 action?.invoke()

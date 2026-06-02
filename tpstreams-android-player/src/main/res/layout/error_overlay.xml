@@ -16,12 +16,13 @@
         android:scrollbars="none">
 
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:orientation="vertical"
             android:padding="32dp"
-            android:gravity="center">
+            android:gravity="center_horizontal"
+            android:maxWidth="600dp">
 
             <TextView
                 android:id="@+id/error_message_text"
@@ -32,7 +33,74 @@
                 android:textSize="14dp"
                 android:textStyle="bold"
                 android:gravity="center"
-                android:textAlignment="center" />
+                android:textAlignment="center"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/error_description"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="600dp"
+                android:layout_marginTop="12dp"
+                android:textColor="#B0B0B0"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:textAlignment="center"
+                android:visibility="gone"
+                />
+
+            <TextView
+                android:id="@+id/error_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="600dp"
+                android:layout_marginTop="10dp"
+                android:textColor="#AAFFFFFF"
+                android:textSize="13sp"
+                android:gravity="center"
+                android:textAlignment="center"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/diagnostics_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:orientation="vertical" />
+
+            <View
+                android:id="@+id/error_divider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="20dp"
+                android:background="#33FFFFFF"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/retry_loader"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/retry_indicator"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/network_diag_checking_connection"
+                    android:textColor="#B0B0B0"
+                    android:textSize="15sp"
+                    android:letterSpacing="0.15" />
+
+                <ProgressBar
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_marginTop="8dp"
+                    android:indeterminate="true" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
