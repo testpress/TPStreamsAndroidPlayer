@@ -245,6 +245,13 @@ private constructor(
                     return
                 }
 
+                if (isPlaylistStuckException(error)) {
+                    // This error is raised when the HLS playlist stops advancing (e.g., the live stream is paused).
+                    // We safely suppress this error so the player naturally shows the buffering spinner instead of crashing.
+                    // Playback can resume once the stream starts advancing again or the user seeks to a previous duration.
+                    return
+                }
+
                 if (isNetworkError(error)) {
                      networkRecoveryHandler.startMonitoring { retryPlayback() }
                 }
@@ -287,6 +294,17 @@ private constructor(
                error.errorCode == PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION ||
                 error.errorCode == PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR ||
                 cause is MediaCodec.CryptoException
+    }
+
+    private fun isPlaylistStuckException(error: PlaybackException): Boolean {
+        var cause: Throwable? = error.cause
+        while (cause != null) {
+            if (cause is androidx.media3.exoplayer.hls.playlist.HlsPlaylistTracker.PlaylistStuckException) {
+                return true
+            }
+            cause = cause.cause
+        }
+        return false
     }
 
     private fun fetchAndPrepare(assetId: String, accessToken: String) {
