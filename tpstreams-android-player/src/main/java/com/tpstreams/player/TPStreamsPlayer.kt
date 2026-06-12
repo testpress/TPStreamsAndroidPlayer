@@ -296,6 +296,7 @@ private constructor(
                 cause is MediaCodec.CryptoException
     }
 
+    @OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun isPlaylistStuckException(error: PlaybackException): Boolean {
         var cause: Throwable? = error.cause
         while (cause != null) {
@@ -438,6 +439,9 @@ private constructor(
 
     override fun play() {
         if (isPrepared) {
+            if (exoPlayer.playbackState == Player.STATE_IDLE) {
+                exoPlayer.prepare()
+            }
             exoPlayer.play()
         } else {
             requestedPlay = true
