@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.17] - 2026-05-011
+## [1.1.18] - 2026-06-12
+### Fixed
+- Gracefully handle HLS live stream pauses by suppressing `PlaylistStuckException` to prevent player crashes and unnecessary Sentry logs.
+
+## [1.1.17] - 2026-05-11
 ### Added
 - Added public API to enable or disable auto-fullscreen on device rotation in Android.
 
@@ -128,6 +132,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.1.18]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.17...1.1.18
+[1.1.17]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.16...1.1.17
 [1.1.16]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.15...1.1.16
 [1.1.15]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.14...1.1.15
 [1.1.14]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.13...1.1.14
