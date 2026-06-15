@@ -382,7 +382,9 @@ private constructor(
                             setData("player_id", SentryLogger.generatePlayerIdString())
                             setData("asset_id", assetId)
                         })
-                        _listener?.onError(error, message)
+                        playerScope.launch {
+                            _listener?.onError(error, message)
+                        }
                     }
                 }
             })
@@ -515,13 +517,21 @@ private constructor(
         }
     }
 
-    override fun pause() = exoPlayer.pause()
+    override fun pause() {
+        playerScope.launch {
+            exoPlayer.pause()
+        }
+    }
 
     /**
      * Seeks to a specific position in the current media item.
      * @param positionMs The position in milliseconds to seek to
      */
-    override fun seekTo(positionMs: Long) = exoPlayer.seekTo(positionMs)
+    override fun seekTo(positionMs: Long) {
+        playerScope.launch {
+            exoPlayer.seekTo(positionMs)
+        }
+    }
 
     /**
      * Returns whether the player is currently playing.
