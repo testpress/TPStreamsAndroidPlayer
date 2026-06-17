@@ -45,7 +45,8 @@ internal object SentryLogger {
         exception: Exception,
         assetId: String?,
         responseCode: Int?,
-        playerId: String
+        playerId: String,
+        url: String? = null
     ) {
         Sentry.captureException(exception) { scope ->
             val nowEpochMs = System.currentTimeMillis()
@@ -56,12 +57,14 @@ internal object SentryLogger {
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
             responseCode?.let { scope.setTag("responseCode", it.toString()) }
+            url?.takeIf { it.isNotEmpty() }?.let { scope.setTag("requestUrl", it) }
             scope.setContexts(
                 "TPStreamsPlayer",
                 mapOf(
                     "Asset ID" to (assetId ?: "N/A"),
                     "Player ID" to playerId,
-                    "Response Code" to (responseCode ?: "N/A")
+                    "Response Code" to (responseCode ?: "N/A"),
+                    "Request URL" to (url?.takeIf { it.isNotEmpty() } ?: "N/A")
                 )
             )
         }
