@@ -38,17 +38,15 @@ object AssetRepository {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val assetApiUrl = apiService.assetInfoUrl(orgId, assetId, accessToken)
-                var requestUrl = assetApiUrl
                 val requestBuilder = Request.Builder().url(assetApiUrl)
                 TPStreamsSDK.getAuthHeaders().forEach { (name, value) ->
                     requestBuilder.addHeader(name, value)
                 }
                 val request = requestBuilder.build()
-                requestUrl = request.url.toString()
                 val response = client.newCall(request).execute()
 
                 if (!response.isSuccessful) {
-                    handleApiError(assetId, response.code, requestUrl, callback)
+                    handleApiError(assetId, response.code, assetApiUrl, callback)
                     return@launch
                 }
 
@@ -66,7 +64,8 @@ object AssetRepository {
                     callback.onSuccess(assetInfo)
                 }
             } catch (e: Exception) {
-                handleException(assetId, e, requestUrl, callback)
+                val url = runCatching { apiService.assetInfoUrl(orgId, assetId, accessToken) }.getOrNull() ?: ""
+                handleException(assetId, e, url, callback)
             }
         }
     }
