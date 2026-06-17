@@ -46,7 +46,7 @@ object AssetRepository {
                 val response = client.newCall(request).execute()
 
                 if (!response.isSuccessful) {
-                    handleApiError(assetId, response.code, callback)
+                    handleApiError(assetId, response.code, assetApiUrl, callback)
                     return@launch
                 }
 
@@ -64,7 +64,8 @@ object AssetRepository {
                     callback.onSuccess(assetInfo)
                 }
             } catch (e: Exception) {
-                handleException(assetId, e, callback)
+                val url = runCatching { apiService.assetInfoUrl(orgId, assetId, accessToken) }.getOrNull() ?: ""
+                handleException(assetId, e, url, callback)
             }
         }
     }
@@ -77,9 +78,9 @@ object AssetRepository {
         fetchAssetInfo(TPStreamsSDK.requireOrgId(), assetId, accessToken, callback)
     }
 
-    private fun handleApiError(assetId: String, code: Int, callback: AssetCallback) {
+    private fun handleApiError(assetId: String, code: Int, url: String, callback: AssetCallback) {
         val errorPlayerId = SentryLogger.generatePlayerIdString()
-        SentryLogger.logAPIException(Exception("API request failed with code: $code"), assetId, code, errorPlayerId)
+        SentryLogger.logAPIException(Exception("API request failed with code: $code"), assetId, code, errorPlayerId, url)
 
         val errorType = when (code) {
             404 -> PlaybackError.INVALID_ASSETS_ID
@@ -93,9 +94,9 @@ object AssetRepository {
         }
     }
 
-    private fun handleException(assetId: String, e: Exception, callback: AssetCallback) {
+    private fun handleException(assetId: String, e: Exception, url: String, callback: AssetCallback) {
         val errorPlayerId = SentryLogger.generatePlayerIdString()
-        SentryLogger.logAPIException(e, assetId, null, errorPlayerId)
+        SentryLogger.logAPIException(e, assetId, null, errorPlayerId, url)
 
         val errorType = e.toPlaybackError()
         val errorMessage = e.getErrorMessage(errorPlayerId, null)

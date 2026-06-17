@@ -16,7 +16,8 @@ object MediaItemUtils {
 
     data class MediaItemResult(
         val mediaItem: MediaItem,
-        val subtitleMetadata: Map<String, Boolean>
+        val subtitleMetadata: Map<String, Boolean>,
+        val drmLicenseUrl: String? = null
     )
 
     fun buildMediaItem(
@@ -74,9 +75,11 @@ object MediaItemUtils {
             .setMediaId(assetId)
             .setMediaMetadata(metadata)
 
+        val drmLicenseUrl: String?
         if (assetInfo.enableDrm) {
             val apiService = TPStreamsSDK.apiService
             val licenseUrl = apiService.drmLicenseUrl(orgId, assetId, accessToken)
+            drmLicenseUrl = licenseUrl
 
             val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                 .setLicenseUri(licenseUrl)
@@ -87,6 +90,8 @@ object MediaItemUtils {
                 drmConfigBuilder.setLicenseRequestHeaders(authHeaders)
             }
             builder.setDrmConfiguration(drmConfigBuilder.build())
+        } else {
+            drmLicenseUrl = null
         }
 
         if (subtitleConfigurations.isNotEmpty()) {
@@ -95,7 +100,7 @@ object MediaItemUtils {
 
         val mediaItem = builder.build()
             
-        return MediaItemResult(mediaItem, subtitleMetadata)
+        return MediaItemResult(mediaItem, subtitleMetadata, drmLicenseUrl)
     }
 
     private fun buildPlaybackUri(mediaUrl: String, isAes: Boolean, accessToken: String): Uri {

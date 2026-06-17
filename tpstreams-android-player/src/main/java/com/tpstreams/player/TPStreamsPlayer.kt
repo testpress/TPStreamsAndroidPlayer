@@ -87,6 +87,7 @@ private constructor(
     }
 
     private var isPrepared = false
+    private var drmLicenseUrl: String? = null
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
@@ -258,7 +259,7 @@ private constructor(
                 
                 debugLog("Player ERROR - ${error.errorCodeName}")
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
-                SentryLogger.logPlaybackException(error, assetId, errorPlayerId)
+                SentryLogger.logPlaybackException(error, assetId, errorPlayerId, drmLicenseUrl)
                 
                 val errorType = error.toError()
                 val errorMessage = error.getErrorMessage(errorPlayerId)
@@ -335,6 +336,7 @@ private constructor(
         onLiveStreamStatusChanged?.invoke(_isLiveStream)
 
         val result = MediaItemUtils.buildMediaItem(assetInfo, assetInfo.title, orgId, assetId, accessToken)
+        drmLicenseUrl = result.drmLicenseUrl
         setSubtitleMetadata(result.subtitleMetadata)
 
         playerScope.launch(Dispatchers.Main) {
