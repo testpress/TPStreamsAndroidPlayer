@@ -15,7 +15,8 @@ internal object SentryLogger {
     fun logPlaybackException(
         error: PlaybackException,
         assetId: String?,
-        playerId: String
+        playerId: String,
+        drmLicenseUrl: String? = null
     ) {
         Sentry.captureException(error) { scope ->
             val nowEpochMs = System.currentTimeMillis()
@@ -25,13 +26,15 @@ internal object SentryLogger {
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
+            drmLicenseUrl?.takeIf { it.isNotEmpty() }?.let { scope.setTag("drmLicenseUrl", it) }
             scope.setContexts(
                 "TPStreamsPlayer",
                 mapOf(
                     "Error Code" to error.errorCode,
                     "Error Code Name" to error.errorCodeName,
                     "Asset ID" to (assetId ?: "N/A"),
-                    "Player ID" to playerId
+                    "Player ID" to playerId,
+                    "DRM License URL" to (drmLicenseUrl?.takeIf { it.isNotEmpty() } ?: "N/A")
                 )
             )
             scope.setContexts(
