@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.20] - 2026-06-25
+### Fixed
+- Fix SentryLogger methods not returning the Sentry event ID, resolving a build error in network diagnostics integration
+
 ## [1.1.19] - 2026-06-25
 ### Added
 - Add network diagnostics and playback error classification with automatic retry handling for recoverable network issues
@@ -140,6 +144,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.1.20]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.19...1.1.20
 [1.1.19]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.18...1.1.19
 [1.1.18]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.17...1.1.18
 [1.1.17]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.16...1.1.17
