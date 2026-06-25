@@ -5,6 +5,14 @@ import androidx.media3.common.PlaybackException
 enum class PlaybackError {
     NETWORK_CONNECTION_FAILED,
     NETWORK_CONNECTION_TIMEOUT,
+    /**
+     * The video service is unreachable due to a network intermediary (firewall, proxy, DNS filter).
+     * Internally this covers 3 distinct root causes: DNS resolution failure, CDN blockage,
+     * and upstream server blockage — all surfaced as VIDEO_SERVICE_BLOCKED to simplify
+     * consumer-side handling. Use `NetworkDiagnostics` fields (dnsResolves, cdnReachable,
+     * serverReachable) to distinguish the root cause when needed.
+     */
+    VIDEO_SERVICE_BLOCKED,
     INVALID_ASSETS_ID,
     INVALID_ACCESS_TOKEN_FOR_ASSETS,
     EXPIRED_ACCESS_TOKEN_FOR_ASSETS,

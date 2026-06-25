@@ -37,6 +37,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector
 import com.tpstreams.player.download.DownloadConstants
 import com.tpstreams.player.util.SentryLogger
+import com.tpstreams.player.constants.NetworkDiagnostics
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.constants.toError
 import com.tpstreams.player.constants.getErrorMessage
@@ -45,6 +46,7 @@ import com.tpstreams.player.constants.LiveStreamEndedException
 import com.tpstreams.player.constants.toPlaybackError
 import com.tpstreams.player.data.network.model.AssetInfo
 import com.tpstreams.player.data.AssetRepository
+import com.tpstreams.player.util.NetworkDiagnosticsManager
 import com.tpstreams.player.util.MediaItemUtils
 import com.tpstreams.player.util.network.*
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -52,6 +54,10 @@ import androidx.media3.exoplayer.DecoderReuseEvaluation
 import com.tpstreams.player.util.PlaybackHistoryManager
 import com.tpstreams.player.util.CodecManager
 import com.tpstreams.player.util.ServerDateHeaderInterceptor
+import io.sentry.Breadcrumb
+import io.sentry.Sentry
+import io.sentry.SentryLevel
+
 
 
 
@@ -84,6 +90,14 @@ private constructor(
     interface Listener {
         fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit)
         fun onError(error: PlaybackError, message: String)
+        fun onNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
+            onError(error, message)
+        }
+        /**
+         * Called immediately when a network error is detected, before diagnostics
+         * probes complete. The UI can use this to show a "Diagnosing…" state.
+         */
+        fun onNetworkDiagnosticsStarted() {}
     }
 
     private var isPrepared = false
@@ -96,13 +110,38 @@ private constructor(
     val isLiveStream: Boolean
         get() = _isLiveStream
     
+    @Volatile
+    private var released = false
+
     internal var onLiveStreamStatusChanged: ((Boolean) -> Unit)? = null
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-
     private val networkRecoveryHandler = NetworkRecoveryHandler(context)
+    @Volatile
+    private var cdnHostname: String? = null
+
+    private val networkDiagnosticsManager = NetworkDiagnosticsManager(
+        playerScope = playerScope,
+        assetId = assetId,
+        exoPlayer = exoPlayer,
+        networkRecoveryHandler = networkRecoveryHandler,
+        listener = { error, message, diagnostics ->
+            _listener?.onNetworkError(error, message, diagnostics)
+        },
+        retryPlayback = { retryPlayback() },
+        onDiagnosticsStarted = {
+            _listener?.onNetworkDiagnosticsStarted()
+        }
+    )
+
+    fun retry() {
+        if (released) return
+        networkDiagnosticsManager.onManualRetry()
+        retryPlayback()
+    }
 
     private fun retryPlayback() {
+        if (released) return
         playerScope.launch {
             try {
                 if (!isPrepared) {
@@ -195,6 +234,10 @@ private constructor(
                 debugLog("Surface SIZE CHANGED - ${width}x${height}")
             }
 
+            override fun onDrmKeysLoaded(eventTime: AnalyticsListener.EventTime) {
+                debugLog("DRM KEYS LOADED")
+            }
+
             override fun onMediaItemTransition(
                 eventTime: AnalyticsListener.EventTime,
                 mediaItem: MediaItem?,
@@ -237,6 +280,7 @@ private constructor(
             
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 Log.d("TPStreamsPlayer", "Is playing changed: $isPlaying")
+                if (isPlaying) networkDiagnosticsManager.onPlaybackRecovered()
             }
             
             override fun onPlayerError(error: PlaybackException) {
@@ -254,9 +298,12 @@ private constructor(
                 }
 
                 if (isNetworkError(error)) {
-                     networkRecoveryHandler.startMonitoring { retryPlayback() }
+                    networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname)
+                    return
                 }
                 
+                // Non-network errors go directly to _listener?.onError() (not onNetworkError).
+                // Network errors route through handleError → manager → _listener?.onNetworkError().
                 debugLog("Player ERROR - ${error.errorCodeName}")
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
                 SentryLogger.logPlaybackException(error, assetId, errorPlayerId, drmLicenseUrl)
@@ -315,15 +362,31 @@ private constructor(
 
             AssetRepository.fetchAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
                 override fun onSuccess(assetInfo: AssetInfo) {
+                    val safeHost = try { Uri.parse(assetInfo.mediaUrl).host } catch (_: Exception) { "unknown" }
+                    debugLog("fetchAndPrepare SUCCESS — cdnHost=$safeHost")
                     preparePlayer(assetInfo, assetId, accessToken)
                 }
 
                 override fun onError(error: PlaybackError, message: String) {
+                    debugLog("fetchAndPrepare onError — error=$error, message=$message")
                     if (error == PlaybackError.NETWORK_CONNECTION_FAILED || 
                         error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
-                        networkRecoveryHandler.startMonitoring { retryPlayback() }
+                        playerScope.launch {
+                            networkDiagnosticsManager.handleError(error, cdnHostname = cdnHostname)
+                        }
+                    } else {
+                        Sentry.captureMessage("Non-network error from asset fetch: $error", SentryLevel.WARNING)
+                        Sentry.addBreadcrumb(Breadcrumb().apply {
+                            setMessage("Non-network error from asset fetch")
+                            setData("error_type", error.name)
+                            setData("error_message", message)
+                            setData("player_id", SentryLogger.generatePlayerIdString())
+                            setData("asset_id", assetId)
+                        })
+                        playerScope.launch {
+                            _listener?.onError(error, message)
+                        }
                     }
-                    _listener?.onError(error, message)
                 }
             })
         }
@@ -332,26 +395,32 @@ private constructor(
     @OptIn(UnstableApi::class)
     private fun preparePlayer(assetInfo: AssetInfo, assetId: String, accessToken: String) {
         val orgId = TPStreamsSDK.requireOrgId()
-        _isLiveStream = assetInfo.isLiveStream
-        onLiveStreamStatusChanged?.invoke(_isLiveStream)
+        cdnHostname = try {
+            Uri.parse(assetInfo.mediaUrl).host?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) { null }
+        debugLog("CDN hostname extracted: $cdnHostname")
 
         val result = MediaItemUtils.buildMediaItem(assetInfo, assetInfo.title, orgId, assetId, accessToken)
         drmLicenseUrl = result.drmLicenseUrl
         setSubtitleMetadata(result.subtitleMetadata)
 
         playerScope.launch(Dispatchers.Main) {
-                    val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
+            _isLiveStream = assetInfo.isLiveStream
+            onLiveStreamStatusChanged?.invoke(_isLiveStream)
 
-                    exoPlayer.setAudioAttributes(audioAttributes, true)
-                    debugLog("MediaItem SET - ${result.mediaItem.mediaId}")
-                    exoPlayer.setMediaItem(result.mediaItem)
-                    debugLog("Player PREPARE")
-                    exoPlayer.prepare()
-                    isPrepared = true
-                }
+            networkDiagnosticsManager.onMediaLoaded()
 
-        if (shouldAutoPlay || requestedPlay) {
-            exoPlayer.play()
+            val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
+            exoPlayer.setAudioAttributes(audioAttributes, true)
+            debugLog("MediaItem SET - ${result.mediaItem.mediaId}")
+            exoPlayer.setMediaItem(result.mediaItem)
+            debugLog("Player PREPARE")
+            exoPlayer.prepare()
+            isPrepared = true
+
+            if (shouldAutoPlay || requestedPlay) {
+                exoPlayer.play()
+            }
         }
     }
 
@@ -450,13 +519,21 @@ private constructor(
         }
     }
 
-    override fun pause() = exoPlayer.pause()
+    override fun pause() {
+        playerScope.launch {
+            exoPlayer.pause()
+        }
+    }
 
     /**
      * Seeks to a specific position in the current media item.
      * @param positionMs The position in milliseconds to seek to
      */
-    override fun seekTo(positionMs: Long) = exoPlayer.seekTo(positionMs)
+    override fun seekTo(positionMs: Long) {
+        playerScope.launch {
+            exoPlayer.seekTo(positionMs)
+        }
+    }
 
     /**
      * Returns whether the player is currently playing.
@@ -503,7 +580,9 @@ private constructor(
             activePlayerCount--
             debugLog("Active Player COUNT: $activePlayerCount")
         }
+        released = true
         playerScope.cancel()
+        networkDiagnosticsManager.onRelease()
         exoPlayer.release()
         networkRecoveryHandler.stopMonitoring()
     }

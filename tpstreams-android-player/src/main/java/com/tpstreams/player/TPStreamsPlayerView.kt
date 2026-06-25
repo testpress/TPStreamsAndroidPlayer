@@ -3,16 +3,19 @@ package com.tpstreams.player
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
+import androidx.core.content.ContextCompat
 import android.text.Html
 import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import com.tpstreams.player.constants.NetworkDiagnostics
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.util.PlaybackHistoryManager
 import com.tpstreams.player.R
@@ -45,6 +48,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     private var errorOverlay: View? = null
     private var errorTextView: TextView? = null
+    private var errorDescription: TextView? = null
+    private var diagnosticsContainer: LinearLayout? = null
+    private var errorSubtitle: TextView? = null
+    private var errorDivider: View? = null
+    private var retryLoader: View? = null
+    private var retryIndicator: TextView? = null
     private var bufferingView: View? = null
     
     private val liveBadge: View? by lazy { findViewById(R.id.live_badge) }
@@ -55,6 +64,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             this@TPStreamsPlayerView.keepScreenOn = isPlaying
             lifecycleManager?.onPlaybackStateChanged(isPlaying)
+            if (isPlaying) hideErrorMessage()
         }
         
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -64,7 +74,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 }
                 Player.STATE_BUFFERING -> {
                     showLoading()
-                    hideErrorMessage()
                 }
                 Player.STATE_READY -> {
                     hideLoading()
@@ -77,9 +86,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
         
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-            if (playWhenReady) {
-                hideErrorMessage()
-            }
         }
     }
     
@@ -217,6 +223,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             
             errorOverlay = overlay
             errorTextView = overlay.findViewById(R.id.error_message_text)
+            errorDescription = overlay.findViewById(R.id.error_description)
+            errorSubtitle = overlay.findViewById(R.id.error_subtitle)
+            diagnosticsContainer = overlay.findViewById(R.id.diagnostics_container)
+            retryLoader = overlay.findViewById(R.id.retry_loader)
+            retryIndicator = overlay.findViewById(R.id.retry_indicator)
+            errorDivider = overlay.findViewById(R.id.error_divider)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to setup error overlay", e)
         }
@@ -402,6 +414,19 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                         post { showErrorMessage(message) }
                         existingListener?.onError(error, message)
                     }
+
+                    override fun onNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
+                        post {
+                            hideLoading()
+                            showNetworkDiagnostics(error, diagnostics)
+                        }
+                        existingListener?.onNetworkError(error, message, diagnostics)
+                    }
+
+                    override fun onNetworkDiagnosticsStarted() {
+                        post { showDiagnosingState() }
+                        existingListener?.onNetworkDiagnosticsStarted()
+                    }
                 }
                 captions.updateAvailableCaptions()
                 
@@ -518,11 +543,178 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         overlay.visibility = View.VISIBLE
         overlay.bringToFront()
         
-        // Measure and layout overlay to ensure proper dimensions (critical for React Native)
+        // Isolate from network diagnostics UI
+        textView.visibility = View.VISIBLE
+        errorSubtitle?.visibility = View.GONE
+        errorDescription?.visibility = View.GONE
+        diagnosticsContainer?.visibility = View.GONE
+        errorDivider?.visibility = View.GONE
+        
+        retryLoader?.visibility = View.GONE
+        
+        measureOverlay()
+        
+        if (isDecoderError(message)) {
+            setHtmlText(textView, message)
+        } else {
+            textView.text = message
+        }
+    }
+    
+    private fun showDiagnosingState() {
+        ensureErrorOverlaySetup()
+        val overlay = errorOverlay ?: return
+
+        overlay.visibility = View.VISIBLE
+        overlay.bringToFront()
+
+        errorTextView?.visibility = View.GONE
+        errorDescription?.let {
+            it.visibility = View.VISIBLE
+            it.text = context.getString(R.string.network_diag_diagnosing)
+        }
+        errorSubtitle?.visibility = View.GONE
+        diagnosticsContainer?.visibility = View.GONE
+        errorDivider?.visibility = View.GONE
+
+        retryLoader?.visibility = View.VISIBLE
+        retryIndicator?.text = context.getString(R.string.network_diag_checking_connection)
+
+        measureOverlay()
+    }
+
+    private fun showNetworkDiagnostics(error: PlaybackError, diagnostics: NetworkDiagnostics) {
+        ensureErrorOverlaySetup()
+        val overlay = errorOverlay ?: return
+
+        overlay.visibility = View.VISIBLE
+        overlay.bringToFront()
+
+        // Isolate from standard error message text and diagnosing state.
+        errorTextView?.visibility = View.GONE
+        retryLoader?.visibility = View.GONE
+
+        resolveDiagnosticText(error, diagnostics)
+        buildDiagnosticsList(diagnostics)
+        errorDivider?.visibility = View.VISIBLE
+
+        errorSubtitle?.let {
+            val id = diagnostics.playerId
+            it.visibility = if (id != null) View.VISIBLE else View.GONE
+            it.text = if (id != null) context.getString(R.string.network_diag_player_id, id) else ""
+        }
+        if (diagnostics.retryAttempt > 0) {
+            retryLoader?.visibility = View.VISIBLE
+            retryIndicator?.text = (1..diagnostics.maxRetries).joinToString(" ") { i ->
+                if (i <= diagnostics.retryAttempt) "\u25CF" else "\u25CB"
+            }
+        }
+
+        measureOverlay()
+    }
+
+    private fun resolveDiagnosticText(error: PlaybackError, diagnostics: NetworkDiagnostics) {
+        val text = when {
+            error == PlaybackError.VIDEO_SERVICE_BLOCKED -> {
+                val isDnsFailure = !diagnostics.dnsResolves && diagnostics.internetReachable
+                val isCdnProbeFailed = diagnostics.cdnReachable == false
+                when {
+                    isDnsFailure -> context.getString(R.string.network_diag_dns_failure)
+                    isCdnProbeFailed -> context.getString(R.string.network_diag_cdn_blocked)
+                    else -> context.getString(R.string.network_diag_generic_blocked)
+                }
+            }
+            error == PlaybackError.UNSPECIFIED -> context.getString(R.string.network_diag_unknown_error)
+            diagnostics.proxyConfigured -> context.getString(R.string.network_diag_proxy_unreachable)
+            else -> context.getString(R.string.network_diag_no_internet)
+        }
+        errorDescription?.let {
+            it.visibility = View.VISIBLE
+            it.text = text
+        }
+    }
+
+    private fun buildDiagnosticsList(diagnostics: NetworkDiagnostics) {
+        val container = diagnosticsContainer ?: return
+        container.visibility = View.VISIBLE
+        container.removeAllViews()
+
+        data class DiagItem(val label: String, val ok: Boolean?, val detail: String?)
+
+        val items = mutableListOf(
+            DiagItem(
+                context.getString(R.string.network_diag_label_internet), diagnostics.internetReachable,
+                diagnostics.internetLatencyMs?.let { "${it}ms" }
+            ),
+            DiagItem(
+                context.getString(R.string.network_diag_label_video_server), diagnostics.serverReachable,
+                diagnostics.serverDetail ?: diagnostics.serverLatencyMs?.let { "${it}ms" }
+            )
+        )
+        items.add(DiagItem(context.getString(R.string.network_diag_label_dns), diagnostics.dnsResolves, null))
+        items.add(
+            DiagItem(
+                context.getString(R.string.network_diag_label_cdn), if (diagnostics.cdnHostname == null) null else diagnostics.cdnReachable,
+                if (diagnostics.cdnHostname == null) "\u2014" else diagnostics.cdnDetail ?: diagnostics.cdnLatencyMs?.let { "${it}ms" }
+            )
+        )
+        if (diagnostics.proxyConfigured) {
+            items.add(DiagItem(context.getString(R.string.network_diag_label_proxy), null, null))
+        }
+
+        items.forEach { item ->
+            val color = when (item.ok) {
+                true -> ContextCompat.getColor(context, R.color.network_diag_ok)
+                false -> ContextCompat.getColor(context, R.color.network_diag_fail)
+                null -> ContextCompat.getColor(context, R.color.network_diag_unknown)
+            }
+            val symbol = when (item.ok) {
+                true -> "\u2713"
+                false -> "\u2717"
+                null -> "\u2014"
+            }
+            val detailText = if (item.detail != null) " \u00B7 ${item.detail}" else ""
+
+            val fullText = "$symbol  ${item.label}$detailText"
+            val detailStart = fullText.length - detailText.length
+
+            val spannable = android.text.SpannableString(fullText)
+            spannable.setSpan(
+                android.text.style.ForegroundColorSpan(color),
+                0, fullText.length - detailText.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            if (detailText.isNotEmpty()) {
+                spannable.setSpan(
+                    android.text.style.ForegroundColorSpan(
+                        ContextCompat.getColor(context, R.color.network_diag_detail)
+                    ),
+                    detailStart, fullText.length,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+                spannable.setSpan(
+                    android.text.style.AbsoluteSizeSpan(12, true),
+                    detailStart, fullText.length,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+
+            TextView(context).apply {
+                text = spannable
+                textSize = 12f
+                setPadding(0, 3, 0, 3)
+                container.addView(this)
+            }
+        }
+
+
+    }
+
+    private fun measureOverlay() {
+        val overlay = errorOverlay ?: return
         post {
             val parentWidth = width
             val parentHeight = height
-            
             if (parentWidth > 0 && parentHeight > 0) {
                 overlay.measure(
                     View.MeasureSpec.makeMeasureSpec(parentWidth, View.MeasureSpec.EXACTLY),
@@ -534,14 +726,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             }
             overlay.invalidate()
         }
-        
-        if (isDecoderError(message)) {
-            setHtmlText(textView, message)
-        } else {
-            textView.text = message
-        }
     }
-    
+
     private fun hideErrorMessage() {
         errorOverlay?.visibility = View.GONE
     }

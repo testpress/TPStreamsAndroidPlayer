@@ -41,7 +41,7 @@ internal object SentryLogger {
                 "Playback History",
                 mapOf("Timeline" to PlaybackHistoryManager.getFullHistory())
             )
-        }
+        }?.toString()
     }
 
     fun logAPIException(
@@ -70,7 +70,7 @@ internal object SentryLogger {
                     "Request URL" to (url?.takeIf { it.isNotEmpty() } ?: "N/A")
                 )
             )
-        }
+        }?.toString()
     }
 }
 

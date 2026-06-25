@@ -46,4 +46,20 @@
     <string name="playback_speed_format">%.2fx</string>
     <string name="decrease_speed">Decrease speed</string>
     <string name="increase_speed">Increase speed</string>
+
+    <!-- Network Diagnostics -->
+    <string name="network_diag_diagnosing">Diagnosing network issue…</string>
+    <string name="network_diag_checking_connection">Checking your connection…</string>
+    <string name="network_diag_no_internet">No internet connection detected. Please check your connection and try again.</string>
+    <string name="network_diag_dns_failure">Your internet is working, but your network\'s DNS isn\'t resolving correctly. Try switching networks.</string>
+    <string name="network_diag_cdn_blocked">Unable to reach the video server. Try on mobile data or a different Wi-Fi.</string>
+    <string name="network_diag_generic_blocked">Unable to reach the video service. Try on mobile data or a different Wi-Fi.</string>
+    <string name="network_diag_unknown_error">Your network looks reachable, but the video couldn\'t load. This may be a temporary network issue — try again.</string>
+    <string name="network_diag_player_id">Player ID: %s</string>
+    <string name="network_diag_label_internet">Internet</string>
+    <string name="network_diag_label_video_server">Video server</string>
+    <string name="network_diag_label_dns">DNS</string>
+    <string name="network_diag_label_cdn">CDN</string>
+    <string name="network_diag_label_proxy">Proxy</string>
+    <string name="network_diag_proxy_unreachable">A network proxy is configured but unreachable. Check your proxy settings or disable it to continue.</string>
 </resources>
