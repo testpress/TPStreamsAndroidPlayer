@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.19] - 2026-06-25
+### Added
+- Add network diagnostics and playback error classification with automatic retry handling for recoverable network issues
+- Add request URLs in Sentry error reports to improve debugging of asset loading failures
+
+### Fixed
+- Asset loading failures now include request URLs in error reports for better troubleshooting of invalid parameters, expired tokens, and incorrect endpoint generation
+
 ## [1.1.18] - 2026-06-12
 ### Fixed
 - Gracefully handle HLS live stream pauses by suppressing `PlaylistStuckException` to prevent player crashes and unnecessary Sentry logs.
@@ -132,6 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.1.19]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.18...1.1.19
 [1.1.18]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.17...1.1.18
 [1.1.17]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.16...1.1.17
 [1.1.16]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.15...1.1.16
