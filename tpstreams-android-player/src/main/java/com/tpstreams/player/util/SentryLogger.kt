@@ -17,8 +17,8 @@ internal object SentryLogger {
         assetId: String?,
         playerId: String,
         drmLicenseUrl: String? = null
-    ) {
-        Sentry.captureException(error) { scope ->
+    ): String? {
+        return Sentry.captureException(error) { scope ->
             val nowEpochMs = System.currentTimeMillis()
             ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
                 scope.setTag(key, value)
@@ -50,8 +50,8 @@ internal object SentryLogger {
         responseCode: Int?,
         playerId: String,
         url: String? = null
-    ) {
-        Sentry.captureException(exception) { scope ->
+    ): String? {
+        return Sentry.captureException(exception) { scope ->
             val nowEpochMs = System.currentTimeMillis()
             ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
                 scope.setTag(key, value)
