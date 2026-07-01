@@ -16,6 +16,7 @@ jobs:
       github.actor != 'claude[bot]' &&
       github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
       pull-requests: write
