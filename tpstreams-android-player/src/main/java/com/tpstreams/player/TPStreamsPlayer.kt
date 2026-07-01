@@ -602,7 +602,7 @@ private constructor(
                     val group = trackGroups.get(groupIndex)
                     for (trackIndex in 0 until group.length) {
                         val format = group.getFormat(trackIndex)
-                        if (format.height != Format.NO_VALUE) {
+                        if (format.height != Format.NO_VALUE && format.height <= maxAllowedResolution) {
                             resolutions.add(format.height)
                         }
                     }
@@ -694,11 +694,34 @@ private constructor(
         }
     }
 
+    private var maxAllowedResolution: Int = Int.MAX_VALUE
+    private var userPreferredResolution: Int = Int.MAX_VALUE
+
     @OptIn(UnstableApi::class)
     fun setMaxResolution(height: Int) {
-        Log.d("TPStreamsPlayer", "Setting max video height to $height")
+        Log.d("TPStreamsPlayer", "Setting hard max video height to $height")
+        maxAllowedResolution = height
+        applyResolutionConstraints()
+    }
+
+    @OptIn(UnstableApi::class)
+    internal fun setUserResolutionPreference(height: Int) {
+        Log.d("TPStreamsPlayer", "User preferred max video height set to $height")
+        userPreferredResolution = height
+        applyResolutionConstraints()
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun applyResolutionConstraints() {
+        val effectiveMax = minOf(maxAllowedResolution, userPreferredResolution)
         val parametersBuilder = trackSelector.buildUponParameters()
-            .setMaxVideoSize(Int.MAX_VALUE, height) // Unlimited width, constrained height
+        
+        if (effectiveMax == Int.MAX_VALUE) {
+            parametersBuilder.clearVideoSizeConstraints()
+        } else {
+            parametersBuilder.setMaxVideoSize(Int.MAX_VALUE, effectiveMax) // Unlimited width, constrained height
+        }
+        
         trackSelector.parameters = parametersBuilder.build()
     }
 

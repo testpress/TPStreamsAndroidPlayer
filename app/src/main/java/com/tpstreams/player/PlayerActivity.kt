@@ -24,6 +24,7 @@ class PlayerActivity : AppCompatActivity() {
         val isTestpress = intent.getBooleanExtra(MainActivity.EXTRA_IS_TESTPRESS, false)
 
         viewModel.initPlayer(assetId, accessToken, isTestpress)
+        viewModel.player?.setMaxResolution(1080)
         binding.playerView.player = viewModel.player
     }
 }

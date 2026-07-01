@@ -56,12 +56,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     fun onAutoQualitySelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
     
-        // Let the trackSelector handle it automatically (no constraints)
-        val player = view.getPlayer()
-        val params = player?.getTrackSelector()?.buildUponParameters()
-            ?.clearVideoSizeConstraints()
-            ?.build()
-        if (params != null) player.getTrackSelector().parameters = params
+        view.getPlayer()?.setUserResolutionPreference(Int.MAX_VALUE)
     }
     
     fun onHigherQualitySelected() {
@@ -70,7 +65,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         // Get the highest available resolution
         val highestResolution = availableResolutions.firstOrNull()?.dropLast(1)?.toIntOrNull()
         if (highestResolution != null) {
-            view.getPlayer()?.setMaxResolution(highestResolution)
+            view.getPlayer()?.setUserResolutionPreference(highestResolution)
         } else {
             onAutoQualitySelected()
         }
@@ -82,7 +77,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         // Get the lowest available resolution
         val lowestResolution = availableResolutions.lastOrNull()?.dropLast(1)?.toIntOrNull()
         if (lowestResolution != null) {
-            view.getPlayer()?.setMaxResolution(lowestResolution)
+            view.getPlayer()?.setUserResolutionPreference(lowestResolution)
         } else {
             onAutoQualitySelected()
         }
@@ -108,7 +103,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     
         val height = resolution.dropLast(1).toIntOrNull()
         if (height != null) {
-            view.getPlayer()?.setMaxResolution(height)
+            view.getPlayer()?.setUserResolutionPreference(height)
         }
     }
     
