@@ -70,7 +70,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         // Get the highest available resolution
         val highestResolution = availableResolutions.firstOrNull()?.dropLast(1)?.toIntOrNull()
         if (highestResolution != null) {
-            view.getPlayer()?.setVideoResolution(highestResolution)
+            view.getPlayer()?.setMaxResolution(highestResolution)
         } else {
             onAutoQualitySelected()
         }
@@ -82,7 +82,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         // Get the lowest available resolution
         val lowestResolution = availableResolutions.lastOrNull()?.dropLast(1)?.toIntOrNull()
         if (lowestResolution != null) {
-            view.getPlayer()?.setVideoResolution(lowestResolution)
+            view.getPlayer()?.setMaxResolution(lowestResolution)
         } else {
             onAutoQualitySelected()
         }
@@ -108,7 +108,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     
         val height = resolution.dropLast(1).toIntOrNull()
         if (height != null) {
-            view.getPlayer()?.setVideoResolution(height)
+            view.getPlayer()?.setMaxResolution(height)
         }
     }
     

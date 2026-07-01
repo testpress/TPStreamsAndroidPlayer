@@ -695,7 +695,7 @@ private constructor(
     }
 
     @OptIn(UnstableApi::class)
-    fun setVideoResolution(height: Int) {
+    fun setMaxResolution(height: Int) {
         Log.d("TPStreamsPlayer", "Setting max video height to $height")
         val parametersBuilder = trackSelector.buildUponParameters()
             .setMaxVideoSize(Int.MAX_VALUE, height) // Unlimited width, constrained height
