@@ -20,6 +20,13 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         val availableHeights = tpsPlayer.getAvailableVideoResolutions()
         val resolutionStrings = availableHeights.map { "${it}p" }
         setAvailableResolutions(resolutionStrings)
+
+        // If the user's selected resolution is no longer available
+        // (e.g., maxAllowedResolution was lowered via setMaxResolution),
+        // fall back to Auto so the UI doesn't show a stale label.
+        if (currentQuality.contains("p") && !resolutionStrings.contains(currentQuality)) {
+            setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
+        }
     }
     
     fun setAvailableResolutions(resolutions: List<String>) {

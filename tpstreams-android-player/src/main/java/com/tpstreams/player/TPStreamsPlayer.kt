@@ -626,7 +626,7 @@ private constructor(
                     val group = trackGroups.get(groupIndex)
                     for (trackIndex in 0 until group.length) {
                         val format = group.getFormat(trackIndex)
-                        if (format.height != Format.NO_VALUE && format.bitrate != Format.NO_VALUE) {
+                        if (format.height != Format.NO_VALUE && format.bitrate != Format.NO_VALUE && format.height <= maxAllowedResolution) {
                             // Store the resolution and its corresponding bitrate
                             resolutionBitrateMap[format.height] = format.bitrate
                         }
