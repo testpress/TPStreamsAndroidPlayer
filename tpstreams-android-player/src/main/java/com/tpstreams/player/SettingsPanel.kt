@@ -63,12 +63,13 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
 
     fun onAutoQualitySelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
-    
+        pendingResolutionHeight = null
         view.getPlayer()?.setUserResolutionPreference(Int.MAX_VALUE)
     }
     
     fun onHigherQualitySelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_HIGHER)
+        pendingResolutionHeight = null
         
         // Get the highest available resolution
         val highestResolution = availableResolutions.firstOrNull()?.dropLast(1)?.toIntOrNull()
@@ -81,6 +82,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     
     fun onDataSaverSelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_DATA_SAVER)
+        pendingResolutionHeight = null
         
         // Get the lowest available resolution
         val lowestResolution = availableResolutions.lastOrNull()?.dropLast(1)?.toIntOrNull()
@@ -107,7 +109,6 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     }
 
     fun setPreferredResolutionHeight(height: Int) {
-        require(height > 0) { "Resolution height must be positive: $height" }
         setCurrentQuality("${height}p")
         pendingResolutionHeight = height
         view.getPlayer()?.setUserResolutionPreference(height)
