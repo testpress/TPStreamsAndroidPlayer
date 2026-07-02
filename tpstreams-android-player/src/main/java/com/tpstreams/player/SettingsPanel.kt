@@ -24,7 +24,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         // If the user's selected resolution is no longer available
         // (e.g., maxAllowedResolution was lowered via setMaxResolution),
         // fall back to Auto so the UI doesn't show a stale label.
-        if (currentQuality.contains("p") && !resolutionStrings.contains(currentQuality)) {
+        if (currentQuality.matches(Regex("\\d+p")) && !resolutionStrings.contains(currentQuality)) {
             setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
         }
     }
