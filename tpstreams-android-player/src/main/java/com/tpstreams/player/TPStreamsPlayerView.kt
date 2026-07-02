@@ -517,6 +517,14 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     // Implementation of AdvancedResolutionBottomSheet.ResolutionSelectionListener
     override fun onResolutionSelected(resolution: String) = settingsPanel.onResolutionSelected(resolution)
 
+    /**
+     * Sets the desired video resolution for playback and updates the settings UI.
+     * This is a user preference — the actual resolution may be capped by [TPStreamsPlayer.setMaxResolution].
+     */
+    fun setVideoResolution(height: Int) {
+        settingsPanel.onResolutionSelected("${height}p")
+    }
+
     // Implementation of PlaybackSpeedBottomSheet.PlaybackSpeedListener
     override fun onSpeedSelected(speed: Float) = settingsPanel.onSpeedSelected(speed)
 
