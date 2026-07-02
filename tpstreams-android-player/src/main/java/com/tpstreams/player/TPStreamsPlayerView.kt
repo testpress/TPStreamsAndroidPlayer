@@ -370,6 +370,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         previousPlayer?.removeListener(playbackStateListener)
         
         super.setPlayer(player)
+
+        // Apply any resolution preference that was set before the player was attached
+        settingsPanel.applyResolutionPreference()
         
         if (player is TPStreamsPlayer) {
             val message = "[${player.playbackSessionId}] Surface ATTACH"
@@ -516,6 +519,15 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     // Implementation of AdvancedResolutionBottomSheet.ResolutionSelectionListener
     override fun onResolutionSelected(resolution: String) = settingsPanel.onResolutionSelected(resolution)
+
+    /**
+     * Sets the desired video resolution for playback and updates the settings UI.
+     * This is a user preference — the actual resolution may be capped by [TPStreamsPlayer.setMaxResolution].
+     */
+    fun setVideoResolution(height: Int) {
+        require(height > 0) { "Resolution height must be positive: $height" }
+        settingsPanel.setPreferredResolutionHeight(height)
+    }
 
     // Implementation of PlaybackSpeedBottomSheet.PlaybackSpeedListener
     override fun onSpeedSelected(speed: Float) = settingsPanel.onSpeedSelected(speed)

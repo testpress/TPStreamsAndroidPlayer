@@ -25,6 +25,7 @@ class PlayerActivity : AppCompatActivity() {
 
         viewModel.initPlayer(assetId, accessToken, isTestpress)
         viewModel.player?.setMaxResolution(1080)
+        binding.playerView.setVideoResolution(720)
         binding.playerView.player = viewModel.player
     }
 }

@@ -7,6 +7,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
     private var availableResolutions: List<String> = emptyList()
     private var currentPlaybackSpeed: Float = 1.0f
+    private var preferredResolutionHeight: Int? = null
 
     fun showSettings() {
         val activity = view.getActivity()
@@ -26,6 +27,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         // fall back to Auto so the UI doesn't show a stale label.
         if (currentQuality.matches(Regex("\\d+p")) && !resolutionStrings.contains(currentQuality)) {
             setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
+            preferredResolutionHeight = null
         }
     }
     
@@ -62,12 +64,13 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
 
     fun onAutoQualitySelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
-    
+        preferredResolutionHeight = null
         view.getPlayer()?.setUserResolutionPreference(Int.MAX_VALUE)
     }
     
     fun onHigherQualitySelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_HIGHER)
+        preferredResolutionHeight = null
         
         // Get the highest available resolution
         val highestResolution = availableResolutions.firstOrNull()?.dropLast(1)?.toIntOrNull()
@@ -80,6 +83,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     
     fun onDataSaverSelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_DATA_SAVER)
+        preferredResolutionHeight = null
         
         // Get the lowest available resolution
         val lowestResolution = availableResolutions.lastOrNull()?.dropLast(1)?.toIntOrNull()
@@ -105,11 +109,19 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         view.playbackSpeedBottomSheet.show(activity.supportFragmentManager)
     }
 
+    fun setPreferredResolutionHeight(height: Int) {
+        setCurrentQuality("${height}p")
+        preferredResolutionHeight = height
+        view.getPlayer()?.setUserResolutionPreference(height)
+    }
+
     fun onResolutionSelected(resolution: String) {
-        setCurrentQuality(resolution)
-    
-        val height = resolution.dropLast(1).toIntOrNull()
-        if (height != null) {
+        val height = resolution.removeSuffix("p").toIntOrNull() ?: return
+        setPreferredResolutionHeight(height)
+    }
+
+    fun applyResolutionPreference() {
+        preferredResolutionHeight?.let { height ->
             view.getPlayer()?.setUserResolutionPreference(height)
         }
     }
