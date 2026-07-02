@@ -20,6 +20,13 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         val availableHeights = tpsPlayer.getAvailableVideoResolutions()
         val resolutionStrings = availableHeights.map { "${it}p" }
         setAvailableResolutions(resolutionStrings)
+
+        // If the user's selected resolution is no longer available
+        // (e.g., maxAllowedResolution was lowered via setMaxResolution),
+        // fall back to Auto so the UI doesn't show a stale label.
+        if (currentQuality.matches(Regex("\\d+p")) && !resolutionStrings.contains(currentQuality)) {
+            setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
+        }
     }
     
     fun setAvailableResolutions(resolutions: List<String>) {
@@ -56,12 +63,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     fun onAutoQualitySelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
     
-        // Let the trackSelector handle it automatically (no constraints)
-        val player = view.getPlayer()
-        val params = player?.getTrackSelector()?.buildUponParameters()
-            ?.clearVideoSizeConstraints()
-            ?.build()
-        if (params != null) player.getTrackSelector().parameters = params
+        view.getPlayer()?.setUserResolutionPreference(Int.MAX_VALUE)
     }
     
     fun onHigherQualitySelected() {
@@ -70,7 +72,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         // Get the highest available resolution
         val highestResolution = availableResolutions.firstOrNull()?.dropLast(1)?.toIntOrNull()
         if (highestResolution != null) {
-            view.getPlayer()?.setVideoResolution(highestResolution)
+            view.getPlayer()?.setUserResolutionPreference(highestResolution)
         } else {
             onAutoQualitySelected()
         }
@@ -82,7 +84,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         // Get the lowest available resolution
         val lowestResolution = availableResolutions.lastOrNull()?.dropLast(1)?.toIntOrNull()
         if (lowestResolution != null) {
-            view.getPlayer()?.setVideoResolution(lowestResolution)
+            view.getPlayer()?.setUserResolutionPreference(lowestResolution)
         } else {
             onAutoQualitySelected()
         }
@@ -108,7 +110,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     
         val height = resolution.dropLast(1).toIntOrNull()
         if (height != null) {
-            view.getPlayer()?.setVideoResolution(height)
+            view.getPlayer()?.setUserResolutionPreference(height)
         }
     }
     
