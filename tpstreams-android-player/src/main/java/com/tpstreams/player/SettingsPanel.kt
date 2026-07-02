@@ -7,6 +7,7 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
     private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
     private var availableResolutions: List<String> = emptyList()
     private var currentPlaybackSpeed: Float = 1.0f
+    private var pendingResolutionHeight: Int? = null
 
     fun showSettings() {
         val activity = view.getActivity()
@@ -105,12 +106,25 @@ class SettingsPanel(private val view: TPStreamsPlayerView) {
         view.playbackSpeedBottomSheet.show(activity.supportFragmentManager)
     }
 
+    fun setPreferredResolutionHeight(height: Int) {
+        require(height > 0) { "Resolution height must be positive: $height" }
+        setCurrentQuality("${height}p")
+        pendingResolutionHeight = height
+        view.getPlayer()?.setUserResolutionPreference(height)
+    }
+
     fun onResolutionSelected(resolution: String) {
-        setCurrentQuality(resolution)
-    
-        val height = resolution.dropLast(1).toIntOrNull()
-        if (height != null) {
-            view.getPlayer()?.setUserResolutionPreference(height)
+        val height = resolution.removeSuffix("p").toIntOrNull() ?: return
+        setPreferredResolutionHeight(height)
+    }
+
+    fun applyPendingResolutionPreference() {
+        pendingResolutionHeight?.let { height ->
+            val player = view.getPlayer()
+            if (player != null) {
+                player.setUserResolutionPreference(height)
+                pendingResolutionHeight = null
+            }
         }
     }
     
