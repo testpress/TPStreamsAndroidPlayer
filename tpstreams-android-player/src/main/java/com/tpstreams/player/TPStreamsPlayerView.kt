@@ -372,7 +372,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         super.setPlayer(player)
 
         // Apply any resolution preference that was set before the player was attached
-        settingsPanel.applyPendingResolutionPreference()
+        settingsPanel.applyResolutionPreference()
         
         if (player is TPStreamsPlayer) {
             val message = "[${player.playbackSessionId}] Surface ATTACH"
