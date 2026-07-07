@@ -1,6 +1,7 @@
 package com.tpstreams.player.util
 
 import androidx.media3.common.PlaybackException
+import com.tpstreams.player.BuildConfig
 import io.sentry.Sentry
 
 internal object SentryLogger {
@@ -24,6 +25,7 @@ internal object SentryLogger {
                 scope.setTag(key, value)
             }
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
+            scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
             drmLicenseUrl?.takeIf { it.isNotEmpty() }?.let { scope.setTag("drmLicenseUrl", it) }
@@ -57,6 +59,7 @@ internal object SentryLogger {
                 scope.setTag(key, value)
             }
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
+            scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
             responseCode?.let { scope.setTag("responseCode", it.toString()) }

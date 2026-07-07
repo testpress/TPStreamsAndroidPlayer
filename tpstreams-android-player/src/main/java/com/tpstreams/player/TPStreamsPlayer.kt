@@ -58,6 +58,8 @@ import io.sentry.Breadcrumb
 import io.sentry.Sentry
 import io.sentry.SentryLevel
 
+import com.tpstreams.player.BuildConfig
+
 
 
 
@@ -375,7 +377,9 @@ private constructor(
                             networkDiagnosticsManager.handleError(error, cdnHostname = cdnHostname)
                         }
                     } else {
-                        Sentry.captureMessage("Non-network error from asset fetch: $error", SentryLevel.WARNING)
+                        Sentry.captureMessage("Non-network error from asset fetch: $error", SentryLevel.WARNING) { scope ->
+                            scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
+                        }
                         Sentry.addBreadcrumb(Breadcrumb().apply {
                             setMessage("Non-network error from asset fetch")
                             setData("error_type", error.name)
