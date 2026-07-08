@@ -58,8 +58,6 @@ import io.sentry.Breadcrumb
 import io.sentry.Sentry
 import io.sentry.SentryLevel
 
-import com.tpstreams.player.BuildConfig
-
 
 
 
