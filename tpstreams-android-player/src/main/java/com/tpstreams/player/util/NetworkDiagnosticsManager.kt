@@ -3,6 +3,7 @@ package com.tpstreams.player.util
 import android.util.Log
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
+import com.tpstreams.player.BuildConfig
 import com.tpstreams.player.constants.NetworkDiagnostics
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.util.network.NetworkRecoveryHandler
@@ -205,6 +206,7 @@ internal class NetworkDiagnosticsManager(
             SentryLogger.logPlaybackException(exoError, assetId, playerId)
         } else {
             Sentry.captureMessage("Network error: $rootCause", SentryLevel.WARNING) { scope ->
+                scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
                 scope.setTag("playerId", playerId)
                 scope.setTag("assetId", assetId)
                 scope.setTag("rootCause", rootCause)
