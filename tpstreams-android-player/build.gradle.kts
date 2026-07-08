@@ -3,6 +3,9 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+group = "com.github.testpress"
+version = "1.2.0"
+
 android {
     namespace = "com.tpstreams.player"
     compileSdk = 35
@@ -57,8 +60,6 @@ dependencies {
 
 }
 apply(from = rootProject.file("gradle/gradle-mvn-build-packages.gradle"))
-group = "com.github.testpress"
-version = "1.2.0"
 
 afterEvaluate {
     tasks.findByName("publishReleasePublicationToMavenLocal")?.let { publishTask ->
