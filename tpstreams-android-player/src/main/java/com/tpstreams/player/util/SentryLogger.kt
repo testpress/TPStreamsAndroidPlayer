@@ -104,6 +104,8 @@ internal object SentryLogger {
             ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
                 scope.setTag(key, value)
             }
+            scope.setTag("errorCode", error.errorCode.toString())
+            scope.setTag("errorCodeName", error.errorCodeName)
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
