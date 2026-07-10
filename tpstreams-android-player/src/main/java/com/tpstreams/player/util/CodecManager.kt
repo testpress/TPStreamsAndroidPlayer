@@ -6,6 +6,14 @@ import androidx.media3.common.util.Log
 import androidx.media3.common.util.UnstableApi
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * Process-wide codec tracking.
+ *
+ * Only [activeDecoderCount] and the helper methods [getMaxSupportedInstances]
+ * / [logCodecStatus] are process-level concerns. Decoder names, hardware
+ * flags, and MIME types are now stored **per player instance** inside
+ * [com.tpstreams.player.TPStreamsPlayer] — see [PlayerDecoderState].
+ */
 @OptIn(UnstableApi::class)
 object CodecManager {
     private const val TAG = "CodecManager"
@@ -40,7 +48,7 @@ object CodecManager {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) {
             return -1
         }
-        
+
         return try {
             val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
             val info = codecList.codecInfos.find { it.name == codecName }
@@ -50,7 +58,7 @@ object CodecManager {
             -1
         }
     }
-    
+
     /**
      * Logs the current codec status.
      */
@@ -58,9 +66,9 @@ object CodecManager {
         val max = getMaxSupportedInstances(codecName, mimeType)
         val active = getActiveDecoderCount()
         val capacityStr = if (max > 0) max.toString() else "Unknown"
-        
+
         Log.d(TAG, "Codec Capacity Status - Codec: $codecName | Total Hardware Limit: $capacityStr | TPStreams Active: $active")
-        
+
         // Also add to play history for Sentry
         PlaybackHistoryManager.recordLog("CODEC_STATUS: $codecName, Limit: $capacityStr, Active: $active")
     }

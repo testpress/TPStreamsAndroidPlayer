@@ -1,15 +1,15 @@
 package com.tpstreams.player.util
 
+import android.content.Context
 import android.util.Log
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
-import com.tpstreams.player.BuildConfig
 import com.tpstreams.player.constants.NetworkDiagnostics
 import com.tpstreams.player.constants.PlaybackError
+import com.tpstreams.player.data.PlayerDecoderState
 import com.tpstreams.player.util.network.NetworkRecoveryHandler
 import io.sentry.Breadcrumb
 import io.sentry.Sentry
-import io.sentry.SentryLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -20,12 +20,15 @@ internal class NetworkDiagnosticsManager(
     private val playerScope: CoroutineScope,
     private val assetId: String,
     private val exoPlayer: Player,
+    context: Context? = null,
     private val networkRecoveryHandler: NetworkRecoveryHandler,
     private val listener: (PlaybackError, String, NetworkDiagnostics) -> Unit,
     private val retryPlayback: () -> Unit,
     private val onDiagnosticsStarted: (() -> Unit)? = null,
     private val diagnosticHost: String = DIAGNOSTIC_HOST_DEFAULT
 ) {
+    // Application context to avoid Activity leaks
+    private val appContext: Context? = context?.applicationContext
     private val probeRunner = NetworkProbeRunner(diagnosticHost)
 
     private var networkErrorJob: Job? = null
@@ -84,7 +87,7 @@ internal class NetworkDiagnosticsManager(
         networkErrorJob?.cancel()
     }
 
-    fun handleError(errorType: PlaybackError, exoError: PlaybackException? = null, cdnHostname: String? = null) {
+    fun handleError(errorType: PlaybackError, exoError: PlaybackException? = null, cdnHostname: String? = null, decoderState: PlayerDecoderState? = null) {
         networkErrorJob?.cancel()
         val attempt = ++probeGeneration
         hasPendingError = true
@@ -123,7 +126,7 @@ internal class NetworkDiagnosticsManager(
             val playerId = SentryLogger.generatePlayerIdString()
 
             addSentryBreadcrumb(rootCause, displayAttempt, canAutoRetry, diagnostics, finalError, exoPlayer, playerId)
-            val sentryEventId = sendSentryEvent(exoError, rootCause, finalError, diagnostics, playerId, canAutoRetry)
+            val sentryEventId = sendSentryEvent(exoError, rootCause, finalError, diagnostics, playerId, canAutoRetry, exoPlayer, decoderState)
             Log.e(DEBUG_TAG, "Network error: $message (sentry: ${sentryEventId ?: "null"})", exoError)
 
             val isFinal = !canAutoRetry
@@ -199,31 +202,30 @@ internal class NetworkDiagnosticsManager(
 
     private fun sendSentryEvent(
         exoError: PlaybackException?, rootCause: String, finalError: PlaybackError,
-        diagnostics: NetworkDiagnostics, playerId: String, canAutoRetry: Boolean
+        diagnostics: NetworkDiagnostics, playerId: String, canAutoRetry: Boolean,
+        player: Player? = null, decoderState: PlayerDecoderState? = null
     ): String? {
         if (canAutoRetry) return null
         return if (exoError != null) {
-            SentryLogger.logPlaybackException(exoError, assetId, playerId)
+            SentryLogger.logPlaybackException(exoError, assetId, playerId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)
         } else {
-            Sentry.captureMessage("Network error: $rootCause", SentryLevel.WARNING) { scope ->
-                scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
-                scope.setTag("playerId", playerId)
-                scope.setTag("assetId", assetId)
-                scope.setTag("rootCause", rootCause)
-                scope.setContexts("TPStreamsPlayer", mapOf<String, Any>(
-                    "Player ID" to playerId,
-                    "Asset ID" to assetId,
-                    "Root Cause" to rootCause,
-                    "Final Error" to finalError.name,
-                    "Diagnosis" to mapOf(
-                        "Internet" to diagnostics.internetReachable.toString(),
-                        "DNS" to diagnostics.dnsResolves.toString(),
-                        "Server" to diagnostics.serverReachable.toString(),
-                        "CDN" to (diagnostics.cdnReachable?.toString() ?: "skipped"),
-                        "Proxy" to diagnostics.proxyConfigured.toString()
-                    )
-                ))
-            }?.toString()
+            SentryLogger.logMessageWithEnrichment(
+                message = "Network error: $rootCause",
+                level = io.sentry.SentryLevel.WARNING,
+                context = appContext,
+                player = player,
+                tags = mapOf(
+                    "playerId" to playerId,
+                    "assetId" to assetId,
+                    "rootCause" to rootCause,
+                    "finalError" to finalError.name,
+                    "network_internet" to diagnostics.internetReachable.toString(),
+                    "network_dns" to diagnostics.dnsResolves.toString(),
+                    "network_server" to diagnostics.serverReachable.toString(),
+                    "network_cdn" to (diagnostics.cdnReachable?.toString() ?: "skipped"),
+                    "network_proxy" to diagnostics.proxyConfigured.toString()
+                )
+            )
         }
     }
 
