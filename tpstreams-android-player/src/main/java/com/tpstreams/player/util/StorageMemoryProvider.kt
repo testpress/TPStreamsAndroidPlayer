@@ -13,36 +13,18 @@ import com.tpstreams.player.data.StorageMemoryInfo
  * filesystem I/O (StatFs) and should not be called on the critical UI thread
  * on slow devices.
  *
- * Tags: available_ram_mb, total_ram_mb, available_storage_mb, low_memory
+ * Tags: low_memory
  * Context: all StorageMemoryInfo fields
  */
 internal object StorageMemoryProvider {
 
     private const val BYTES_TO_MB = 1_048_576L
 
-    /** Returns tags for Sentry events (low cardinality only). */
-    fun getTags(context: Context? = null): Map<String, String> {
-        if (context == null) return emptyMap()
-        val info = getStorageMemoryInfo(context)
-        return buildMap {
-            info.lowMemory?.let { put("low_memory", it.toString()) }
-        }
-    }
-
-    /** Returns the full storage/memory context. */
-    fun getContext(context: Context? = null): Map<String, Any> {
-        if (context == null) return emptyMap()
-        val info = getStorageMemoryInfo(context)
-        return buildMap {
-            info.availableRamMb?.let { put("available_ram_mb", it) }
-            info.totalRamMb?.let { put("total_ram_mb", it) }
-            info.availableStorageMb?.let { put("available_storage_mb", it) }
-            info.totalStorageMb?.let { put("total_storage_mb", it) }
-            info.lowMemory?.let { put("low_memory", it) }
-        }
-    }
-
-    private fun getStorageMemoryInfo(context: Context): StorageMemoryInfo {
+    /**
+     * Returns the raw storage/memory info for the given [context].
+     * Use this to avoid redundant I/O when building both tags and context.
+     */
+    internal fun getStorageMemoryInfo(context: Context): StorageMemoryInfo {
         val memInfo = getMemoryInfo(context) ?: return StorageMemoryInfo(
             availableStorageMb = getAvailableStorage(context),
             totalStorageMb = getTotalStorage(context)
@@ -70,7 +52,12 @@ internal object StorageMemoryProvider {
     private fun getAvailableStorage(context: Context): Long? = try {
         val dir = context.filesDir ?: return null
         val stat = StatFs(dir.absolutePath)
-        stat.availableBytes / BYTES_TO_MB
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            stat.availableBytes / BYTES_TO_MB
+        } else {
+            @Suppress("DEPRECATION")
+            (stat.availableBlocks.toLong() * stat.blockSize) / BYTES_TO_MB
+        }
     } catch (_: Exception) {
         null
     }
@@ -78,7 +65,12 @@ internal object StorageMemoryProvider {
     private fun getTotalStorage(context: Context): Long? = try {
         val dir = context.filesDir ?: return null
         val stat = StatFs(dir.absolutePath)
-        stat.totalBytes / BYTES_TO_MB
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            stat.totalBytes / BYTES_TO_MB
+        } else {
+            @Suppress("DEPRECATION")
+            (stat.blockCount.toLong() * stat.blockSize) / BYTES_TO_MB
+        }
     } catch (_: Exception) {
         null
     }

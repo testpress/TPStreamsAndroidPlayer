@@ -45,16 +45,34 @@ internal object SentryLogger {
             scope.setContexts("Device Info", DeviceInfoProvider.getContext(context))
         } catch (_: Exception) { /* best-effort */ }
 
-        // Storage & memory (needs context)
+        // Storage & memory (needs context) — single pass
         if (context != null) try {
-            StorageMemoryProvider.getTags(context).forEach { (key, value) -> scope.setTag(key, value) }
-            scope.setContexts("Storage & Memory", StorageMemoryProvider.getContext(context))
+            val info = StorageMemoryProvider.getStorageMemoryInfo(context)
+            info.lowMemory?.let { scope.setTag("low_memory", it.toString()) }
+            scope.setContexts("Storage & Memory", buildMap {
+                info.availableRamMb?.let { put("available_ram_mb", it) }
+                info.totalRamMb?.let { put("total_ram_mb", it) }
+                info.availableStorageMb?.let { put("available_storage_mb", it) }
+                info.totalStorageMb?.let { put("total_storage_mb", it) }
+                info.lowMemory?.let { put("low_memory", it) }
+            })
         } catch (_: Exception) { /* best-effort */ }
 
-        // Network info (needs context)
+        // Network info (needs context) — single pass
         if (context != null) try {
-            NetworkInfoProvider.getTags(context).forEach { (key, value) -> scope.setTag(key, value) }
-            scope.setContexts("Network Info", NetworkInfoProvider.getContext(context))
+            val info = NetworkInfoProvider.getNetworkInfo(context)
+            info.networkType?.let { scope.setTag("network_type", it) }
+            info.vpnActive?.let { scope.setTag("vpn_active", it.toString()) }
+            info.networkValidated?.let { scope.setTag("network_validated", it.toString()) }
+            info.operatorName?.let { scope.setTag("operator_name", it) }
+            scope.setContexts("Network Info", buildMap {
+                info.networkType?.let { put("network_type", it) }
+                info.vpnActive?.let { put("vpn_active", it) }
+                info.isRoaming?.let { put("is_roaming", it) }
+                info.networkValidated?.let { put("network_validated", it) }
+                info.activeNetworkMetered?.let { put("active_network_metered", it) }
+                info.operatorName?.let { put("operator_name", it) }
+            })
         } catch (_: Exception) { /* best-effort */ }
 
         // Player state snapshot

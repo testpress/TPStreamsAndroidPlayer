@@ -100,7 +100,12 @@ internal object DeviceInfoProvider {
             config.locales.get(0).toLanguageTag()
         } else {
             @Suppress("DEPRECATION")
-            config.locale.toLanguageTag()
+            val locale = config.locale
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                locale.toLanguageTag()
+            } else {
+                locale.toString()
+            }
         }
     }
 

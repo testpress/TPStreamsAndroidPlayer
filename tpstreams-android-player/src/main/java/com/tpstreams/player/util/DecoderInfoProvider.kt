@@ -6,6 +6,7 @@ import android.media.MediaDrm
 import android.os.Build
 import com.tpstreams.player.data.PlayerDecoderState
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Provider of decoder and DRM security-level information.
@@ -25,6 +26,9 @@ internal object DecoderInfoProvider {
 
     /** Cached Widevine security level. Collected once via MediaDrm. */
     private val widevineLevel: String? by lazy { collectWidevineLevel() }
+
+    /** Cache of isDecoderHardware results to avoid redundant MediaCodecList enumeration. */
+    private val decoderHardwareCache = ConcurrentHashMap<String, Boolean>()
 
     /** Returns tags for Sentry events using the given [decoderState]. */
     fun buildTags(decoderState: PlayerDecoderState?): Map<String, String> {
@@ -53,30 +57,33 @@ internal object DecoderInfoProvider {
         }
     }
 
-/**
- * Determines whether the given [decoderName] is hardware-accelerated.
- *
- * API 29+: uses [MediaCodecInfo.isHardwareAccelerated] (reliable).
- * API 21-28: falls back to heuristic on decoder name patterns.
- *
- * **Heuristic caveats (API 21-28):**
- * - "omx.google." is always software (Android's reference implementation)
- * - ".sw." pattern indicates software decoder on some SoC implementations
- * - "avc.decoder" is typically software (e.g., on Qualcomm/MTK low-tier)
- * - **Not exhaustive** — some hardware decoders may be misclassified and
- *   some software decoders may not match these patterns. Consider this
- *   a best-effort signal, not authoritative.
- */
+    /**
+     * Determines whether the given [decoderName] is hardware-accelerated.
+     *
+     * API 29+: uses [MediaCodecInfo.isHardwareAccelerated] (reliable).
+     * API 21-28: falls back to heuristic on decoder name patterns.
+     *
+     * Results are cached per decoder name to avoid repeated MediaCodecList enumeration.
+     *
+     * **Heuristic caveats (API 21-28):**
+     * - "omx.google." is always software (Android's reference implementation)
+     * - ".sw." pattern indicates software decoder on some SoC implementations
+     * - "avc.decoder" is typically software (e.g., on Qualcomm/MTK low-tier)
+     * - **Not exhaustive** — some hardware decoders may be misclassified and
+     *   some software decoders may not match these patterns. Consider this
+     *   a best-effort signal, not authoritative.
+     */
     fun isDecoderHardware(decoderName: String): Boolean {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // API 29+ has the reliable isHardwareAccelerated API
-                findCodecInfo(decoderName)?.isHardwareAccelerated ?: heuristicIsHardware(decoderName)
-            } else {
+        return decoderHardwareCache.getOrPut(decoderName) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    findCodecInfo(decoderName)?.isHardwareAccelerated ?: heuristicIsHardware(decoderName)
+                } else {
+                    heuristicIsHardware(decoderName)
+                }
+            } catch (_: Exception) {
                 heuristicIsHardware(decoderName)
             }
-        } catch (_: Exception) {
-            heuristicIsHardware(decoderName)
         }
     }
 
@@ -91,18 +98,17 @@ internal object DecoderInfoProvider {
 
     private fun heuristicIsHardware(decoderName: String): Boolean {
         val lower = decoderName.lowercase()
-        // Software decoders typically have these patterns
         if (lower.contains("omx.google.") || lower.contains(".sw.") || lower.contains("avc.decoder")) return false
         return true
     }
 
     private fun collectWidevineLevel(): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) return null
         return try {
             val mediaDrm = MediaDrm(WIDEVINE_UUID)
             try {
                 mediaDrm.getPropertyString("securityLevel")
             } finally {
-                // close() requires API 28+; release() works on all versions
                 if (Build.VERSION.SDK_INT >= 28) mediaDrm.close() else mediaDrm.release()
             }
         } catch (_: Exception) {

@@ -215,6 +215,19 @@ private constructor(
                 )
             }
 
+            override fun onAudioDecoderReleased(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String
+            ) {
+                CodecManager.onDecoderReleased()
+                decoderState = decoderState.copy(
+                    audioDecoderName = null,
+                    audioDecoderIsHardware = null,
+                    audioMimeType = null
+                )
+                debugLog("Audio decoder RELEASED - Codec: $decoderName")
+            }
+
             override fun onVideoDecoderReleased(
                 eventTime: AnalyticsListener.EventTime,
                 decoderName: String
@@ -226,7 +239,7 @@ private constructor(
                     videoDecoderIsHardware = null,
                     videoMimeType = null
                 )
-                debugLog("Decoder RELEASED - Codec: $decoderName")
+                debugLog("Video decoder RELEASED - Codec: $decoderName")
             }
 
             override fun onVideoInputFormatChanged(

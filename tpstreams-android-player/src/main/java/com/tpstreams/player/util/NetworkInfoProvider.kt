@@ -16,65 +16,61 @@ import com.tpstreams.player.data.NetworkInfo
  * All fields are permission-free except operatorName (requires READ_PHONE_STATE).
  * Values are collected fresh on every call.
  *
- * Tags: network_type, vpn_active, network_validated, operator_name
- * Context: all NetworkInfo fields
+ * Internal info methods should be preferred when both tags and context are needed —
+ * use [getNetworkInfo] once and build maps from the result.
  */
 internal object NetworkInfoProvider {
 
-    /** Returns tags for Sentry events. */
-    fun getTags(context: Context? = null): Map<String, String> {
-        if (context == null) return emptyMap()
-        val info = getNetworkInfo(context)
-        return buildMap {
-            info.networkType?.let { put("network_type", it) }
-            info.vpnActive?.let { put("vpn_active", it.toString()) }
-            info.networkValidated?.let { put("network_validated", it.toString()) }
-            info.operatorName?.let { put("operator_name", it) }
-        }
-    }
-
-    /** Returns the full network context. */
-    fun getContext(context: Context? = null): Map<String, Any> {
-        if (context == null) return emptyMap()
-        val info = getNetworkInfo(context)
-        return buildMap {
-            info.networkType?.let { put("network_type", it) }
-            info.vpnActive?.let { put("vpn_active", it) }
-            info.isRoaming?.let { put("is_roaming", it) }
-            info.networkValidated?.let { put("network_validated", it) }
-            info.activeNetworkMetered?.let { put("active_network_metered", it) }
-            info.operatorName?.let { put("operator_name", it) }
-        }
-    }
-
-    private fun getNetworkInfo(context: Context): NetworkInfo {
+    /**
+     * Returns the raw network info for the given [context].
+     * Use this to avoid redundant system queries when building both tags and context.
+     */
+    internal fun getNetworkInfo(context: Context): NetworkInfo {
         return try {
             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             if (connectivityManager == null) return NetworkInfo()
 
-            val activeNetwork = connectivityManager.activeNetwork
-            val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // API 23+: modern NetworkCapabilities-based API
+                val activeNetwork = connectivityManager.activeNetwork
+                val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
 
-            val networkType = capabilities?.let { classifyNetworkType(it) }
-            val vpnActive = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ?: false
-            val isRoamingRaw = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING)
-            val isRoaming = when (isRoamingRaw) {
-                null -> null   // unknown
-                true -> false  // NOT_ROAMING present → not roaming
-                false -> true  // NOT_ROAMING absent → is roaming
+                val networkType = capabilities?.let { classifyNetworkType(it) }
+                val vpnActive = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ?: false
+                val isRoamingRaw = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING)
+                val isRoaming = when (isRoamingRaw) {
+                    null -> null   // unknown
+                    true -> false  // NOT_ROAMING present → not roaming
+                    false -> true  // NOT_ROAMING absent → is roaming
+                }
+                val networkValidated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                val isMetered = connectivityManager.isActiveNetworkMetered
+                val operatorName = getOperatorName(context)
+
+                NetworkInfo(
+                    networkType = networkType,
+                    vpnActive = vpnActive,
+                    isRoaming = isRoaming,
+                    networkValidated = networkValidated,
+                    activeNetworkMetered = isMetered,
+                    operatorName = operatorName
+                )
+            } else {
+                // API 21-22: fallback using deprecated activeNetworkInfo
+                @Suppress("DEPRECATION")
+                val activeInfo = connectivityManager.activeNetworkInfo
+                val networkType = when (activeInfo?.type) {
+                    ConnectivityManager.TYPE_WIFI -> "WIFI"
+                    ConnectivityManager.TYPE_MOBILE -> "CELLULAR"
+                    ConnectivityManager.TYPE_ETHERNET -> "ETHERNET"
+                    else -> "UNKNOWN"
+                }
+                NetworkInfo(
+                    networkType = networkType,
+                    isRoaming = activeInfo?.isRoaming,
+                    operatorName = getOperatorName(context)
+                )
             }
-            val networkValidated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-            val isMetered = connectivityManager.isActiveNetworkMetered
-            val operatorName = getOperatorName(context)
-
-            NetworkInfo(
-                networkType = networkType,
-                vpnActive = vpnActive,
-                isRoaming = isRoaming,
-                networkValidated = networkValidated,
-                activeNetworkMetered = isMetered,
-                operatorName = operatorName
-            )
         } catch (_: Exception) {
             NetworkInfo()
         }
