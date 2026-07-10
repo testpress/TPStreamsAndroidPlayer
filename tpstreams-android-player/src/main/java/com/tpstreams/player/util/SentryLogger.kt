@@ -104,6 +104,8 @@ internal object SentryLogger {
             ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
                 scope.setTag(key, value)
             }
+            scope.setTag("errorCode", error.errorCode.toString())
+            error.errorCodeName?.let { scope.setTag("errorCodeName", it) }
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
@@ -113,7 +115,7 @@ internal object SentryLogger {
                 "TPStreamsPlayer",
                 mapOf(
                     "Error Code" to error.errorCode,
-                    "Error Code Name" to error.errorCodeName,
+                    "Error Code Name" to (error.errorCodeName ?: "N/A"),
                     "Asset ID" to (assetId ?: "N/A"),
                     "Player ID" to playerId,
                     "DRM License URL" to (drmLicenseUrl?.takeIf { it.isNotEmpty() } ?: "N/A")
