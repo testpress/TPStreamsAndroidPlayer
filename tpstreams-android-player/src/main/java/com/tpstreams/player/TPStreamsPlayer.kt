@@ -54,6 +54,8 @@ import androidx.media3.exoplayer.DecoderReuseEvaluation
 import com.tpstreams.player.util.PlaybackHistoryManager
 import com.tpstreams.player.util.CodecManager
 import com.tpstreams.player.util.ServerDateHeaderInterceptor
+import com.tpstreams.player.util.DecoderInfoProvider
+import com.tpstreams.player.data.PlayerDecoderState
 import io.sentry.Breadcrumb
 import io.sentry.Sentry
 import io.sentry.SentryLevel
@@ -120,10 +122,16 @@ private constructor(
     @Volatile
     private var cdnHostname: String? = null
 
+    // Per-player decoder state (not global — avoids cross-player corruption)
+    @Volatile
+    private var decoderState = PlayerDecoderState()
+    internal fun getDecoderState(): PlayerDecoderState = decoderState
+
     private val networkDiagnosticsManager = NetworkDiagnosticsManager(
         playerScope = playerScope,
         assetId = assetId,
         exoPlayer = exoPlayer,
+        context = context,
         networkRecoveryHandler = networkRecoveryHandler,
         listener = { error, message, diagnostics ->
             _listener?.onNetworkError(error, message, diagnostics)
@@ -186,7 +194,25 @@ private constructor(
                 initializationDurationMs: Long
             ) {
                 CodecManager.onDecoderInitialized()
+                val isHardware = DecoderInfoProvider.isDecoderHardware(decoderName)
+                decoderState = decoderState.copy(
+                    videoDecoderName = decoderName,
+                    videoDecoderIsHardware = isHardware
+                )
                 CodecManager.logCodecStatus(decoderName, "video/avc")
+            }
+
+            override fun onAudioDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+                initializationDurationMs: Long
+            ) {
+                val isHardware = DecoderInfoProvider.isDecoderHardware(decoderName)
+                decoderState = decoderState.copy(
+                    audioDecoderName = decoderName,
+                    audioDecoderIsHardware = isHardware
+                )
             }
 
             override fun onVideoDecoderReleased(
@@ -194,6 +220,12 @@ private constructor(
                 decoderName: String
             ) {
                 CodecManager.onDecoderReleased()
+                // Clear only video fields — audio decoder may still be active
+                decoderState = decoderState.copy(
+                    videoDecoderName = null,
+                    videoDecoderIsHardware = null,
+                    videoMimeType = null
+                )
                 debugLog("Decoder RELEASED - Codec: $decoderName")
             }
 
@@ -203,6 +235,7 @@ private constructor(
                 decoderReuseEvaluation: DecoderReuseEvaluation?
             ) {
                 debugLog("Decoder Format - ${format.sampleMimeType}, Res: ${format.width}x${format.height}, Bitrate: ${format.bitrate}")
+                decoderState = decoderState.copy(videoMimeType = format.sampleMimeType)
                 if (decoderReuseEvaluation != null) {
                     val resultLabel = when (decoderReuseEvaluation.result) {
                         DecoderReuseEvaluation.REUSE_RESULT_NO -> "NO"
@@ -228,6 +261,14 @@ private constructor(
 
             override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
                 debugLog("First Frame Rendered")
+            }
+
+            override fun onAudioInputFormatChanged(
+                eventTime: AnalyticsListener.EventTime,
+                format: Format,
+                decoderReuseEvaluation: DecoderReuseEvaluation?
+            ) {
+                decoderState = decoderState.copy(audioMimeType = format.sampleMimeType)
             }
 
             override fun onSurfaceSizeChanged(eventTime: AnalyticsListener.EventTime, width: Int, height: Int) {
@@ -298,7 +339,7 @@ private constructor(
                 }
 
                 if (isNetworkError(error)) {
-                    networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname)
+                    networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname, decoderState)
                     return
                 }
                 
@@ -306,7 +347,7 @@ private constructor(
                 // Network errors route through handleError → manager → _listener?.onNetworkError().
                 debugLog("Player ERROR - ${error.errorCodeName}")
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
-                SentryLogger.logPlaybackException(error, assetId, errorPlayerId, drmLicenseUrl)
+                SentryLogger.logPlaybackException(error, assetId, errorPlayerId, drmLicenseUrl = drmLicenseUrl, context = context, player = exoPlayer, decoderState = decoderState)
                 
                 val errorType = error.toError()
                 val errorMessage = error.getErrorMessage(errorPlayerId)
@@ -372,12 +413,17 @@ private constructor(
                     if (error == PlaybackError.NETWORK_CONNECTION_FAILED || 
                         error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
                         playerScope.launch {
-                            networkDiagnosticsManager.handleError(error, cdnHostname = cdnHostname)
+                            networkDiagnosticsManager.handleError(error, cdnHostname = cdnHostname, decoderState = decoderState)
                         }
                     } else {
-                        Sentry.captureMessage("Non-network error from asset fetch: $error", SentryLevel.WARNING) { scope ->
-                            scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
-                        }
+                        SentryLogger.logMessageWithEnrichment(
+                            message = "Non-network error from asset fetch: $error",
+                            level = SentryLevel.WARNING,
+                            context = context,
+                            player = exoPlayer,
+                            decoderState = decoderState,
+                            tags = mapOf("assetId" to assetId, "errorType" to error.name)
+                        )
                         Sentry.addBreadcrumb(Breadcrumb().apply {
                             setMessage("Non-network error from asset fetch")
                             setData("error_type", error.name)
@@ -390,7 +436,7 @@ private constructor(
                         }
                     }
                 }
-            })
+            }, context = context)
         }
     }
 
@@ -587,6 +633,8 @@ private constructor(
         networkDiagnosticsManager.onRelease()
         exoPlayer.release()
         networkRecoveryHandler.stopMonitoring()
+        // Clear decoder state — audio decoder info would otherwise persist forever
+        decoderState = PlayerDecoderState()
     }
 
     @OptIn(UnstableApi::class)
