@@ -3,6 +3,9 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+val isTestApk = project.hasProperty("isTestApk")
+val sdkVersion = providers.gradleProperty("VERSION_NAME").getOrElse("1.0")
+
 android {
     namespace = "com.tpstreams.player"
     compileSdk = 35
@@ -15,6 +18,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        manifestPlaceholders["launcherActivity"] = if (isTestApk) {
+            ".TestPlayerActivity"
+        } else {
+            ".MainActivity"
+        }
     }
 
     buildTypes {
@@ -24,6 +33,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (isTestApk) {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {
@@ -36,6 +48,23 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    if (isTestApk) {
+        android.sourceSets["main"].java.srcDirs("src/testApk/java")
+        android.sourceSets["main"].res.srcDirs("src/testApk/res")
+    }
+
+    if (isTestApk) {
+        androidComponents {
+            onVariants { variant ->
+                @Suppress("UnstableApiUsage")
+                variant.outputs.forEach { output ->
+                    (output as com.android.build.api.variant.impl.VariantOutputImpl)
+                        .outputFileName.set("${sdkVersion}.apk")
+                }
+            }
+        }
+    }
 }
 
 dependencies {
@@ -46,6 +75,7 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.media3.ui)
     implementation(project(":tpstreams-android-player"))
+    implementation(libs.sentry.android)
     implementation(libs.material)
     
     testImplementation(libs.junit)

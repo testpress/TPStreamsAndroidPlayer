@@ -1,0 +1,73 @@
+name: Build Test APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit SHA, branch, or tag (leave empty for selected branch/tag)'
+        required: false
+        default: ''
+        type: string
+      version:
+        description: 'Version override (auto-detected from tag if empty)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Resolve commit SHA
+        id: sha
+        run: echo "COMMIT_SHA=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=1.2.1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build test APK
+        run: ./gradlew assembleDebug -PisTestApk=true -PVERSION_NAME=${{ steps.version.outputs.VERSION }}
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-apk-${{ steps.version.outputs.VERSION }}
+          path: app/build/outputs/apk/debug/${{ steps.version.outputs.VERSION }}.apk
+
+      - name: Upload APK to release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          target_commitish: ${{ steps.sha.outputs.COMMIT_SHA }}
+          files: app/build/outputs/apk/debug/${{ steps.version.outputs.VERSION }}.apk
