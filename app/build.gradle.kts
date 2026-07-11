@@ -47,10 +47,13 @@ android {
     }
 
     if (isTestApk) {
-        applicationVariants.all {
-            outputs.all {
-                val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-                output.outputFileName = "${sdkVersion}.apk"
+        androidComponents {
+            onVariants { variant ->
+                @Suppress("UnstableApiUsage")
+                variant.outputs.forEach { output ->
+                    (output as com.android.build.api.variant.impl.VariantOutputImpl)
+                        .outputFileName.set("${sdkVersion}.apk")
+                }
             }
         }
     }
