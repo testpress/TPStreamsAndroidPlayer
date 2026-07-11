@@ -33,9 +33,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (isTestApk) {
-                signingConfig = signingConfigs.getByName("debug")
-            }
         }
     }
     compileOptions {

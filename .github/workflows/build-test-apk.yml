@@ -8,13 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Commit SHA, branch, or tag'
+        description: 'Commit SHA, branch, or tag (leave empty for selected branch/tag)'
         required: false
-        default: 'main'
+        default: ''
         type: string
       version:
-        description: 'Version (e.g., 1.2.1)'
+        description: 'Version override (auto-detected from tag if empty)'
         required: false
+        default: ''
         type: string
 
 permissions:
@@ -44,7 +45,7 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
             echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
-          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
             echo "VERSION=1.2.1" >> "$GITHUB_OUTPUT"
@@ -52,9 +53,6 @@ jobs:
 
       - name: Build test APK
         run: ./gradlew assembleDebug -PisTestApk=true -PVERSION_NAME=${{ steps.version.outputs.VERSION }}
-
-      - name: List generated APKs
-        run: find app/build/outputs -name "*.apk" -exec ls -la {} \;
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
@@ -67,4 +65,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
+          target_commitish: ${{ github.event.inputs.ref || github.sha }}
           files: app/build/outputs/apk/debug/${{ steps.version.outputs.VERSION }}.apk
