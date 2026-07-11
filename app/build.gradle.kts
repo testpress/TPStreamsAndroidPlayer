@@ -3,6 +3,9 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+val isTestApk = project.hasProperty("isTestApk")
+val sdkVersion = providers.gradleProperty("VERSION_NAME").getOrElse("1.0")
+
 android {
     namespace = "com.tpstreams.player"
     compileSdk = 35
@@ -15,6 +18,23 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        manifestPlaceholders["launcherActivity"] = if (isTestApk) {
+            ".TestPlayerActivity"
+        } else {
+            ".MainActivity"
+        }
+    }
+
+    signingConfigs {
+        if (isTestApk) {
+            getByName("debug") {
+                storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
@@ -24,6 +44,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (isTestApk) {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {
@@ -35,6 +58,15 @@ android {
     }
     buildFeatures {
         viewBinding = true
+    }
+
+    if (isTestApk) {
+        applicationVariants.all {
+            outputs.all {
+                val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+                output.outputFileName = "${sdkVersion}.apk"
+            }
+        }
     }
 }
 
