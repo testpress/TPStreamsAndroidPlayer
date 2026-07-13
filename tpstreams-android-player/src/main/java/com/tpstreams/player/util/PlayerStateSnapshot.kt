@@ -23,10 +23,9 @@ data class PlayerStateSnapshot(
     companion object {
         /**
          * Captures a snapshot of the given [player].
-         * Pass [exoplayer] for advanced stats (dropped frames).
          * Returns a [PlayerStateSnapshot] with all fields populated if player is non-null.
          */
-        fun capture(player: Player?, exoplayer: androidx.media3.exoplayer.ExoPlayer? = null): PlayerStateSnapshot {
+        fun capture(player: Player?): PlayerStateSnapshot {
             if (player == null) return PlayerStateSnapshot()
 
             return try {

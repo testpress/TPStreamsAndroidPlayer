@@ -453,6 +453,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                         }
                     }
                 })
+
+                // Re-apply screen security on every setPlayer(player) call.
+                // This covers fullscreen transitions where setPlayer(null) clears
+                // FLAG_SECURE and isPlaying never toggles to re-trigger onIsPlayingChanged.
+                updateScreenSecurity()
             }
         } else {
             hideErrorMessage()
