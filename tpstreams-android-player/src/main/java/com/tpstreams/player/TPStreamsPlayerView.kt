@@ -9,6 +9,7 @@ import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
+import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.media3.common.Player
@@ -64,7 +65,10 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             this@TPStreamsPlayerView.keepScreenOn = isPlaying
             lifecycleManager?.onPlaybackStateChanged(isPlaying)
-            if (isPlaying) hideErrorMessage()
+            if (isPlaying) {
+                hideErrorMessage()
+                updateScreenSecurity()
+            }
         }
         
         override fun onPlaybackStateChanged(playbackState: Int) {

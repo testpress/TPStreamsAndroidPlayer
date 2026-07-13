@@ -31,6 +31,9 @@ internal object SentryLogger {
         player: Player? = null,
         decoderState: PlayerDecoderState? = null,
         errorCategory: String? = null,
+        isDrmContent: Boolean? = null,
+        isAesContent: Boolean? = null,
+        drmLicenseUrl: String? = null,
         scope: IScope
     ) {
         // Error category — high-level classification for triage
@@ -87,6 +90,25 @@ internal object SentryLogger {
             DecoderInfoProvider.buildTags(decoderState).forEach { (key, value) -> scope.setTag(key, value) }
             scope.setContexts("Decoder Info", DecoderInfoProvider.buildContext(decoderState))
         } catch (_: Exception) { /* best-effort */ }
+
+        // DRM Info
+        try {
+            val widevineLevel = DecoderInfoProvider.getWidevineLevel()
+            val contentProtection = when {
+                isDrmContent == true -> "widevine"
+                isAesContent == true -> "aes"
+                else -> "none"
+            }
+            scope.setTag("content_protection", contentProtection)
+            scope.setContexts("DRM Info", buildMap {
+                put("drm_enabled", isDrmContent ?: false)
+                put("content_protection", contentProtection)
+                put("is_aes", isAesContent ?: false)
+                put("widevine_security_level", widevineLevel ?: "unknown")
+                put("drm_license_url", drmLicenseUrl?.takeIf { it.isNotEmpty() } ?: "N/A")
+                put("drm_multi_session", isDrmContent == true)
+            })
+        } catch (_: Exception) { /* best-effort */ }
     }
 
     fun logPlaybackException(
@@ -97,7 +119,9 @@ internal object SentryLogger {
         rootCause: String? = null,
         context: Context? = null,
         player: Player? = null,
-        decoderState: PlayerDecoderState? = null
+        decoderState: PlayerDecoderState? = null,
+        isDrmContent: Boolean? = null,
+        isAesContent: Boolean? = null
     ): String? {
         return Sentry.captureException(error) { scope ->
             val nowEpochMs = System.currentTimeMillis()
@@ -131,7 +155,7 @@ internal object SentryLogger {
                 error.errorCodeName?.contains("DECODER", ignoreCase = true) == true -> "DECODER"
                 else -> "PLAYBACK"
             }
-            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, scope = scope)
+            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, isDrmContent = isDrmContent, isAesContent = isAesContent, drmLicenseUrl = drmLicenseUrl, scope = scope)
         }?.toString()
     }
 
@@ -142,7 +166,9 @@ internal object SentryLogger {
         playerId: String,
         url: String? = null,
         context: Context? = null,
-        player: Player? = null
+        player: Player? = null,
+        isDrmContent: Boolean? = null,
+        isAesContent: Boolean? = null
     ): String? {
         return Sentry.captureException(exception) { scope ->
             val nowEpochMs = System.currentTimeMillis()
@@ -163,7 +189,7 @@ internal object SentryLogger {
                     "Request URL" to (url?.takeIf { it.isNotEmpty() } ?: "N/A")
                 )
             )
-            enrichScope(context = context, player = player, errorCategory = "API", scope = scope)
+            enrichScope(context = context, player = player, errorCategory = "API", isDrmContent = isDrmContent, isAesContent = isAesContent, scope = scope)
         }?.toString()
     }
 
@@ -173,7 +199,9 @@ internal object SentryLogger {
         context: Context? = null,
         player: Player? = null,
         decoderState: PlayerDecoderState? = null,
-        tags: Map<String, String> = emptyMap()
+        tags: Map<String, String> = emptyMap(),
+        isDrmContent: Boolean? = null,
+        isAesContent: Boolean? = null
     ): String? {
         return Sentry.captureMessage(message, level) { scope ->
             tags.forEach { (key, value) -> scope.setTag(key, value) }
@@ -182,7 +210,7 @@ internal object SentryLogger {
                 mapOf("Timeline" to PlaybackHistoryManager.getFullHistory())
             )
             val category = if (tags.containsKey("rootCause")) "NETWORK" else "UNKNOWN"
-            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, scope = scope)
+            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, isDrmContent = isDrmContent, isAesContent = isAesContent, scope = scope)
         }?.toString()
     }
 }

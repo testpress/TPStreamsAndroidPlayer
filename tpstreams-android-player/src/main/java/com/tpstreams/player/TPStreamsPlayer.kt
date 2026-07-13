@@ -108,6 +108,13 @@ private constructor(
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
     private var _isLiveStream = false
+    var isDrmContent: Boolean = false
+        private set
+    var isAesContent: Boolean = false
+        private set
+    @Volatile
+    var droppedFrameCount: Int = 0
+        private set
     
     val isLiveStream: Boolean
         get() = _isLiveStream
@@ -276,6 +283,14 @@ private constructor(
                 debugLog("First Frame Rendered")
             }
 
+            override fun onDroppedVideoFrames(
+                eventTime: AnalyticsListener.EventTime,
+                droppedFrames: Int,
+                elapsedMs: Long
+            ) {
+                droppedFrameCount += droppedFrames
+            }
+
             override fun onAudioInputFormatChanged(
                 eventTime: AnalyticsListener.EventTime,
                 format: Format,
@@ -364,7 +379,7 @@ private constructor(
                 // Network errors route through handleError → manager → _listener?.onNetworkError().
                 debugLog("Player ERROR - ${error.errorCodeName}")
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
-                SentryLogger.logPlaybackException(error, assetId, errorPlayerId, drmLicenseUrl = drmLicenseUrl, context = context, player = exoPlayer, decoderState = decoderState)
+                SentryLogger.logPlaybackException(error, assetId, errorPlayerId, drmLicenseUrl = drmLicenseUrl, context = context, player = exoPlayer, decoderState = decoderState, isDrmContent = isDrmContent, isAesContent = isAesContent)
                 
                 val errorType = error.toError()
                 val errorMessage = error.getErrorMessage(errorPlayerId)
@@ -439,7 +454,9 @@ private constructor(
                             context = context,
                             player = exoPlayer,
                             decoderState = decoderState,
-                            tags = mapOf("assetId" to assetId, "errorType" to error.name)
+                            tags = mapOf("assetId" to assetId, "errorType" to error.name),
+                            isDrmContent = isDrmContent,
+                            isAesContent = isAesContent
                         )
                         Sentry.addBreadcrumb(Breadcrumb().apply {
                             setMessage("Non-network error from asset fetch")
@@ -468,6 +485,8 @@ private constructor(
         val result = MediaItemUtils.buildMediaItem(assetInfo, assetInfo.title, orgId, assetId, accessToken)
         drmLicenseUrl = result.drmLicenseUrl
         setSubtitleMetadata(result.subtitleMetadata)
+        isDrmContent = assetInfo.enableDrm
+        isAesContent = assetInfo.isAes
 
         playerScope.launch(Dispatchers.Main) {
             _isLiveStream = assetInfo.isLiveStream
@@ -646,6 +665,7 @@ private constructor(
      * the old one is fully released.
      */
     fun releaseVideoSurface() {
+        if (released) return
         debugLog("Surface CLEAR (pre-transition)")
         exoPlayer.clearVideoSurface()
     }

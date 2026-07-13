@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Improved error reporting with additional device and network context for faster debugging
 
+### Fixed
+- Fix MediaTek secure decoder NO_MEMORY crash during fullscreen transitions by explicitly releasing video surface before player detach
+
 ## [1.2.0] - 2026-07-02
 ### Added
 - Add `setMaxResolution` API to limit maximum playback quality and automatically hide unallowed resolutions in the settings panel (#105)
