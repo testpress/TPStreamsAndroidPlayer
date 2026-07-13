@@ -494,6 +494,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        // Explicitly unbind player from surface when view is detached.
+        // During fullscreen transitions this is already null (set before moveToDecorView),
+        // so the setPlayer(null) guard makes this a no-op in that path.
+        if (!fullscreenMode.isInFullscreenMode()) {
+            setPlayer(null)
+        }
         getPlayer()?.removeListener(playbackStateListener)
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()

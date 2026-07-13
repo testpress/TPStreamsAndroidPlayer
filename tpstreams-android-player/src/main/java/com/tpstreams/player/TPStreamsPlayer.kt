@@ -285,7 +285,11 @@ private constructor(
             }
 
             override fun onSurfaceSizeChanged(eventTime: AnalyticsListener.EventTime, width: Int, height: Int) {
-                debugLog("Surface SIZE CHANGED - ${width}x${height}")
+                if (width == 0 && height == 0) {
+                    debugLog("Surface DESTROYED (0x0) — ExoPlayer will handle internally")
+                } else {
+                    debugLog("Surface SIZE CHANGED - ${width}x${height}")
+                }
             }
 
             override fun onDrmKeysLoaded(eventTime: AnalyticsListener.EventTime) {
@@ -644,6 +648,10 @@ private constructor(
         released = true
         playerScope.cancel()
         networkDiagnosticsManager.onRelease()
+        // Clear surface binding before releasing the player.
+        // Prevents codec crashes on MediaTek secure decoders (NO_MEMORY)
+        // where the codec retains a reference to a released surface.
+        exoPlayer.clearVideoSurface()
         exoPlayer.release()
         networkRecoveryHandler.stopMonitoring()
         // Clear decoder state — audio decoder info would otherwise persist forever
