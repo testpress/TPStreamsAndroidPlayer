@@ -21,6 +21,9 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     
         val player = view.getPlayer()
         view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+            // Release the codec's surface binding before detaching the player.
+            // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
+            (player as? TPStreamsPlayer)?.releaseVideoSurface()
             view.setPlayer(null)
             moveToDecorView(activity)
             if (player != null) {
@@ -80,6 +83,9 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
 
         val player = view.getPlayer()
         view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+            // Release the codec's surface binding before detaching the player.
+            // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
+            (player as? TPStreamsPlayer)?.releaseVideoSurface()
             view.setPlayer(null)
             restoreOriginalView(activity)
             if (player != null) {
