@@ -50,11 +50,6 @@ android {
     }
 
     if (isTestApk) {
-        android.sourceSets["main"].java.srcDirs("src/testApk/java")
-        android.sourceSets["main"].res.srcDirs("src/testApk/res")
-    }
-
-    if (isTestApk) {
         androidComponents {
             onVariants { variant ->
                 @Suppress("UnstableApiUsage")
@@ -65,6 +60,11 @@ android {
             }
         }
     }
+}
+
+if (isTestApk) {
+    android.sourceSets["main"].java.srcDir("src/testApk/java")
+    android.sourceSets["main"].res.srcDir("src/testApk/res")
 }
 
 dependencies {
