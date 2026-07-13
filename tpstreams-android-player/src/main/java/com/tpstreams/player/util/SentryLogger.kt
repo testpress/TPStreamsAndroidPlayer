@@ -11,6 +11,12 @@ import io.sentry.SentryLevel
 
 internal object SentryLogger {
 
+    /**
+     * Strips query parameters from a URL to avoid leaking sensitive tokens in Sentry reports.
+     */
+    private fun sanitizeUrl(url: String?): String? =
+        url?.takeIf { it.isNotEmpty() }?.substringBefore("?")?.takeIf { it.isNotEmpty() }
+
     fun generatePlayerIdString(): String {
         return (1..10)
             .map { ('a'..'z').toList() + ('0'..'9').toList() }
@@ -105,7 +111,7 @@ internal object SentryLogger {
                 put("content_protection", contentProtection)
                 put("is_aes", isAesContent ?: false)
                 put("widevine_security_level", widevineLevel ?: "unknown")
-                put("drm_license_url", drmLicenseUrl?.takeIf { it.isNotEmpty() } ?: "N/A")
+                put("drm_license_url", sanitizeUrl(drmLicenseUrl) ?: "N/A")
                 put("drm_multi_session", isDrmContent == true)
             })
         } catch (_: Exception) { /* best-effort */ }
@@ -133,7 +139,7 @@ internal object SentryLogger {
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
-            drmLicenseUrl?.takeIf { it.isNotEmpty() }?.let { scope.setTag("drmLicenseUrl", it) }
+            drmLicenseUrl?.let { scope.setTag("drmLicenseUrl", sanitizeUrl(it) ?: "N/A") }
             rootCause?.let { scope.setTag("rootCause", it) }
             scope.setContexts(
                 "TPStreamsPlayer",
@@ -142,7 +148,7 @@ internal object SentryLogger {
                     "Error Code Name" to error.errorCodeName,
                     "Asset ID" to (assetId ?: "N/A"),
                     "Player ID" to playerId,
-                    "DRM License URL" to (drmLicenseUrl?.takeIf { it.isNotEmpty() } ?: "N/A")
+                    "DRM License URL" to (sanitizeUrl(drmLicenseUrl) ?: "N/A")
                 )
             )
             scope.setContexts(

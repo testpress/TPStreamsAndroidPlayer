@@ -458,6 +458,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             hideErrorMessage()
             hideLoading()
             updateLiveStreamUI(false)
+            // Clear screen protection when no player
+            val activity = contextAccess.getActivity()
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
     }
 
@@ -474,6 +477,22 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         } else {
             durationView?.visibility = View.VISIBLE
             separatorView?.visibility = View.VISIBLE
+        }
+    }
+
+    /**
+     * Sets or clears FLAG_SECURE on the host Activity window based on DRM status.
+     * Prevents screen recording/screenshot of DRM content.
+     */
+    private fun updateScreenSecurity() {
+        val activity = contextAccess.getActivity() ?: return
+        val isDrm = getPlayer()?.isDrmContent == true
+        activity.runOnUiThread {
+            if (isDrm) {
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            } else {
+                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
         }
     }
 
