@@ -25,10 +25,7 @@ internal object DecoderInfoProvider {
     private val WIDEVINE_UUID = UUID.fromString(WIDEVINE_UUID_STRING)
 
     /** Cached Widevine security level. Collected once via MediaDrm. */
-    private val _widevineLevel: String? by lazy { collectWidevineLevel() }
-
-    /** Returns the cached Widevine security level, or null if unavailable. */
-    fun getWidevineLevel(): String? = _widevineLevel
+    private val widevineLevel: String? by lazy { collectWidevineLevel() }
 
     /** Cache of isDecoderHardware results to avoid redundant MediaCodecList enumeration. */
     private val decoderHardwareCache = ConcurrentHashMap<String, Boolean>()
@@ -36,7 +33,7 @@ internal object DecoderInfoProvider {
     /** Returns tags for Sentry events using the given [decoderState]. */
     fun buildTags(decoderState: PlayerDecoderState?): Map<String, String> {
         return buildMap {
-            _widevineLevel?.let { put("widevine_security_level", it) }
+            widevineLevel?.let { put("widevine_security_level", it) }
             val activeCount = CodecManager.getActiveDecoderCount()
             put("active_decoder_count", activeCount.toString())
             decoderState?.videoDecoderName?.let { put("video_decoder_name", it) }
@@ -56,7 +53,7 @@ internal object DecoderInfoProvider {
             decoderState?.audioMimeType?.let { put("audio_mime_type", it) }
             val activeCount = CodecManager.getActiveDecoderCount()
             put("active_decoder_count", activeCount)
-            _widevineLevel?.let { put("widevine_security_level", it) }
+            widevineLevel?.let { put("widevine_security_level", it) }
         }
     }
 

@@ -13,12 +13,7 @@ data class PlayerStateSnapshot(
     val currentPositionMs: Long? = null,
     val bufferedPositionMs: Long? = null,
     val playbackSpeed: Float? = null,
-    val volume: Float? = null,
-    val videoWidth: Int? = null,
-    val videoHeight: Int? = null,
-    val durationMs: Long? = null,
-    val mediaItemId: String? = null,
-    val droppedFrameCount: Int? = null
+    val volume: Float? = null
 ) {
     companion object {
         /**
@@ -37,21 +32,13 @@ data class PlayerStateSnapshot(
                     else -> "UNKNOWN"
                 }
 
-                val videoSize = player.videoSize
-                val tpPlayer = player as? com.tpstreams.player.TPStreamsPlayer
-
                 PlayerStateSnapshot(
                     playerState = stateName,
                     playWhenReady = player.playWhenReady,
                     currentPositionMs = if (player.currentPosition >= 0) player.currentPosition else null,
                     bufferedPositionMs = if (player.bufferedPosition >= 0) player.bufferedPosition else null,
                     playbackSpeed = player.playbackParameters.speed,
-                    volume = player.volume,
-                    videoWidth = if (videoSize.width > 0) videoSize.width else null,
-                    videoHeight = if (videoSize.height > 0) videoSize.height else null,
-                    durationMs = if (player.duration > 0 && player.duration != androidx.media3.common.C.TIME_UNSET) player.duration else null,
-                    mediaItemId = player.currentMediaItem?.mediaId,
-                    droppedFrameCount = tpPlayer?.droppedFrameCount
+                    volume = player.volume
                 )
             } catch (_: Exception) {
                 PlayerStateSnapshot()
@@ -64,7 +51,6 @@ data class PlayerStateSnapshot(
         return buildMap {
             playerState?.let { put("player_state", it) }
             playWhenReady?.let { put("play_when_ready", it.toString()) }
-            mediaItemId?.let { put("media_item_id", it) }
         }
     }
 
@@ -77,11 +63,6 @@ data class PlayerStateSnapshot(
             bufferedPositionMs?.let { put("buffered_position_ms", it) }
             playbackSpeed?.let { put("playback_speed", it) }
             volume?.let { put("volume", it) }
-            videoWidth?.let { put("video_width", it) }
-            videoHeight?.let { put("video_height", it) }
-            durationMs?.let { put("duration_ms", it) }
-            mediaItemId?.let { put("media_item_id", it) }
-            droppedFrameCount?.let { put("dropped_frame_count", it) }
         }
     }
 }

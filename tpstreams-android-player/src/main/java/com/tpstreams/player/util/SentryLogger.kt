@@ -11,12 +11,6 @@ import io.sentry.SentryLevel
 
 internal object SentryLogger {
 
-    /**
-     * Strips query parameters from a URL to avoid leaking sensitive tokens in Sentry reports.
-     */
-    private fun sanitizeUrl(url: String?): String? =
-        url?.takeIf { it.isNotEmpty() }?.substringBefore("?")?.takeIf { it.isNotEmpty() }
-
     fun generatePlayerIdString(): String {
         return (1..10)
             .map { ('a'..'z').toList() + ('0'..'9').toList() }
@@ -37,9 +31,6 @@ internal object SentryLogger {
         player: Player? = null,
         decoderState: PlayerDecoderState? = null,
         errorCategory: String? = null,
-        isDrmContent: Boolean? = null,
-        isAesContent: Boolean? = null,
-        drmLicenseUrl: String? = null,
         scope: IScope
     ) {
         // Error category — high-level classification for triage
@@ -96,25 +87,6 @@ internal object SentryLogger {
             DecoderInfoProvider.buildTags(decoderState).forEach { (key, value) -> scope.setTag(key, value) }
             scope.setContexts("Decoder Info", DecoderInfoProvider.buildContext(decoderState))
         } catch (_: Exception) { /* best-effort */ }
-
-        // DRM Info
-        try {
-            val widevineLevel = DecoderInfoProvider.getWidevineLevel()
-            val contentProtection = when {
-                isDrmContent == true -> "widevine"
-                isAesContent == true -> "aes"
-                else -> "none"
-            }
-            scope.setTag("content_protection", contentProtection)
-            scope.setContexts("DRM Info", buildMap {
-                put("drm_enabled", isDrmContent ?: false)
-                put("content_protection", contentProtection)
-                put("is_aes", isAesContent ?: false)
-                put("widevine_security_level", widevineLevel ?: "unknown")
-                put("drm_license_url", sanitizeUrl(drmLicenseUrl) ?: "N/A")
-                put("drm_multi_session", isDrmContent == true)
-            })
-        } catch (_: Exception) { /* best-effort */ }
     }
 
     fun logPlaybackException(
@@ -125,9 +97,7 @@ internal object SentryLogger {
         rootCause: String? = null,
         context: Context? = null,
         player: Player? = null,
-        decoderState: PlayerDecoderState? = null,
-        isDrmContent: Boolean? = null,
-        isAesContent: Boolean? = null
+        decoderState: PlayerDecoderState? = null
     ): String? {
         return Sentry.captureException(error) { scope ->
             val nowEpochMs = System.currentTimeMillis()
@@ -139,7 +109,7 @@ internal object SentryLogger {
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
-            drmLicenseUrl?.let { scope.setTag("drmLicenseUrl", sanitizeUrl(it) ?: "N/A") }
+            drmLicenseUrl?.takeIf { it.isNotEmpty() }?.let { scope.setTag("drmLicenseUrl", it) }
             rootCause?.let { scope.setTag("rootCause", it) }
             scope.setContexts(
                 "TPStreamsPlayer",
@@ -148,7 +118,7 @@ internal object SentryLogger {
                     "Error Code Name" to error.errorCodeName,
                     "Asset ID" to (assetId ?: "N/A"),
                     "Player ID" to playerId,
-                    "DRM License URL" to (sanitizeUrl(drmLicenseUrl) ?: "N/A")
+                    "DRM License URL" to (drmLicenseUrl?.takeIf { it.isNotEmpty() } ?: "N/A")
                 )
             )
             scope.setContexts(
@@ -161,7 +131,7 @@ internal object SentryLogger {
                 error.errorCodeName?.contains("DECODER", ignoreCase = true) == true -> "DECODER"
                 else -> "PLAYBACK"
             }
-            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, isDrmContent = isDrmContent, isAesContent = isAesContent, drmLicenseUrl = drmLicenseUrl, scope = scope)
+            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, scope = scope)
         }?.toString()
     }
 
@@ -172,9 +142,7 @@ internal object SentryLogger {
         playerId: String,
         url: String? = null,
         context: Context? = null,
-        player: Player? = null,
-        isDrmContent: Boolean? = null,
-        isAesContent: Boolean? = null
+        player: Player? = null
     ): String? {
         return Sentry.captureException(exception) { scope ->
             val nowEpochMs = System.currentTimeMillis()
@@ -195,7 +163,7 @@ internal object SentryLogger {
                     "Request URL" to (url?.takeIf { it.isNotEmpty() } ?: "N/A")
                 )
             )
-            enrichScope(context = context, player = player, errorCategory = "API", isDrmContent = isDrmContent, isAesContent = isAesContent, scope = scope)
+            enrichScope(context = context, player = player, errorCategory = "API", scope = scope)
         }?.toString()
     }
 
@@ -205,9 +173,7 @@ internal object SentryLogger {
         context: Context? = null,
         player: Player? = null,
         decoderState: PlayerDecoderState? = null,
-        tags: Map<String, String> = emptyMap(),
-        isDrmContent: Boolean? = null,
-        isAesContent: Boolean? = null
+        tags: Map<String, String> = emptyMap()
     ): String? {
         return Sentry.captureMessage(message, level) { scope ->
             tags.forEach { (key, value) -> scope.setTag(key, value) }
@@ -216,7 +182,7 @@ internal object SentryLogger {
                 mapOf("Timeline" to PlaybackHistoryManager.getFullHistory())
             )
             val category = if (tags.containsKey("rootCause")) "NETWORK" else "UNKNOWN"
-            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, isDrmContent = isDrmContent, isAesContent = isAesContent, scope = scope)
+            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, scope = scope)
         }?.toString()
     }
 }

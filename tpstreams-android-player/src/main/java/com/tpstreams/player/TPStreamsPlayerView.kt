@@ -9,7 +9,6 @@ import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
-import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.media3.common.Player
@@ -65,10 +64,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             this@TPStreamsPlayerView.keepScreenOn = isPlaying
             lifecycleManager?.onPlaybackStateChanged(isPlaying)
-            if (isPlaying) {
-                hideErrorMessage()
-                updateScreenSecurity()
-            }
+            if (isPlaying) hideErrorMessage()
         }
         
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -453,19 +449,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                         }
                     }
                 })
-
-                // Re-apply screen security on every setPlayer(player) call.
-                // This covers fullscreen transitions where setPlayer(null) clears
-                // FLAG_SECURE and isPlaying never toggles to re-trigger onIsPlayingChanged.
-                updateScreenSecurity()
             }
         } else {
             hideErrorMessage()
             hideLoading()
             updateLiveStreamUI(false)
-            // Clear screen protection when no player
-            val activity = contextAccess.getActivity()
-            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
     }
 
@@ -482,22 +470,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         } else {
             durationView?.visibility = View.VISIBLE
             separatorView?.visibility = View.VISIBLE
-        }
-    }
-
-    /**
-     * Sets or clears FLAG_SECURE on the host Activity window based on DRM status.
-     * Prevents screen recording/screenshot of DRM content.
-     */
-    private fun updateScreenSecurity() {
-        val activity = contextAccess.getActivity() ?: return
-        val isDrm = getPlayer()?.isDrmContent == true
-        activity.runOnUiThread {
-            if (isDrm) {
-                activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            } else {
-                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            }
         }
     }
 
