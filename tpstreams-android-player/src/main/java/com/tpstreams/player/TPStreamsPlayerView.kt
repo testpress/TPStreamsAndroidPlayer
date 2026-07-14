@@ -56,8 +56,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var retryLoader: View? = null
     private var retryIndicator: TextView? = null
     private var bufferingView: View? = null
-    private var hasAcquiredSecureFlag = false
     
+
     private val liveBadge: View? by lazy { findViewById(R.id.live_badge) }
     private val durationView: View? by lazy { findViewById(androidx.media3.ui.R.id.exo_duration) }
     private val separatorView: View? by lazy { findViewById(R.id.exo_time_separator) }
@@ -827,17 +827,18 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
     
+    private var secureFlagActivity: androidx.fragment.app.FragmentActivity? = null
+
     private fun applySecureFlag() {
-        if (hasAcquiredSecureFlag) return
+        if (secureFlagActivity != null) return
         val activity = getActivity() ?: return
-        hasAcquiredSecureFlag = true
+        secureFlagActivity = activity
         acquireSecureFlag(activity)
     }
 
     private fun removeSecureFlag() {
-        if (!hasAcquiredSecureFlag) return
-        val activity = getActivity() ?: return
-        hasAcquiredSecureFlag = false
+        val activity = secureFlagActivity ?: return
+        secureFlagActivity = null
         releaseSecureFlag(activity)
     }
 }
