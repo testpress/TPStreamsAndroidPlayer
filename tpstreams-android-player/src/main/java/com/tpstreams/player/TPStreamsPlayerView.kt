@@ -179,9 +179,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.addListener(playbackStateListener)
         ensureErrorOverlaySetup()
         
-        // Re-apply FLAG_SECURE if the player has DRM content — handles the fullscreen transition
-        // where the view is temporarily detached from its parent and re-attached to the decor view.
-        if ((getPlayer() as? TPStreamsPlayer)?.isDrmContent == true) {
+        // Re-apply FLAG_SECURE on re-attach — handles fullscreen transitions where the view is
+        // temporarily detached from its parent and re-parented to the decor view.
+        if (getPlayer() != null) {
             applySecureFlag()
         }
 
@@ -393,18 +393,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         registerWithLifecycle()
         
         if (player == null) {
-            // Explicitly clear FLAG_SECURE when the player is released to prevent it from
-            // leaking to unrelated screens in a Single-Activity architecture.
+            // Explicitly clear FLAG_SECURE when the player is released.
             removeSecureFlag()
         }
         if (player != null) {
-            // Apply FLAG_SECURE only for DRM-protected content to block screen recording.
-            // Non-DRM content must not be gated — it would block fullscreen for all videos.
-            if ((player as? TPStreamsPlayer)?.isDrmContent == true) {
-                applySecureFlag()
-            } else {
-                removeSecureFlag()
-            }
+            // Apply FLAG_SECURE for all playback to block screen recording and screenshots.
+            applySecureFlag()
             when (player.playbackState) {
                 Player.STATE_IDLE -> {
                     showLoading()
@@ -461,17 +455,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 if (player.startInFullscreen) {
                     fullscreenMode.enterFullscreen()
                 }
-                
-                player.addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_READY) {
-                            updateLiveStreamUI(player.isLiveStream)
-                            // Re-evaluate FLAG_SECURE now that DRM info is resolved.
-                            // drmLicenseUrl is populated during preparePlayer, before STATE_READY.
-                            if (player.isDrmContent) applySecureFlag() else removeSecureFlag()
-                        }
-                    }
-                })
             }
         } else {
             hideErrorMessage()
