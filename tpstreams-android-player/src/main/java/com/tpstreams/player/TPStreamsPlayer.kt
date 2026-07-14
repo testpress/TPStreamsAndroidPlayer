@@ -105,9 +105,14 @@ private constructor(
     private var isPrepared = false
     private var drmLicenseUrl: String? = null
 
-    /** True once the DRM license URL has been resolved, i.e. the current asset is DRM-protected. */
+    /** True when the current asset is DRM-protected.
+     *
+     * Covers two cases:
+     * - Online streaming: drmLicenseUrl is set during preparePlayer.
+     * - Offline downloads: preparePlayer is bypassed, so drmLicenseUrl is never set;
+     *   instead we detect DRM via the media item's DRM configuration. */
     val isDrmContent: Boolean
-        get() = drmLicenseUrl != null
+        get() = drmLicenseUrl != null || currentMediaItem?.localConfiguration?.drmConfiguration != null
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()

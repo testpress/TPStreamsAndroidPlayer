@@ -56,7 +56,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var retryLoader: View? = null
     private var retryIndicator: TextView? = null
     private var bufferingView: View? = null
-    private var isSecureFlagApplied = false
+    private var hasAcquiredSecureFlag = false
     
     private val liveBadge: View? by lazy { findViewById(R.id.live_badge) }
     private val durationView: View? by lazy { findViewById(androidx.media3.ui.R.id.exo_duration) }
@@ -179,6 +179,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.addListener(playbackStateListener)
         ensureErrorOverlaySetup()
         
+        // Re-apply FLAG_SECURE if the player has DRM content — handles the fullscreen transition
+        // where the view is temporarily detached from its parent and re-attached to the decor view.
+        if ((getPlayer() as? TPStreamsPlayer)?.isDrmContent == true) {
+            applySecureFlag()
+        }
+
         post {
             if (autoFullscreenOnRotateEnabled) {
                 enableAutoFullscreenOnRotate()
@@ -386,6 +392,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         lifecycleManager = player?.let { PlayerLifecycleManager(it) }
         registerWithLifecycle()
         
+        if (player == null) {
+            // Explicitly clear FLAG_SECURE when the player is released to prevent it from
+            // leaking to unrelated screens in a Single-Activity architecture.
+            removeSecureFlag()
+        }
         if (player != null) {
             // Apply FLAG_SECURE only for DRM-protected content to block screen recording.
             // Non-DRM content must not be gated — it would block fullscreen for all videos.
@@ -510,11 +521,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
         
-        // Remove FLAG_SECURE only if the Activity is finishing (permanent removal)
-        // During fullscreen transitions, the view is temporarily detached but the Activity is still alive
-        if (getActivity()?.isFinishing == true) {
-            removeSecureFlag()
-        }
+        // Always remove FLAG_SECURE on detach. In a Single-Activity architecture the Activity
+        // is rarely finishing during normal navigation, so guarding on isFinishing would leak
+        // the flag to unrelated screens. onAttachedToWindow() re-applies it when the view is
+        // re-attached for fullscreen transitions.
+        removeSecureFlag()
     }
 
     // Implementation of PlayerSettingsBottomSheet.SettingsListener
@@ -789,22 +800,59 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "TPStreamsPlayerView"
+
+        /**
+         * Tracks how many DRM-playing views are active per Activity.
+         *
+         * FLAG_SECURE is a window-level flag shared by all views in an Activity. Using a simple
+         * per-view boolean to track it causes two bugs in multi-view or Single-Activity scenarios:
+         *   1. One view's removeSecureFlag() clears the flag while another view still needs it
+         *      (security regression — DRM content becomes screenshot-capable).
+         *   2. When a DRM view is detached during navigation without the Activity finishing, the
+         *      flag stays on unrelated screens (functional regression — screenshots blocked
+         *      everywhere).
+         *
+         * Solution: ref-count acquisitions per Activity. FLAG_SECURE is set when count rises to 1
+         * and cleared only when it drops back to 0. WeakHashMap ensures finished Activities
+         * are not leaked.
+         */
+        private val drmViewCountByActivity = java.util.WeakHashMap<androidx.fragment.app.FragmentActivity, Int>()
+
+        private fun acquireSecureFlag(activity: androidx.fragment.app.FragmentActivity) {
+            val count = (drmViewCountByActivity[activity] ?: 0) + 1
+            drmViewCountByActivity[activity] = count
+            if (count == 1) {
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                Log.d(TAG, "FLAG_SECURE set (DRM view count: 1)")
+            } else {
+                Log.d(TAG, "FLAG_SECURE already set (DRM view count: $count)")
+            }
+        }
+
+        private fun releaseSecureFlag(activity: androidx.fragment.app.FragmentActivity) {
+            val count = ((drmViewCountByActivity[activity] ?: 0) - 1).coerceAtLeast(0)
+            if (count == 0) {
+                drmViewCountByActivity.remove(activity)
+                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                Log.d(TAG, "FLAG_SECURE cleared (no active DRM views)")
+            } else {
+                drmViewCountByActivity[activity] = count
+                Log.d(TAG, "FLAG_SECURE kept (DRM view count: $count)")
+            }
+        }
     }
     
     private fun applySecureFlag() {
-        if (isSecureFlagApplied) return
+        if (hasAcquiredSecureFlag) return
         val activity = getActivity() ?: return
-        activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        isSecureFlagApplied = true
-        Log.d(TAG, "Screen Capture Protection Enabled")
-        Log.d(TAG, "FLAG_SECURE = true")
+        hasAcquiredSecureFlag = true
+        acquireSecureFlag(activity)
     }
-    
+
     private fun removeSecureFlag() {
-        if (!isSecureFlagApplied) return
+        if (!hasAcquiredSecureFlag) return
         val activity = getActivity() ?: return
-        activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        isSecureFlagApplied = false
-        Log.d(TAG, "Screen Capture Protection Disabled")
+        hasAcquiredSecureFlag = false
+        releaseSecureFlag(activity)
     }
 }
