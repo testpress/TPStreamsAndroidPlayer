@@ -785,42 +785,44 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         private const val TAG = "TPStreamsPlayerView"
 
         /**
-         * Tracks how many DRM-playing views are active per Activity.
+         * Tracks how many player views are active per Activity.
          *
          * FLAG_SECURE is a window-level flag shared by all views in an Activity. Using a simple
          * per-view boolean to track it causes two bugs in multi-view or Single-Activity scenarios:
          *   1. One view's removeSecureFlag() clears the flag while another view still needs it
-         *      (security regression — DRM content becomes screenshot-capable).
-         *   2. When a DRM view is detached during navigation without the Activity finishing, the
-         *      flag stays on unrelated screens (functional regression — screenshots blocked
-         *      everywhere).
+         *      (regression — video content becomes screenshot/recording-capable).
+         *   2. When a view is detached during navigation without the Activity finishing, the
+         *      flag stays on unrelated screens (regression — screenshots blocked everywhere).
          *
          * Solution: ref-count acquisitions per Activity. FLAG_SECURE is set when count rises to 1
          * and cleared only when it drops back to 0. WeakHashMap ensures finished Activities
          * are not leaked.
+         *
+         * FLAG_SECURE is applied for all playback (DRM and non-DRM) to uniformly prevent
+         * screen recording and screenshots while a player is on screen.
          */
-        private val drmViewCountByActivity = java.util.WeakHashMap<androidx.fragment.app.FragmentActivity, Int>()
+        private val activePlayerViewCountByActivity = java.util.WeakHashMap<androidx.fragment.app.FragmentActivity, Int>()
 
         private fun acquireSecureFlag(activity: androidx.fragment.app.FragmentActivity) {
-            val count = (drmViewCountByActivity[activity] ?: 0) + 1
-            drmViewCountByActivity[activity] = count
+            val count = (activePlayerViewCountByActivity[activity] ?: 0) + 1
+            activePlayerViewCountByActivity[activity] = count
             if (count == 1) {
                 activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                Log.d(TAG, "FLAG_SECURE set (DRM view count: 1)")
+                Log.d(TAG, "FLAG_SECURE set (active player views: 1)")
             } else {
-                Log.d(TAG, "FLAG_SECURE already set (DRM view count: $count)")
+                Log.d(TAG, "FLAG_SECURE already set (active player views: $count)")
             }
         }
 
         private fun releaseSecureFlag(activity: androidx.fragment.app.FragmentActivity) {
-            val count = ((drmViewCountByActivity[activity] ?: 0) - 1).coerceAtLeast(0)
+            val count = ((activePlayerViewCountByActivity[activity] ?: 0) - 1).coerceAtLeast(0)
             if (count == 0) {
-                drmViewCountByActivity.remove(activity)
+                activePlayerViewCountByActivity.remove(activity)
                 activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                Log.d(TAG, "FLAG_SECURE cleared (no active DRM views)")
+                Log.d(TAG, "FLAG_SECURE cleared (no active player views)")
             } else {
-                drmViewCountByActivity[activity] = count
-                Log.d(TAG, "FLAG_SECURE kept (DRM view count: $count)")
+                activePlayerViewCountByActivity[activity] = count
+                Log.d(TAG, "FLAG_SECURE kept (active player views: $count)")
             }
         }
     }
