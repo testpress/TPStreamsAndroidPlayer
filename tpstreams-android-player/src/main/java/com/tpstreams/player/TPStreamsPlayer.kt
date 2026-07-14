@@ -104,6 +104,10 @@ private constructor(
 
     private var isPrepared = false
     private var drmLicenseUrl: String? = null
+
+    /** True once the DRM license URL has been resolved, i.e. the current asset is DRM-protected. */
+    val isDrmContent: Boolean
+        get() = drmLicenseUrl != null
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()

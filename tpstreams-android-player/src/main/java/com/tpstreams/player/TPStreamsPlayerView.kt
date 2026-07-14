@@ -9,6 +9,7 @@ import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
+import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.media3.common.Player
@@ -55,6 +56,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var retryLoader: View? = null
     private var retryIndicator: TextView? = null
     private var bufferingView: View? = null
+    private var isSecureFlagApplied = false
     
     private val liveBadge: View? by lazy { findViewById(R.id.live_badge) }
     private val durationView: View? by lazy { findViewById(androidx.media3.ui.R.id.exo_duration) }
@@ -385,6 +387,13 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         registerWithLifecycle()
         
         if (player != null) {
+            // Apply FLAG_SECURE only for DRM-protected content to block screen recording.
+            // Non-DRM content must not be gated — it would block fullscreen for all videos.
+            if ((player as? TPStreamsPlayer)?.isDrmContent == true) {
+                applySecureFlag()
+            } else {
+                removeSecureFlag()
+            }
             when (player.playbackState) {
                 Player.STATE_IDLE -> {
                     showLoading()
@@ -446,6 +455,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (playbackState == Player.STATE_READY) {
                             updateLiveStreamUI(player.isLiveStream)
+                            // Re-evaluate FLAG_SECURE now that DRM info is resolved.
+                            // drmLicenseUrl is populated during preparePlayer, before STATE_READY.
+                            if (player.isDrmContent) applySecureFlag() else removeSecureFlag()
                         }
                     }
                 })
@@ -497,6 +509,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.removeListener(playbackStateListener)
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
+        
+        // Remove FLAG_SECURE only if the Activity is finishing (permanent removal)
+        // During fullscreen transitions, the view is temporarily detached but the Activity is still alive
+        if (getActivity()?.isFinishing == true) {
+            removeSecureFlag()
+        }
     }
 
     // Implementation of PlayerSettingsBottomSheet.SettingsListener
@@ -771,5 +789,22 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "TPStreamsPlayerView"
+    }
+    
+    private fun applySecureFlag() {
+        if (isSecureFlagApplied) return
+        val activity = getActivity() ?: return
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        isSecureFlagApplied = true
+        Log.d(TAG, "Screen Capture Protection Enabled")
+        Log.d(TAG, "FLAG_SECURE = true")
+    }
+    
+    private fun removeSecureFlag() {
+        if (!isSecureFlagApplied) return
+        val activity = getActivity() ?: return
+        activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        isSecureFlagApplied = false
+        Log.d(TAG, "Screen Capture Protection Disabled")
     }
 }
