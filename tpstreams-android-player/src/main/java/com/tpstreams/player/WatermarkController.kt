@@ -26,14 +26,16 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     private var manualVisibility: Boolean? = null
     private var currentIsPlaying = false
     private var currentIsAdPlaying = false
+    private var hasPlaybackStarted = false
 
     private var textUpdateJob: Job? = null
     private var pingPongAnimator: ValueAnimator? = null
     private var scope: CoroutineScope? = null
+    private var applyCounter: Int = 0
 
     private fun ensureScope(): CoroutineScope {
         scope?.let { if (it.isActive) return it }
-        scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
         return scope!!
     }
 
@@ -50,6 +52,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         if (player != null) {
             currentIsPlaying = player.isPlaying
             currentIsAdPlaying = player.isPlayingAd
+            hasPlaybackStarted = player.isPlaying
         }
 
         createViews(config)
@@ -58,23 +61,29 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         // Start invisible to prevent flicker; visibility resolved after positioning
         container?.visibility = View.INVISIBLE
 
-        if (config.content is WatermarkContent.Text) {
-            startTextUpdater(config.content)
-        }
-
-        // Reposition after views are added and measured
+        // Reposition after views are added and measured.
+        // Capture a generation token so stale callbacks from a superseded apply() are discarded.
+        val applyGeneration = ++applyCounter
         container?.post {
             if (!parent.isAttachedToWindow) return@post
+            if (applyGeneration != applyCounter) return@post
             reposition()
-            config?.style?.animation?.let {
-                startAnimation(it)
-                // Snap to animation's from position before becoming visible
-                val pp = it as? WatermarkAnimation.PingPong
-                if (pp != null) {
-                    applyAnimatedPosition(pp.from.first, pp.from.second)
+
+            // Only start animation and text updater if playback has already begun.
+            // Otherwise defer until onPlayerStateChanged(isPlaying=true).
+            if (hasPlaybackStarted) {
+                this.config?.style?.animation?.let {
+                    startAnimation(it)
+                    val pp = it as? WatermarkAnimation.PingPong
+                    if (pp != null) {
+                        applyAnimatedPosition(pp.from.first, pp.from.second)
+                    }
+                }
+                if (config.content is WatermarkContent.Text) {
+                    startTextUpdater(config.content)
                 }
             }
-            // Now safe to resolve visibility — watermark is at the correct position
+
             updateVisibilityForState(currentIsPlaying, currentIsAdPlaying)
         }
     }
@@ -101,6 +110,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         dynamicXFraction = null
         dynamicYFraction = null
         manualVisibility = null
+        hasPlaybackStarted = false
     }
 
     fun updatePosition(xFraction: Float, yFraction: Float) {
@@ -116,6 +126,25 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     fun onPlayerStateChanged(isPlaying: Boolean, isAdPlaying: Boolean) {
         currentIsPlaying = isPlaying
         currentIsAdPlaying = isAdPlaying
+
+        // Start animation and text updater on first playback
+        if (isPlaying && !hasPlaybackStarted) {
+            hasPlaybackStarted = true
+            val cfg = config
+            if (cfg != null) {
+                cfg.style.animation?.let {
+                    startAnimation(it)
+                    val pp = it as? WatermarkAnimation.PingPong
+                    if (pp != null) {
+                        applyAnimatedPosition(pp.from.first, pp.from.second)
+                    }
+                }
+                if (cfg.content is WatermarkContent.Text) {
+                    startTextUpdater(cfg.content)
+                }
+            }
+        }
+
         updateVisibilityForState(isPlaying, isAdPlaying)
     }
 
@@ -136,10 +165,12 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
 
     /** Resume animations and text updates after fullscreen transition. */
     fun onViewAttached() {
-        pingPongAnimator?.resume()
-        val content = config?.content
-        if (content is WatermarkContent.Text) {
-            startTextUpdater(content)
+        if (hasPlaybackStarted) {
+            pingPongAnimator?.resume()
+            val content = config?.content
+            if (content is WatermarkContent.Text) {
+                startTextUpdater(content)
+            }
         }
         // Re-evaluate visibility and reposition for new parent dimensions
         updateVisibilityForState(currentIsPlaying, currentIsAdPlaying)
@@ -149,21 +180,22 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     // ── View Creation ────────────────────────────────────────────────────
 
     private fun createViews(config: WatermarkConfig) {
-        container = FrameLayout(parent.context).apply {
+        val c = FrameLayout(parent.context).apply {
             isClickable = false
             isFocusable = false
         }
+        container = c
 
         watermarkView = when (val content = config.content) {
             is WatermarkContent.Text -> createTextView(content)
         }
 
-        container!!.addView(watermarkView)
+        c.addView(watermarkView)
         applySize(config.style.size)
-        container!!.alpha = config.style.opacity
+        c.alpha = config.style.opacity
 
         if (config.style.elevation > 0f) {
-            container!!.elevation = dpToPx(config.style.elevation)
+            c.elevation = dpToPx(config.style.elevation)
         }
     }
 
@@ -281,20 +313,11 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         val y = (parentHeight * yFrac - viewHeight / 2f)
             .coerceIn(mt, (parentHeight - viewHeight - mb).coerceAtLeast(mt))
 
+        // Scale pivot aligned to the fractional position so corners don't drift from margins
+        c.pivotX = viewWidth * xFrac
+        c.pivotY = viewHeight * yFrac
         c.translationX = x
         c.translationY = y
-    }
-
-    private fun WatermarkGravity.toFraction(): Pair<Float, Float> = when (this) {
-        WatermarkGravity.TOP_LEFT      -> 0f to 0f
-        WatermarkGravity.TOP_CENTER    -> 0.5f to 0f
-        WatermarkGravity.TOP_RIGHT     -> 1f to 0f
-        WatermarkGravity.CENTER_LEFT   -> 0f to 0.5f
-        WatermarkGravity.CENTER        -> 0.5f to 0.5f
-        WatermarkGravity.CENTER_RIGHT  -> 1f to 0.5f
-        WatermarkGravity.BOTTOM_LEFT   -> 0f to 1f
-        WatermarkGravity.BOTTOM_CENTER -> 0.5f to 1f
-        WatermarkGravity.BOTTOM_RIGHT  -> 1f to 1f
     }
 
     // ── Visibility ───────────────────────────────────────────────────────
@@ -303,6 +326,13 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         if (manualVisibility != null) return
 
         val cfg = config ?: return
+
+        // Never show watermark before playback starts (loading state)
+        if (!hasPlaybackStarted) {
+            container?.visibility = View.GONE
+            return
+        }
+
         val visible = when {
             isAdPlaying && !cfg.style.visibleDuringAds -> false
             !isPlaying && !isAdPlaying && !cfg.style.visibleWhenPaused -> false
@@ -310,11 +340,11 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         }
         container?.visibility = if (visible) View.VISIBLE else View.GONE
 
-        if (pingPongAnimator != null) {
-            if (visible && pingPongAnimator!!.isPaused) {
-                pingPongAnimator!!.resume()
-            } else if (!visible && pingPongAnimator!!.isRunning) {
-                pingPongAnimator!!.pause()
+        pingPongAnimator?.let { animator ->
+            if (visible && animator.isPaused) {
+                animator.resume()
+            } else if (!visible && animator.isRunning) {
+                animator.pause()
             }
         }
     }
@@ -327,7 +357,11 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
             while (isActive) {
                 delay(TEXT_UPDATE_INTERVAL_MS)
                 val tv = watermarkView as? TextView ?: break
-                val newText = content.textProvider()
+                val newText = try {
+                    content.textProvider()
+                } catch (e: Exception) {
+                    tv.text.toString()
+                }
                 if (tv.text != newText) {
                     tv.text = newText
                 }

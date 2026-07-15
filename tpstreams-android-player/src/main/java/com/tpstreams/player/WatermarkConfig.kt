@@ -28,7 +28,19 @@ sealed class WatermarkPosition {
 enum class WatermarkGravity {
     TOP_LEFT, TOP_CENTER, TOP_RIGHT,
     CENTER_LEFT, CENTER, CENTER_RIGHT,
-    BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT
+    BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT;
+
+    internal fun toFraction(): Pair<Float, Float> = when (this) {
+        TOP_LEFT      -> 0f to 0f
+        TOP_CENTER    -> 0.5f to 0f
+        TOP_RIGHT     -> 1f to 0f
+        CENTER_LEFT   -> 0f to 0.5f
+        CENTER        -> 0.5f to 0.5f
+        CENTER_RIGHT  -> 1f to 0.5f
+        BOTTOM_LEFT   -> 0f to 1f
+        BOTTOM_CENTER -> 0.5f to 1f
+        BOTTOM_RIGHT  -> 1f to 1f
+    }
 }
 
 // ── Size ─────────────────────────────────────────────────────────────────
@@ -131,20 +143,17 @@ class WatermarkConfig private constructor(
         }
 
         fun textColor(color: Int): Builder {
-            ensureTextContent()
-            content = (content as WatermarkContent.Text).copy(color = color)
+            content = ensureTextContent().copy(color = color)
             return this
         }
 
         fun textSize(sizeSp: Float): Builder {
-            ensureTextContent()
-            content = (content as WatermarkContent.Text).copy(textSizeSp = sizeSp)
+            content = ensureTextContent().copy(textSizeSp = sizeSp)
             return this
         }
 
         fun textTypeface(typeface: Typeface): Builder {
-            ensureTextContent()
-            content = (content as WatermarkContent.Text).copy(typeface = typeface)
+            content = ensureTextContent().copy(typeface = typeface)
             return this
         }
 
@@ -154,17 +163,18 @@ class WatermarkConfig private constructor(
             dy: Float = 0f,
             color: Int = Color.BLACK
         ): Builder {
-            ensureTextContent()
-            content = (content as WatermarkContent.Text).copy(
+            content = ensureTextContent().copy(
                 shadowRadius = radius, shadowDx = dx, shadowDy = dy, shadowColor = color
             )
             return this
         }
 
-        private fun ensureTextContent() {
-            if (content !is WatermarkContent.Text) {
+        private fun ensureTextContent(): WatermarkContent.Text {
+            val current = content
+            if (current !is WatermarkContent.Text) {
                 throw IllegalStateException("Call text() before textColor()/textSize()/textTypeface()/textShadow().")
             }
+            return current
         }
 
         // ── Position ─────────────────────────────────────────────────────
@@ -250,18 +260,6 @@ class WatermarkConfig private constructor(
                 durationMs = durationMs
             )
             return this
-        }
-
-        private fun WatermarkGravity.toFraction(): Pair<Float, Float> = when (this) {
-            WatermarkGravity.TOP_LEFT      -> 0f to 0f
-            WatermarkGravity.TOP_CENTER    -> 0.5f to 0f
-            WatermarkGravity.TOP_RIGHT     -> 1f to 0f
-            WatermarkGravity.CENTER_LEFT   -> 0f to 0.5f
-            WatermarkGravity.CENTER        -> 0.5f to 0.5f
-            WatermarkGravity.CENTER_RIGHT  -> 1f to 0.5f
-            WatermarkGravity.BOTTOM_LEFT   -> 0f to 1f
-            WatermarkGravity.BOTTOM_CENTER -> 0.5f to 1f
-            WatermarkGravity.BOTTOM_RIGHT  -> 1f to 1f
         }
 
         // ── Build ─────────────────────────────────────────────────────────

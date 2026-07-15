@@ -808,7 +808,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      * Placed before the error overlay so that watermark renders below error/loading UI.
      */
     internal fun getWatermarkInsertIndex(): Int {
-        return errorOverlay?.let { indexOfChild(it) } ?: childCount
+        val index = errorOverlay?.let { indexOfChild(it) } ?: -1
+        return if (index >= 0) index else childCount
     }
 
     private fun notifyWatermarkPlayerState() {
