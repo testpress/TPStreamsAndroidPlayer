@@ -1,5 +1,6 @@
 package com.tpstreams.player
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
@@ -15,7 +16,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -27,5 +28,18 @@ class PlayerActivity : AppCompatActivity() {
         viewModel.player?.setMaxResolution(1080)
         binding.playerView.setVideoResolution(720)
         binding.playerView.player = viewModel.player
+
+        binding.playerView.setWatermark(
+            WatermarkConfig.Builder()
+                .text("TPstreams")
+                .textColor(Color.WHITE)
+                .textSize(20f)
+                .pingPong(
+                    fromGravity = WatermarkGravity.CENTER_LEFT,
+                    toGravity = WatermarkGravity.CENTER_RIGHT,
+                    durationMs = 4000L
+                )
+                .build()
+        )
     }
 }

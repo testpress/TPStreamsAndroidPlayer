@@ -40,6 +40,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val settingsPanel = SettingsPanel(this)
     private val captions = Captions(this)
     private val contextAccess = ContextAccess(this)
+    private var watermarkController: WatermarkController? = null
     
     private var playerControlView: TPStreamsPlayerControlView? = null
     private var orientationEventListener: OrientationListener? = null
@@ -67,6 +68,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             this@TPStreamsPlayerView.keepScreenOn = isPlaying
             lifecycleManager?.onPlaybackStateChanged(isPlaying)
             if (isPlaying) hideErrorMessage()
+            notifyWatermarkPlayerState()
         }
         
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -85,6 +87,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                     hideLoading()
                 }
             }
+            notifyWatermarkPlayerState()
         }
         
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -190,6 +193,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 enableAutoFullscreenOnRotate()
             }
             registerWithLifecycle()
+            watermarkController?.onViewAttached()
         }
     }
 
@@ -482,6 +486,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
         
+        // Reposition watermark on layout changes (fullscreen, rotation, resize)
+        watermarkController?.onParentLayout()
+        
         // Ensure error overlay is properly laid out when view is measured
         errorOverlay?.let { overlay ->
             if (overlay.visibility == View.VISIBLE && (overlay.width == 0 || overlay.height == 0)) {
@@ -503,6 +510,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.removeListener(playbackStateListener)
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
+        watermarkController?.onViewDetached()
         
         // Always remove FLAG_SECURE on detach. In a Single-Activity architecture the Activity
         // is rarely finishing during normal navigation, so guarding on isFinishing would leak
@@ -762,6 +770,53 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     private fun hideLoading() {
         bufferingView?.visibility = View.GONE
+    }
+
+    // ── Watermark ────────────────────────────────────────────────────────
+
+    fun setWatermark(config: WatermarkConfig?) {
+        if (config == null) {
+            watermarkController?.destroy()
+            watermarkController = null
+            return
+        }
+        if (watermarkController == null) {
+            watermarkController = WatermarkController(this)
+        }
+        watermarkController?.apply(config)
+    }
+
+    fun showWatermark() {
+        watermarkController?.show()
+    }
+
+    fun hideWatermark() {
+        watermarkController?.hide()
+    }
+
+    fun removeWatermark() {
+        watermarkController?.destroy()
+        watermarkController = null
+    }
+
+    fun updateWatermarkPosition(xFraction: Float, yFraction: Float) {
+        watermarkController?.updatePosition(xFraction, yFraction)
+    }
+
+    /**
+     * Returns the child index at which the watermark container should be inserted.
+     * Placed before the error overlay so that watermark renders below error/loading UI.
+     */
+    internal fun getWatermarkInsertIndex(): Int {
+        return errorOverlay?.let { indexOfChild(it) } ?: childCount
+    }
+
+    private fun notifyWatermarkPlayerState() {
+        val player = getPlayer() ?: return
+        watermarkController?.onPlayerStateChanged(
+            isPlaying = player.isPlaying,
+            isAdPlaying = player.isPlayingAd
+        )
     }
     
     private fun isDecoderError(message: String): Boolean {
