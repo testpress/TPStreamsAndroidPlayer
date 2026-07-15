@@ -104,6 +104,20 @@ private constructor(
 
     private var isPrepared = false
     private var drmLicenseUrl: String? = null
+
+    /**
+     * True when the current asset is DRM-protected.
+     *
+     * Covers two cases:
+     * - Online streaming: [drmLicenseUrl] is set during [preparePlayer].
+     * - Offline downloads: [preparePlayer] is bypassed, so [drmLicenseUrl] is never set;
+     *   instead we detect DRM via the media item's DRM configuration.
+     *
+     * Note: [TPStreamsPlayerView] applies FLAG_SECURE for all playback (DRM and non-DRM).
+     * This property is exposed for host-app use cases such as conditional UI or analytics.
+     */
+    val isDrmContent: Boolean
+        get() = drmLicenseUrl != null || currentMediaItem?.localConfiguration?.drmConfiguration != null
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()

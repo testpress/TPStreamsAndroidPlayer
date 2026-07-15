@@ -9,6 +9,7 @@ import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
+import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.media3.common.Player
@@ -56,6 +57,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var retryIndicator: TextView? = null
     private var bufferingView: View? = null
     
+
     private val liveBadge: View? by lazy { findViewById(R.id.live_badge) }
     private val durationView: View? by lazy { findViewById(androidx.media3.ui.R.id.exo_duration) }
     private val separatorView: View? by lazy { findViewById(R.id.exo_time_separator) }
@@ -177,6 +179,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.addListener(playbackStateListener)
         ensureErrorOverlaySetup()
         
+        // Re-apply FLAG_SECURE on re-attach — handles fullscreen transitions where the view is
+        // temporarily detached from its parent and re-parented to the decor view.
+        if (getPlayer() != null) {
+            applySecureFlag()
+        }
+
         post {
             if (autoFullscreenOnRotateEnabled) {
                 enableAutoFullscreenOnRotate()
@@ -384,7 +392,13 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         lifecycleManager = player?.let { PlayerLifecycleManager(it) }
         registerWithLifecycle()
         
+        if (player == null) {
+            // Explicitly clear FLAG_SECURE when the player is released.
+            removeSecureFlag()
+        }
         if (player != null) {
+            // Apply FLAG_SECURE for all playback to block screen recording and screenshots.
+            applySecureFlag()
             when (player.playbackState) {
                 Player.STATE_IDLE -> {
                     showLoading()
@@ -441,14 +455,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 if (player.startInFullscreen) {
                     fullscreenMode.enterFullscreen()
                 }
-                
-                player.addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_READY) {
-                            updateLiveStreamUI(player.isLiveStream)
-                        }
-                    }
-                })
             }
         } else {
             hideErrorMessage()
@@ -497,6 +503,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.removeListener(playbackStateListener)
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
+        
+        // Always remove FLAG_SECURE on detach. In a Single-Activity architecture the Activity
+        // is rarely finishing during normal navigation, so guarding on isFinishing would leak
+        // the flag to unrelated screens. onAttachedToWindow() re-applies it when the view is
+        // re-attached for fullscreen transitions.
+        removeSecureFlag()
     }
 
     // Implementation of PlayerSettingsBottomSheet.SettingsListener
@@ -771,5 +783,62 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "TPStreamsPlayerView"
+
+        /**
+         * Tracks how many player views are active per Activity.
+         *
+         * FLAG_SECURE is a window-level flag shared by all views in an Activity. Using a simple
+         * per-view boolean to track it causes two bugs in multi-view or Single-Activity scenarios:
+         *   1. One view's removeSecureFlag() clears the flag while another view still needs it
+         *      (regression — video content becomes screenshot/recording-capable).
+         *   2. When a view is detached during navigation without the Activity finishing, the
+         *      flag stays on unrelated screens (regression — screenshots blocked everywhere).
+         *
+         * Solution: ref-count acquisitions per Activity. FLAG_SECURE is set when count rises to 1
+         * and cleared only when it drops back to 0. WeakHashMap ensures finished Activities
+         * are not leaked.
+         *
+         * FLAG_SECURE is applied for all playback (DRM and non-DRM) to uniformly prevent
+         * screen recording and screenshots while a player is on screen.
+         */
+        private val activePlayerViewCountByActivity = java.util.WeakHashMap<androidx.fragment.app.FragmentActivity, Int>()
+
+        private fun acquireSecureFlag(activity: androidx.fragment.app.FragmentActivity) {
+            val count = (activePlayerViewCountByActivity[activity] ?: 0) + 1
+            activePlayerViewCountByActivity[activity] = count
+            if (count == 1) {
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                Log.d(TAG, "FLAG_SECURE set (active player views: 1)")
+            } else {
+                Log.d(TAG, "FLAG_SECURE already set (active player views: $count)")
+            }
+        }
+
+        private fun releaseSecureFlag(activity: androidx.fragment.app.FragmentActivity) {
+            val count = ((activePlayerViewCountByActivity[activity] ?: 0) - 1).coerceAtLeast(0)
+            if (count == 0) {
+                activePlayerViewCountByActivity.remove(activity)
+                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                Log.d(TAG, "FLAG_SECURE cleared (no active player views)")
+            } else {
+                activePlayerViewCountByActivity[activity] = count
+                Log.d(TAG, "FLAG_SECURE kept (active player views: $count)")
+            }
+        }
+    }
+    
+    private var secureFlagActivity: androidx.fragment.app.FragmentActivity? = null
+
+    private fun applySecureFlag() {
+        if (secureFlagActivity != null) return
+        val activity = getActivity() ?: return
+        secureFlagActivity = activity
+        acquireSecureFlag(activity)
+    }
+
+    private fun removeSecureFlag() {
+        val activity = secureFlagActivity ?: return
+        secureFlagActivity = null
+        releaseSecureFlag(activity)
     }
 }
