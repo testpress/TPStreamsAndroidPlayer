@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.media3.common.Player
+import com.tpstreams.player.util.FlightRecorder
 
 /**
  * Manages player lifecycle events to ensure proper playback state during
@@ -26,6 +27,7 @@ class PlayerLifecycleManager(private val player: Player?) : DefaultLifecycleObse
     fun setInTransition(inTransition: Boolean) {
         this.isInTransition = inTransition
         Log.d(tag, "Transition state changed: $inTransition")
+        FlightRecorder.logLifecycle("transition", mapOf("inTransition" to inTransition))
     }
     
     /**
@@ -68,6 +70,7 @@ class PlayerLifecycleManager(private val player: Player?) : DefaultLifecycleObse
     override fun onStart(owner: LifecycleOwner) {
         isAppInForeground = true
         Log.d(tag, "Lifecycle onStart")
+        FlightRecorder.logLifecycle("onStart")
     }
     
     override fun onStop(owner: LifecycleOwner) {
@@ -78,6 +81,7 @@ class PlayerLifecycleManager(private val player: Player?) : DefaultLifecycleObse
         
         isAppInForeground = false
         Log.d(tag, "Lifecycle onStop")
+        FlightRecorder.logLifecycle("onStop")
         // Always pause on stop (includes app switching via recents button)
         if (player != null && player.isPlaying) {
             wasPlayingBeforePause = true
@@ -94,6 +98,7 @@ class PlayerLifecycleManager(private val player: Player?) : DefaultLifecycleObse
         }
         
         Log.d(tag, "Lifecycle onPause")
+        FlightRecorder.logLifecycle("onPause")
         // Record if the player was playing before pausing
         if (player != null) {
             lastPlaybackState = player.isPlaying
@@ -121,9 +126,15 @@ class PlayerLifecycleManager(private val player: Player?) : DefaultLifecycleObse
         }
         
         Log.d(tag, "Lifecycle onResume, wasPlaying=$wasPlayingBeforePause, userPaused=$userPausedPlayback")
+        FlightRecorder.logLifecycle("onResume")
         // Only resume if it was playing before AND the user didn't manually pause
         if (wasPlayingBeforePause && !userPausedPlayback) {
             player?.play()
         }
+    }
+
+    override fun onDestroy(owner: LifecycleOwner) {
+        Log.d(tag, "Lifecycle onDestroy")
+        FlightRecorder.logLifecycle("onDestroy")
     }
 } 

@@ -51,6 +51,15 @@
                 android:padding="16dp"
                 android:text="AES" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_log_problem"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:padding="16dp"
+                android:text="Log Your Problem"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
         </LinearLayout>
     </ScrollView>
 

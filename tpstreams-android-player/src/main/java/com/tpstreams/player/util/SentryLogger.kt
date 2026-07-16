@@ -65,6 +65,14 @@ internal object SentryLogger {
             info.vpnActive?.let { scope.setTag("vpn_active", it.toString()) }
             info.networkValidated?.let { scope.setTag("network_validated", it.toString()) }
             info.operatorName?.let { scope.setTag("operator_name", it) }
+            info.simOperator?.let { scope.setTag("sim_operator", it) }
+            info.networkOperator?.let { scope.setTag("network_operator", it) }
+            info.signalStrengthDbm?.let { scope.setTag("signal_strength_dbm", it.toString()) }
+            info.signalLevel?.let { scope.setTag("signal_level", it.toString()) }
+            info.ipv4?.let { scope.setTag("ipv4", it) }
+            info.ipv6?.let { scope.setTag("ipv6", it) }
+            info.dnsServers?.let { scope.setTag("dns_servers", it) }
+            info.isCaptivePortal?.let { scope.setTag("captive_portal", it.toString()) }
             scope.setContexts("Network Info", buildMap {
                 info.networkType?.let { put("network_type", it) }
                 info.vpnActive?.let { put("vpn_active", it) }
@@ -72,6 +80,14 @@ internal object SentryLogger {
                 info.networkValidated?.let { put("network_validated", it) }
                 info.activeNetworkMetered?.let { put("active_network_metered", it) }
                 info.operatorName?.let { put("operator_name", it) }
+                info.simOperator?.let { put("sim_operator", it) }
+                info.networkOperator?.let { put("network_operator", it) }
+                info.signalStrengthDbm?.let { put("signal_strength_dbm", it) }
+                info.signalLevel?.let { put("signal_level", it) }
+                info.ipv4?.let { put("ipv4", it) }
+                info.ipv6?.let { put("ipv6", it) }
+                info.dnsServers?.let { put("dns_servers", it) }
+                info.isCaptivePortal?.let { put("captive_portal", it) }
             })
         } catch (_: Exception) { /* best-effort */ }
 
