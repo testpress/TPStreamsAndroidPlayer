@@ -11,6 +11,7 @@ import java.net.HttpURLConnection
 import java.net.ProxySelector
 import java.net.URI
 import java.net.URL
+import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLException
 
 internal class NetworkProbeRunner(
@@ -33,15 +34,18 @@ internal class NetworkProbeRunner(
         val dnsDef = async { probeDns(cdnHostname) }
         val serverDef = async { probeServer() }
         val cdnDef = async { probeCdn(cdnHostname) }
+        val tlsDef = async { probeTls() }
 
-        val (internet, internetLatency) = internetDef.await()
-        val (dns, dnsLatency) = dnsDef.await()
+        val (internet, internetLatency, internetDetail) = internetDef.await()
+        val (dns, dnsLatency, dnsDetail) = dnsDef.await()
         val (serverOk, serverDetail, serverLatency) = serverDef.await()
         val (cdnOk, cdnDetailStr, cdnLatency) = cdnDef.await()
+        val tlsVersion = tlsDef.await()
 
         NetworkDiagnostics(
             internetReachable = internet,
             internetLatencyMs = internetLatency,
+            internetDetail = internetDetail,
             serverReachable = serverOk,
             serverLatencyMs = serverLatency,
             serverDetail = serverDetail,
@@ -51,13 +55,15 @@ internal class NetworkProbeRunner(
             cdnHostname = cdnHostname,
             dnsResolves = dns,
             dnsLatencyMs = dnsLatency,
-            proxyConfigured = proxyConfigured
+            dnsDetail = dnsDetail,
+            proxyConfigured = proxyConfigured,
+            tlsVersion = tlsVersion
         )
     }
 
-    private fun probeInternet(proxyConfigured: Boolean): Pair<Boolean, Long?> {
+    private fun probeInternet(proxyConfigured: Boolean): Triple<Boolean, Long?, String?> {
         val start = System.currentTimeMillis()
-        val ok = try {
+        val (ok, detail) = try {
             val conn = (URL("https://$INTERNET_PROBE_HTTP_HOST$INTERNET_PROBE_PATH").openConnection() as HttpURLConnection).apply {
                 connectTimeout = SINGLE_PROBE_TIMEOUT_MS
                 readTimeout = SINGLE_PROBE_TIMEOUT_MS
@@ -69,30 +75,33 @@ internal class NetworkProbeRunner(
             try {
                 val code = conn.responseCode
                 logDebug("internet HTTP probe to $INTERNET_PROBE_HTTP_HOST$INTERNET_PROBE_PATH → $code")
-                code in 200..399
+                if (code in 200..399) Pair(true, null as String?) else Pair(false, "HTTP $code")
             } finally {
                 conn.disconnect()
             }
-        } catch (_: SSLException) {
+        } catch (e: SSLException) {
             if (proxyConfigured) {
                 logDebug("internet HTTP probe SSLException (intercepting proxy) — treating as reachable")
-                true
+                Pair(true, null)
             } else {
                 logDebug("internet HTTP probe SSLException without proxy — falling back to TCP probe")
-                tcpInternetProbe()
+                val (tcpOk, tcpDetail) = tcpInternetProbe()
+                Pair(tcpOk, if (tcpOk) null else "HTTPS SSL, then TCP: $tcpDetail")
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             if (!proxyConfigured) {
-                tcpInternetProbe()
+                logDebug("internet HTTP probe ${e::class.simpleName} — falling back to TCP probe")
+                val (tcpOk, tcpDetail) = tcpInternetProbe()
+                Pair(tcpOk, if (tcpOk) null else "HTTPS ${e::class.simpleName}, then TCP: $tcpDetail")
             } else {
                 logDebug("internet HTTP probe failed and proxy is configured — proxy is broken")
-                false
+                Pair(false, "intercepting proxy: ${e::class.simpleName}: ${e.message?.let { shorten(it) }}")
             }
         }
 
         val latency = if (ok) System.currentTimeMillis() - start else null
-        logDebug("internet reachable=$ok latency=${latency}ms proxy=$proxyConfigured")
-        return ok to latency
+        logDebug("internet reachable=$ok latency=${latency}ms detail=${detail} proxy=$proxyConfigured")
+        return Triple(ok, latency, detail)
     }
 
     private fun isProxyConfigured(): Boolean {
@@ -106,35 +115,38 @@ internal class NetworkProbeRunner(
         }
     }
 
-    private fun tcpInternetProbe(): Boolean {
+    private fun tcpInternetProbe(): Pair<Boolean, String?> {
         return try {
             java.net.Socket().use { socket ->
                 socket.connect(java.net.InetSocketAddress(INTERNET_PROBE_HOST_PRIMARY, INTERNET_PROBE_PORT), SINGLE_PROBE_TIMEOUT_MS)
             }
-            true
-        } catch (_: Exception) {
+            Pair(true, null)
+        } catch (e1: Exception) {
             try {
                 java.net.Socket().use { socket ->
                     socket.connect(java.net.InetSocketAddress(INTERNET_PROBE_HOST_FALLBACK, INTERNET_PROBE_PORT), SINGLE_PROBE_TIMEOUT_MS)
                 }
-                true
+                Pair(true, null)
             } catch (e2: Exception) {
                 logDebug("internet TCP fallback failed: ${e2::class.simpleName}: ${e2.message}")
-                false
+                Pair(false, "TCP primary: ${e1::class.simpleName} (${e1.message?.let { shorten(it) }}), fallback: ${e2::class.simpleName} (${e2.message?.let { shorten(it) }})")
             }
         }
     }
 
-    private fun probeDns(cdnHostname: String?): Pair<Boolean, Long?> {
+    private fun probeDns(cdnHostname: String?): Triple<Boolean, Long?, String?> {
         val start = System.currentTimeMillis()
         // Resolve the API host and, if provided, the CDN hostname.
         // Both must resolve for the DNS check to pass — this catches cases
         // where the CDN hostname doesn't resolve even when the API host does.
+        val details = mutableListOf<String>()
         val apiOk = try {
             java.net.InetAddress.getByName(diagnosticHost)
             true
         } catch (e: Exception) {
+            val msg = "API: ${e::class.simpleName} (${e.message?.let { shorten(it) }})"
             logDebug("API host DNS resolution failed: ${e::class.simpleName}: ${e.message}")
+            details.add(msg)
             false
         }
         val cdnOk = if (cdnHostname != null) {
@@ -142,14 +154,35 @@ internal class NetworkProbeRunner(
                 java.net.InetAddress.getByName(cdnHostname)
                 true
             } catch (e: Exception) {
+                val msg = "CDN: ${e::class.simpleName} (${e.message?.let { shorten(it) }})"
                 logDebug("CDN hostname DNS resolution failed: ${e::class.simpleName}: ${e.message}")
+                details.add(msg)
                 false
             }
         } else {
             true // nothing to check
         }
         val ok = apiOk && cdnOk
-        return ok to (if (ok) System.currentTimeMillis() - start else null)
+        val detail = if (ok) null else details.joinToString("; ")
+        return Triple(ok, if (ok) System.currentTimeMillis() - start else null, detail)
+    }
+
+    private fun probeTls(): String? {
+        return try {
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, null, null)
+            val socket = sslContext.socketFactory.createSocket() as javax.net.ssl.SSLSocket
+            try {
+                socket.connect(java.net.InetSocketAddress(diagnosticHost, 443), SINGLE_PROBE_TIMEOUT_MS)
+                socket.startHandshake()
+                socket.session.protocol
+            } finally {
+                try { socket.close() } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            logDebug("TLS probe failed: ${e::class.simpleName}: ${e.message}")
+            null
+        }
     }
 
     private fun probeServer(): Triple<Boolean, String?, Long?> {
@@ -222,14 +255,17 @@ internal class NetworkProbeRunner(
         return NetworkDiagnostics(
             internetReachable = false,
             internetLatencyMs = null,
+            internetDetail = "timeout",
             serverReachable = false,
             serverLatencyMs = null,
             serverDetail = "timeout",
             cdnHostname = cdnHostname,
             dnsResolves = false,
             dnsLatencyMs = null,
+            dnsDetail = "timeout",
             proxyConfigured = isProxyConfigured(),
-            cdnReachable = null
+            cdnReachable = null,
+            tlsVersion = null
         )
     }
 
@@ -238,6 +274,9 @@ internal class NetworkProbeRunner(
             Log.d(DEBUG_TAG, "NETWORK_PROBE: $message")
         }
     }
+
+    /** Truncates long exception messages for Sentry/diagnostics. */
+    private fun shorten(msg: String): String = msg.take(120)
 
     companion object {
         private const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"

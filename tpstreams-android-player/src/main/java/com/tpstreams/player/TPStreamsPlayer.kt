@@ -1,6 +1,7 @@
 package com.tpstreams.player
 
 import android.content.Context
+import android.media.AudioManager
 import android.media.MediaCodec
 import android.util.Log
 import androidx.annotation.OptIn
@@ -10,7 +11,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaItem.DrmConfiguration
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -59,6 +59,14 @@ import com.tpstreams.player.data.PlayerDecoderState
 import io.sentry.Breadcrumb
 import io.sentry.Sentry
 import io.sentry.SentryLevel
+import com.tpstreams.player.util.FlightRecorder
+import com.tpstreams.player.util.PlaybackExceptionWrapper
+import com.tpstreams.player.util.DiagnosticSender
+import com.tpstreams.player.util.LoggingMediaDrmCallback
+import androidx.media3.exoplayer.source.MediaLoadData
+import androidx.media3.exoplayer.source.LoadEventInfo
+import com.tpstreams.player.util.NetworkMonitor
+import java.io.IOException
 
 
 
@@ -87,6 +95,7 @@ private constructor(
         val fullMessage = "[$playbackSessionId] $message"
         Log.d(DEBUG_TAG, fullMessage)
         PlaybackHistoryManager.recordLog(fullMessage)
+        FlightRecorder.log("SDK", "debugLog", mapOf("message" to message))
     }
 
     interface Listener {
@@ -127,6 +136,11 @@ private constructor(
     private var decoderState = PlayerDecoderState()
     internal fun getDecoderState(): PlayerDecoderState = decoderState
 
+    // Cached position/buffered for thread-safe FlightRecorder access
+    @Volatile private var cachedPosition = 0L
+    @Volatile private var cachedBufferedPosition = 0L
+    @Volatile private var lastSeekTargetMs = 0L
+
     private val networkDiagnosticsManager = NetworkDiagnosticsManager(
         playerScope = playerScope,
         assetId = assetId,
@@ -141,6 +155,22 @@ private constructor(
             _listener?.onNetworkDiagnosticsStarted()
         }
     )
+
+    private val networkMonitor = NetworkMonitor(context)
+
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        val event = when (focusChange) {
+            AudioManager.AUDIOFOCUS_GAIN -> "GAIN"
+            AudioManager.AUDIOFOCUS_LOSS -> "LOSS"
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> "LOSS_TRANSIENT"
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> "LOSS_TRANSIENT_CAN_DUCK"
+            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT -> "GAIN_TRANSIENT"
+            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK -> "GAIN_TRANSIENT_MAY_DUCK"
+            else -> "UNKNOWN($focusChange)"
+        }
+        FlightRecorder.logAudioFocus(event, mapOf("focusChange" to focusChange))
+    }
 
     fun retry() {
         if (released) return
@@ -180,6 +210,12 @@ private constructor(
         }
 
     init {
+        FlightRecorder.positionProvider = {
+            Pair(cachedPosition, cachedBufferedPosition)
+        }
+        networkMonitor.start()
+        audioManager.requestAudioFocus(audioFocusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+        
         debugLog("Player INIT - Instance created for assetId: $assetId")
         synchronized(TPStreamsPlayer::class.java) {
             activePlayerCount++
@@ -200,6 +236,14 @@ private constructor(
                     videoDecoderIsHardware = isHardware
                 )
                 CodecManager.logCodecStatus(decoderName, "video/avc")
+                FlightRecorder.logDecoderInit(
+                    type = "video",
+                    name = decoderName,
+                    mimeType = null,
+                    isHardware = isHardware,
+                    isSecure = false,
+                    initDurationMs = initializationDurationMs
+                )
             }
 
             override fun onAudioDecoderInitialized(
@@ -212,6 +256,14 @@ private constructor(
                 decoderState = decoderState.copy(
                     audioDecoderName = decoderName,
                     audioDecoderIsHardware = isHardware
+                )
+                FlightRecorder.logDecoderInit(
+                    type = "audio",
+                    name = decoderName,
+                    mimeType = null,
+                    isHardware = isHardware,
+                    isSecure = false,
+                    initDurationMs = initializationDurationMs
                 )
             }
 
@@ -262,6 +314,8 @@ private constructor(
             }
 
             override fun onPlaybackStateChanged(eventTime: AnalyticsListener.EventTime, state: Int) {
+                cachedPosition = eventTime.currentPlaybackPositionMs
+                cachedBufferedPosition = eventTime.totalBufferedDurationMs
                 val stateName = when (state) {
                     Player.STATE_IDLE -> "IDLE"
                     Player.STATE_BUFFERING -> "BUFFERING"
@@ -270,9 +324,13 @@ private constructor(
                     else -> "UNKNOWN"
                 }
                 debugLog("Playback STATE CHANGE - $stateName")
+                FlightRecorder.log("PLAYBACK_STATE", "STATE_$stateName")
             }
 
             override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
+                cachedPosition = eventTime.currentPlaybackPositionMs
+                cachedBufferedPosition = eventTime.totalBufferedDurationMs
+                FlightRecorder.log("PLAYER", "onRenderedFirstFrame", mapOf("renderTimeMs" to renderTimeMs))
                 debugLog("First Frame Rendered")
             }
 
@@ -293,6 +351,7 @@ private constructor(
             }
 
             override fun onDrmKeysLoaded(eventTime: AnalyticsListener.EventTime) {
+                FlightRecorder.logDRMPhase("keys_loaded")
                 debugLog("DRM KEYS LOADED")
             }
 
@@ -312,6 +371,173 @@ private constructor(
                     debugLog("MediaItem TRANSITION - ${mediaItem.mediaId}, Reason: $transitionReason")
                 }
             }
+            override fun onBandwidthEstimate(
+                eventTime: AnalyticsListener.EventTime,
+                totalLoadTimeMs: Int,
+                totalBytesLoaded: Long,
+                bitrateEstimate: Long
+            ) {
+                FlightRecorder.log("NETWORK", "onBandwidthEstimate", mapOf("bitrateEstimate" to bitrateEstimate, "totalBytes" to totalBytesLoaded))
+            }
+
+            override fun onDownstreamFormatChanged(
+                eventTime: AnalyticsListener.EventTime,
+                mediaLoadData: MediaLoadData
+            ) {
+                val format = mediaLoadData.trackFormat
+                FlightRecorder.log("NETWORK", "onDownstreamFormatChanged", mapOf(
+                    "trackType" to mediaLoadData.trackType,
+                    "mimeType" to (format?.sampleMimeType ?: "unknown"),
+                    "height" to (format?.height ?: 0),
+                    "width" to (format?.width ?: 0),
+                    "bitrate" to (format?.bitrate ?: 0)
+                ))
+
+                // Update selected track tracking in FlightRecorder
+                if (format != null) {
+                    when (mediaLoadData.trackType) {
+                        androidx.media3.common.C.TRACK_TYPE_VIDEO -> {
+                            FlightRecorder.updateSelectedVideoFormat(
+                                height = format.height,
+                                width = format.width,
+                                bitrate = format.bitrate.toLong(),
+                                codec = format.sampleMimeType ?: "unknown"
+                            )
+                        }
+                        androidx.media3.common.C.TRACK_TYPE_AUDIO -> {
+                            FlightRecorder.updateSelectedAudioFormat(
+                                bitrate = format.bitrate.toLong(),
+                                codec = format.sampleMimeType ?: "unknown",
+                                language = format.language ?: "unknown"
+                            )
+                        }
+                    }
+                }
+            }
+
+            override fun onLoadStarted(
+                eventTime: AnalyticsListener.EventTime,
+                loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData
+            ) {
+                FlightRecorder.log("NETWORK", "onLoadStarted", mapOf("uri" to loadEventInfo.uri.toString()))
+            }
+
+            override fun onLoadCompleted(
+                eventTime: AnalyticsListener.EventTime,
+                loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData
+            ) {
+                FlightRecorder.log("NETWORK", "onLoadCompleted", mapOf("uri" to loadEventInfo.uri.toString(), "bytesLoaded" to loadEventInfo.bytesLoaded))
+            }
+
+            override fun onLoadError(
+                eventTime: AnalyticsListener.EventTime,
+                loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData,
+                error: IOException,
+                wasCanceled: Boolean
+            ) {
+                FlightRecorder.log("NETWORK", "onLoadError", mapOf("uri" to loadEventInfo.uri.toString(), "error" to error.toString(), "wasCanceled" to wasCanceled))
+            }
+
+            override fun onLoadCanceled(
+                eventTime: AnalyticsListener.EventTime,
+                loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData
+            ) {
+                FlightRecorder.log("NETWORK", "onLoadCanceled", mapOf("uri" to loadEventInfo.uri.toString()))
+            }
+
+            override fun onDrmSessionAcquired(eventTime: AnalyticsListener.EventTime, state: Int) {
+                FlightRecorder.log("DRM", "onDrmSessionAcquired", mapOf("state" to state))
+            }
+
+            override fun onDrmKeysRemoved(eventTime: AnalyticsListener.EventTime) {
+                FlightRecorder.log("DRM", "onDrmKeysRemoved")
+            }
+
+            override fun onDrmSessionManagerError(eventTime: AnalyticsListener.EventTime, error: Exception) {
+                FlightRecorder.log("DRM", "onDrmSessionManagerError", mapOf("error" to error.toString()))
+            }
+
+            override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {
+                FlightRecorder.log("DECODER", "onDroppedVideoFrames", mapOf("droppedFrames" to droppedFrames, "elapsedMs" to elapsedMs))
+            }
+
+            override fun onVideoSizeChanged(eventTime: AnalyticsListener.EventTime, videoSize: androidx.media3.common.VideoSize) {
+                FlightRecorder.log("DECODER", "onVideoSizeChanged", mapOf("width" to videoSize.width, "height" to videoSize.height))
+            }
+
+            override fun onTimelineChanged(eventTime: AnalyticsListener.EventTime, reason: Int) {
+                FlightRecorder.log("PLAYBACK_STATE", "onTimelineChanged", mapOf("reason" to reason))
+            }
+
+
+
+            override fun onSeekStarted(eventTime: AnalyticsListener.EventTime) {
+                FlightRecorder.logSeek(from = eventTime.currentPlaybackPositionMs, to = lastSeekTargetMs)
+                debugLog("SEEK STARTED from ${eventTime.currentPlaybackPositionMs}ms to ${lastSeekTargetMs}ms")
+            }
+
+            fun onSeekProcessed(eventTime: AnalyticsListener.EventTime) {
+                FlightRecorder.logSeekCompleted(from = lastSeekTargetMs, to = eventTime.currentPlaybackPositionMs)
+                debugLog("SEEK COMPLETED at ${eventTime.currentPlaybackPositionMs}ms")
+            }
+
+            override fun onPlaybackSuppressionReasonChanged(eventTime: AnalyticsListener.EventTime, playbackSuppressionReason: Int) {
+                FlightRecorder.log("PLAYBACK_STATE", "SuppressionReasonChanged", mapOf("reason" to playbackSuppressionReason))
+            }
+
+            override fun onTracksChanged(eventTime: AnalyticsListener.EventTime, tracks: Tracks) {
+                val videoFormat = tracks.groups.firstOrNull { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO }?.getTrackFormat(0)
+                val audioFormat = tracks.groups.firstOrNull { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }?.getTrackFormat(0)
+                FlightRecorder.log("TRACKS", "onTracksChanged", mapOf(
+                    "videoResolution" to "${videoFormat?.width}x${videoFormat?.height}",
+                    "videoBitrate" to (videoFormat?.bitrate ?: 0),
+                    "videoCodec" to (videoFormat?.sampleMimeType ?: "unknown"),
+                    "audioLanguage" to (audioFormat?.language ?: "unknown"),
+                    "audioBitrate" to (audioFormat?.bitrate ?: 0),
+                    "audioCodec" to (audioFormat?.sampleMimeType ?: "unknown")
+                ))
+            }
+            
+            override fun onPlayerError(eventTime: AnalyticsListener.EventTime, error: PlaybackException) {
+                val stacktrace = error.stackTraceToString()
+                val causeMessage = error.cause?.message
+                var rendererIndex: Int? = null
+                var rendererName: String? = null
+                var errorType: String? = null
+                var recoverable = error is androidx.media3.exoplayer.ExoPlaybackException && error.rendererIndex >= 0
+                var isBehindLiveWindow = error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+
+                if (error is androidx.media3.exoplayer.ExoPlaybackException) {
+                    errorType = when (error.type) {
+                        androidx.media3.exoplayer.ExoPlaybackException.TYPE_SOURCE -> "SOURCE"
+                        androidx.media3.exoplayer.ExoPlaybackException.TYPE_RENDERER -> "RENDERER"
+                        androidx.media3.exoplayer.ExoPlaybackException.TYPE_UNEXPECTED -> "UNEXPECTED"
+                        androidx.media3.exoplayer.ExoPlaybackException.TYPE_REMOTE -> "REMOTE"
+                        else -> "UNKNOWN"
+                    }
+                    rendererName = error.rendererName
+                    rendererIndex = error.rendererIndex
+                }
+
+                FlightRecorder.logPlayerError(
+                    PlaybackExceptionWrapper(
+                        errorCodeName = error.errorCodeName,
+                        errorCode = error.errorCode,
+                        message = error.message,
+                        causeMessage = causeMessage,
+                        recoverable = recoverable,
+                        isBehindLiveWindow = isBehindLiveWindow,
+                        rendererIndex = rendererIndex,
+                        rendererName = rendererName,
+                        errorType = errorType,
+                        stacktrace = stacktrace
+                    )
+                )
+            }
         })
 
         Log.d("TPStreamsPlayer", "Initializing TPStreamsPlayer with assetId: $assetId")
@@ -320,7 +546,7 @@ private constructor(
             @OptIn(UnstableApi::class)
             override fun onTracksChanged(tracks: Tracks) {
                 val textTracks = getAvailableTextTracks()
-                Log.d("TPStreamsPlayer", "Tracks changed. Text tracks available: ${textTracks.size}")
+                debugLog("Tracks changed. Text tracks available: ${textTracks.size}")
                 
                 if (showDefaultCaptions && isPrepared && textTracks.isNotEmpty()) {
                     enableDefaultCaptions()
@@ -328,20 +554,23 @@ private constructor(
             }
             
             override fun onPlaybackStateChanged(playbackState: Int) {
-                Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
+                debugLog("Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
                 seekToStartAt()
             }
             
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                Log.d("TPStreamsPlayer", "Play when ready changed: $playWhenReady, reason=$reason")
+                debugLog("Play when ready changed: $playWhenReady, reason=$reason")
             }
             
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                Log.d("TPStreamsPlayer", "Is playing changed: $isPlaying")
+                debugLog("Is playing changed: $isPlaying")
                 if (isPlaying) networkDiagnosticsManager.onPlaybackRecovered()
             }
             
             override fun onPlayerError(error: PlaybackException) {
+                if (FlightRecorder.isActive()) {
+                    sendDiagnostics("error", "unknown")
+                }
                 if (isDrmLicenseExpiredError(error)) {
                     Log.d("TPStreamsPlayer", "DRM error detected for asset: $assetId")
                     DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)  
@@ -374,11 +603,11 @@ private constructor(
             }
             
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-                Log.d("TPStreamsPlayer", "Playback parameters changed: speed=${playbackParameters.speed}")
+                debugLog("Playback parameters changed: speed=${playbackParameters.speed}")
             }
             
             override fun onIsLoadingChanged(isLoading: Boolean) {
-                Log.d("TPStreamsPlayer", "Is loading changed: $isLoading")
+                debugLog("Is loading changed: $isLoading")
             }
         })
 
@@ -415,17 +644,35 @@ private constructor(
     }
 
     private fun fetchAndPrepare(assetId: String, accessToken: String) {
+        FlightRecorder.log("PLAYER", "fetchAndPrepare started", mapOf("assetId" to assetId))
+        val fetchStartTime = android.os.SystemClock.elapsedRealtime()
+        
         CoroutineScope(Dispatchers.IO).launch {
             if (playFromDownload(assetId)) return@launch
 
             AssetRepository.fetchAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
                 override fun onSuccess(assetInfo: AssetInfo) {
+                    val latencyMs = android.os.SystemClock.elapsedRealtime() - fetchStartTime
+                    FlightRecorder.log("NETWORK", "Config received", mapOf(
+                        "latencyMs" to latencyMs,
+                        "status" to 200,
+                        "streamType" to when (assetInfo.videoObj?.optString("type")) {
+                            "hls" -> "HLS"
+                            "dash" -> "DASH"
+                            else -> "MP4"
+                        },
+                        "drmEnabled" to assetInfo.enableDrm
+                    ))
+                    
                     val safeHost = try { Uri.parse(assetInfo.mediaUrl).host } catch (_: Exception) { "unknown" }
                     debugLog("fetchAndPrepare SUCCESS — cdnHost=$safeHost")
                     preparePlayer(assetInfo, assetId, accessToken)
                 }
 
                 override fun onError(error: PlaybackError, message: String) {
+                    val latencyMs = android.os.SystemClock.elapsedRealtime() - fetchStartTime
+                    FlightRecorder.log("NETWORK", "Config failed", mapOf("latencyMs" to latencyMs, "error" to error.name, "message" to message))
+                    
                     debugLog("fetchAndPrepare onError — error=$error, message=$message")
                     if (error == PlaybackError.NETWORK_CONNECTION_FAILED || 
                         error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
@@ -475,7 +722,7 @@ private constructor(
 
             networkDiagnosticsManager.onMediaLoaded()
 
-            val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
+            val audioAttributes = buildAudioAttributes()
             exoPlayer.setAudioAttributes(audioAttributes, true)
             debugLog("MediaItem SET - ${result.mediaItem.mediaId}")
             exoPlayer.setMediaItem(result.mediaItem)
@@ -516,8 +763,7 @@ private constructor(
                 }
 
                 playerScope.launch {
-                    val isDrm = download.request.keySetId != null
-                    val audioAttributes = buildAudioAttributes(isDrm)
+                    val audioAttributes = buildAudioAttributes()
 
                     exoPlayer.setAudioAttributes(audioAttributes, true)
                     exoPlayer.setMediaItem(downloadedMediaItem)
@@ -536,25 +782,18 @@ private constructor(
         return false
     }
 
-    private fun buildAudioAttributes(isDrm: Boolean): AudioAttributes {
-        val capturePolicy = if (isDrm) {
-            C.ALLOW_CAPTURE_BY_NONE
-        } else {
-            C.ALLOW_CAPTURE_BY_ALL
-        }
-
+    private fun buildAudioAttributes(): AudioAttributes {
         return AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-            .setAllowedCapturePolicy(capturePolicy)
+            .setAllowedCapturePolicy(C.ALLOW_CAPTURE_BY_NONE)
             .build()
     }
 
     @OptIn(UnstableApi::class)
     fun refreshPlaybackWithDownloadMediaItem(mediaItem: MediaItem) {
         playerScope.launch {
-            val isDrm = mediaItem.localConfiguration?.drmConfiguration != null
-            val audioAttributes = buildAudioAttributes(isDrm)
+            val audioAttributes = buildAudioAttributes()
 
             val currentPosition = exoPlayer.currentPosition
             exoPlayer.stop()
@@ -595,6 +834,7 @@ private constructor(
      * @param positionMs The position in milliseconds to seek to
      */
     override fun seekTo(positionMs: Long) {
+        lastSeekTargetMs = positionMs
         playerScope.launch {
             exoPlayer.seekTo(positionMs)
         }
@@ -658,9 +898,19 @@ private constructor(
             activePlayerCount--
             debugLog("Active Player COUNT: $activePlayerCount")
         }
+        if (released) return
         released = true
+
+        FlightRecorder.logLifecycle("release", mapOf(
+            "assetId" to (assetId ?: "unknown"),
+            "playbackPositionMs" to cachedPosition,
+            "reason" to "user_exit"
+        ))
+
+        networkMonitor.stop()
         playerScope.cancel()
         networkDiagnosticsManager.onRelease()
+        audioManager.abandonAudioFocus(audioFocusListener)
         // Clear surface binding before releasing the player.
         // Prevents codec crashes on MediaTek secure decoders (NO_MEMORY)
         // where the codec retains a reference to a released surface.
@@ -939,7 +1189,7 @@ private constructor(
                 .setCache(DownloadController.downloadCache)
                 .setUpstreamDataSourceFactory(DownloadController.httpDataSourceFactory)
                 .setCacheWriteDataSinkFactory(null)
-            
+
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(cacheDataSourceFactory)
 
@@ -1041,5 +1291,21 @@ private constructor(
                 }
             }
         }
+    }
+
+    fun startDiagnosticSession(playbackType: String) {
+        FlightRecorder.clear()
+        FlightRecorder.startSession(playbackSessionId)
+    }
+
+    fun sendDiagnostics(triggerReason: String, playbackType: String) {
+        DiagnosticSender.send(
+            player = this,
+            context = context,
+            triggerReason = triggerReason,
+            playbackType = playbackType,
+            assetId = assetId,
+            decoderState = decoderState
+        )
     }
 }

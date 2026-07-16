@@ -40,6 +40,7 @@ import android.net.Uri
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import com.tpstreams.player.TPStreamsPlayer
 import com.tpstreams.player.TPStreamsSDK
+import com.tpstreams.player.util.LoggingDataSourceFactory
 
 
 @UnstableApi
@@ -107,7 +108,7 @@ object DownloadController {
         val tokenCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
         httpDataSourceFactory = ResolvingDataSource.Factory(
-            baseDataSourceFactory,
+            LoggingDataSourceFactory(baseDataSourceFactory),
             object : ResolvingDataSource.Resolver {
                 override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
                     var currentUri = dataSpec.uri

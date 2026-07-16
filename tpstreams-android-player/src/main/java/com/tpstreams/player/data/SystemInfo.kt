@@ -20,7 +20,15 @@ data class NetworkInfo(
     val isRoaming: Boolean? = null,
     val networkValidated: Boolean? = null,
     val activeNetworkMetered: Boolean? = null,
-    val operatorName: String? = null       // Requires READ_PHONE_STATE
+    val operatorName: String? = null,      // Requires READ_PHONE_STATE
+    val simOperator: String? = null,       // MCC-MNC e.g. "40438", requires READ_PHONE_STATE
+    val networkOperator: String? = null,   // MCC-MNC, requires READ_PHONE_STATE
+    val signalStrengthDbm: Int? = null,    // requires READ_PHONE_STATE
+    val signalLevel: Int? = null,          // 0-4, requires READ_PHONE_STATE
+    val ipv4: String? = null,              // from LinkProperties, permission-free
+    val ipv6: String? = null,              // from LinkProperties, permission-free
+    val dnsServers: String? = null,         // comma-separated, from LinkProperties, permission-free
+    val isCaptivePortal: Boolean? = null    // from NetworkCapabilities, permission-free
 )
 
 /**

@@ -4,11 +4,16 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.net.LinkAddress
+import android.net.LinkProperties
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import com.tpstreams.player.data.NetworkInfo
+import java.net.Inet4Address
+import java.net.Inet6Address
 
 /**
  * Stateless provider of network connectivity information.
@@ -30,9 +35,24 @@ internal object NetworkInfoProvider {
             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             if (connectivityManager == null) return NetworkInfo()
 
+            // LinkProperties-based fields (permission-free)
+            val activeNetwork = getActiveNetwork(connectivityManager)
+            val linkProperties = activeNetwork?.let { connectivityManager.getLinkProperties(it) }
+            val ipv4 = linkProperties?.linkAddresses
+                ?.firstOrNull { it.address is Inet4Address && !it.address.isLoopbackAddress }
+                ?.address?.hostAddress
+            val ipv6 = linkProperties?.linkAddresses
+                ?.firstOrNull { it.address is Inet6Address && !it.address.isLinkLocalAddress }
+                ?.address?.hostAddress
+            val dnsServers = linkProperties?.dnsServers
+                ?.joinToString(", ") { it.hostAddress ?: "" }
+                ?.takeIf { it.isNotBlank() }
+
+            // Telephony fields (require READ_PHONE_STATE)
+            val telephony = getTelephonyInfo(context)
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 // API 23+: modern NetworkCapabilities-based API
-                val activeNetwork = connectivityManager.activeNetwork
                 val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
 
                 val networkType = capabilities?.let { classifyNetworkType(it) }
@@ -44,6 +64,7 @@ internal object NetworkInfoProvider {
                     false -> true  // NOT_ROAMING absent → is roaming
                 }
                 val networkValidated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                val isCaptivePortal = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL)
                 val isMetered = connectivityManager.isActiveNetworkMetered
                 val operatorName = getOperatorName(context)
 
@@ -53,7 +74,15 @@ internal object NetworkInfoProvider {
                     isRoaming = isRoaming,
                     networkValidated = networkValidated,
                     activeNetworkMetered = isMetered,
-                    operatorName = operatorName
+                    operatorName = operatorName,
+                    simOperator = telephony?.simOperator,
+                    networkOperator = telephony?.networkOperator,
+                    signalStrengthDbm = telephony?.signalStrengthDbm,
+                    signalLevel = telephony?.signalLevel,
+                    ipv4 = ipv4,
+                    ipv6 = ipv6,
+                    dnsServers = dnsServers,
+                    isCaptivePortal = isCaptivePortal
                 )
             } else {
                 // API 21-22: fallback using deprecated activeNetworkInfo
@@ -68,11 +97,60 @@ internal object NetworkInfoProvider {
                 NetworkInfo(
                     networkType = networkType,
                     isRoaming = activeInfo?.isRoaming,
-                    operatorName = getOperatorName(context)
+                    operatorName = getOperatorName(context),
+                    simOperator = telephony?.simOperator,
+                    networkOperator = telephony?.networkOperator,
+                    signalStrengthDbm = telephony?.signalStrengthDbm,
+                    signalLevel = telephony?.signalLevel,
+                    ipv4 = ipv4,
+                    ipv6 = ipv6,
+                    dnsServers = dnsServers,
+                    isCaptivePortal = null
                 )
             }
         } catch (_: Exception) {
             NetworkInfo()
+        }
+    }
+
+    private fun getActiveNetwork(connectivityManager: ConnectivityManager): Network? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            connectivityManager.activeNetwork
+        } else {
+            @Suppress("DEPRECATION")
+            connectivityManager.allNetworks.firstOrNull { net ->
+                connectivityManager.getNetworkInfo(net)?.isConnected == true
+            }
+        }
+    }
+
+    private data class TelephonyInfo(
+        val simOperator: String?,
+        val networkOperator: String?,
+        val signalStrengthDbm: Int?,
+        val signalLevel: Int?
+    )
+
+    @Suppress("DEPRECATION")
+    private fun getTelephonyInfo(context: Context): TelephonyInfo? {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                    return null
+                }
+            }
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager ?: return null
+            val simOperator = tm.simOperator?.takeIf { it.isNotBlank() }
+            val networkOperator = tm.networkOperator?.takeIf { it.isNotBlank() }
+            val sig = tm.signalStrength
+            val signalLevel = sig?.level
+            val signalStrengthDbm = if (Build.VERSION.SDK_INT >= 29) {
+                sig?.cellSignalStrengths?.firstOrNull()?.dbm
+            } else null
+            TelephonyInfo(simOperator, networkOperator, signalStrengthDbm, signalLevel)
+        } catch (_: Exception) {
+            null
         }
     }
 

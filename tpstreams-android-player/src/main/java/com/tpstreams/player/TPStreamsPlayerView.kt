@@ -9,6 +9,7 @@ import android.text.method.LinkMovementMethod
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
+import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.media3.common.Player
@@ -17,6 +18,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import com.tpstreams.player.constants.NetworkDiagnostics
 import com.tpstreams.player.constants.PlaybackError
+import com.tpstreams.player.util.FlightRecorder
 import com.tpstreams.player.util.PlaybackHistoryManager
 import com.tpstreams.player.R
 
@@ -55,6 +57,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var retryLoader: View? = null
     private var retryIndicator: TextView? = null
     private var bufferingView: View? = null
+    
+    // Screen capture protection
+    private var isSecureFlagApplied = false
     
     private val liveBadge: View? by lazy { findViewById(R.id.live_badge) }
     private val durationView: View? by lazy { findViewById(androidx.media3.ui.R.id.exo_duration) }
@@ -174,6 +179,14 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        
+        // Force the underlying SurfaceView to be secure. This protects the video buffer
+        // from being screen recorded, even on low-end devices and L3 software decoding.
+        (videoSurfaceView as? android.view.SurfaceView)?.setSecure(true)
+
+        val surfaceType = if (videoSurfaceView is android.view.TextureView) "TextureView" else 
+                          if (videoSurfaceView is android.view.SurfaceView) "SurfaceView" else "unknown"
+        FlightRecorder.logSurfaceEvent("attached", surfaceType)
         getPlayer()?.addListener(playbackStateListener)
         ensureErrorOverlaySetup()
         
@@ -227,11 +240,25 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             errorSubtitle = overlay.findViewById(R.id.error_subtitle)
             diagnosticsContainer = overlay.findViewById(R.id.diagnostics_container)
             retryLoader = overlay.findViewById(R.id.retry_loader)
-            retryIndicator = overlay.findViewById(R.id.retry_indicator)
             errorDivider = overlay.findViewById(R.id.error_divider)
+            
+            val btnSendDiagnostics: android.widget.Button = overlay.findViewById(R.id.btn_send_diagnostics)
+            btnSendDiagnostics.setOnClickListener {
+                (getPlayer() as? TPStreamsPlayer)?.sendDiagnostics(
+                    triggerReason = "error", 
+                    playbackType = "manual"
+                )
+                android.widget.Toast.makeText(context, "Diagnostics sent to Sentry", android.widget.Toast.LENGTH_SHORT).show()
+                btnSendDiagnostics.isEnabled = false
+                btnSendDiagnostics.text = "Sent"
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to setup error overlay", e)
         }
+    }
+    
+    fun showDiagnosticIndicator() {
+        android.widget.Toast.makeText(context, "Diagnostic logging active", android.widget.Toast.LENGTH_LONG).show()
     }
     
     private fun cacheBufferingView() {
@@ -371,6 +398,14 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         
         super.setPlayer(player)
 
+        if (player != null) {
+            val surfaceType = if (videoSurfaceView is android.view.TextureView) "TextureView" else 
+                              if (videoSurfaceView is android.view.SurfaceView) "SurfaceView" else "unknown"
+            FlightRecorder.logSurfaceEvent("created", surfaceType)
+        } else {
+            FlightRecorder.logSurfaceEvent("released", "unknown")
+        }
+
         // Apply any resolution preference that was set before the player was attached
         settingsPanel.applyResolutionPreference()
         
@@ -385,6 +420,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         registerWithLifecycle()
         
         if (player != null) {
+            applySecureFlag()
             when (player.playbackState) {
                 Player.STATE_IDLE -> {
                     showLoading()
@@ -494,9 +530,18 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        val surfaceType = if (videoSurfaceView is android.view.TextureView) "TextureView" else 
+                          if (videoSurfaceView is android.view.SurfaceView) "SurfaceView" else "unknown"
+        FlightRecorder.logSurfaceEvent("detached", surfaceType, mapOf("isFinishing" to (getActivity()?.isFinishing ?: true)))
         getPlayer()?.removeListener(playbackStateListener)
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
+        
+        // Remove FLAG_SECURE only if the Activity is finishing (permanent removal)
+        // During fullscreen transitions, the view is temporarily detached but the Activity is still alive
+        if (getActivity()?.isFinishing == true) {
+            removeSecureFlag()
+        }
     }
 
     // Implementation of PlayerSettingsBottomSheet.SettingsListener
@@ -563,6 +608,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         errorDivider?.visibility = View.GONE
         
         retryLoader?.visibility = View.GONE
+        overlay.findViewById<android.widget.Button>(R.id.btn_send_diagnostics)?.visibility = View.VISIBLE
         
         measureOverlay()
         
@@ -622,6 +668,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             }
         }
 
+        overlay.findViewById<android.widget.Button>(R.id.btn_send_diagnostics)?.visibility = View.VISIBLE
+        
         measureOverlay()
     }
 
@@ -656,14 +704,14 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         val items = mutableListOf(
             DiagItem(
                 context.getString(R.string.network_diag_label_internet), diagnostics.internetReachable,
-                diagnostics.internetLatencyMs?.let { "${it}ms" }
+                diagnostics.internetDetail ?: diagnostics.internetLatencyMs?.let { "${it}ms" }
             ),
             DiagItem(
                 context.getString(R.string.network_diag_label_video_server), diagnostics.serverReachable,
                 diagnostics.serverDetail ?: diagnostics.serverLatencyMs?.let { "${it}ms" }
             )
         )
-        items.add(DiagItem(context.getString(R.string.network_diag_label_dns), diagnostics.dnsResolves, null))
+        items.add(DiagItem(context.getString(R.string.network_diag_label_dns), diagnostics.dnsResolves, diagnostics.dnsDetail))
         items.add(
             DiagItem(
                 context.getString(R.string.network_diag_label_cdn), if (diagnostics.cdnHostname == null) null else diagnostics.cdnReachable,
@@ -771,5 +819,22 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "TPStreamsPlayerView"
+    }
+    
+    private fun applySecureFlag() {
+        if (isSecureFlagApplied) return
+        val activity = getActivity() ?: return
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        isSecureFlagApplied = true
+        Log.d(TAG, "Screen Capture Protection Enabled")
+        Log.d(TAG, "FLAG_SECURE = true")
+    }
+    
+    private fun removeSecureFlag() {
+        if (!isSecureFlagApplied) return
+        val activity = getActivity() ?: return
+        activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        isSecureFlagApplied = false
+        Log.d(TAG, "Screen Capture Protection Disabled")
     }
 }
