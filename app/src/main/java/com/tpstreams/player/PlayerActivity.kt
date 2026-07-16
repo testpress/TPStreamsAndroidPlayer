@@ -1,6 +1,5 @@
 package com.tpstreams.player
 
-import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
@@ -32,13 +31,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.setWatermark(
             WatermarkConfig.Builder()
                 .text("TPstreams")
-                .textColor(Color.WHITE)
-                .textSize(20f)
-                .pingPong(
-                    fromGravity = WatermarkGravity.CENTER_LEFT,
-                    toGravity = WatermarkGravity.CENTER_RIGHT,
-                    durationMs = 4000L
-                )
                 .build()
         )
     }

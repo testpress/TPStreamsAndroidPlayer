@@ -8,8 +8,8 @@ import android.graphics.Typeface
 sealed class WatermarkContent {
     data class Text(
         val textProvider: () -> String,
-        val color: Int = Color.WHITE,
-        val textSizeSp: Float = 14f,
+        val color: Int = Color.LTGRAY,
+        val textSizeSp: Float = 12f,
         val typeface: Typeface? = null,
         val shadowRadius: Float = 0f,
         val shadowDx: Float = 0f,
@@ -57,8 +57,12 @@ sealed class WatermarkAnimation {
     data class PingPong(
         val from: Pair<Float, Float>,
         val to: Pair<Float, Float>,
-        val durationMs: Long = 5000L
+        val durationMs: Long = 10000L
     ) : WatermarkAnimation()
+
+    companion object {
+        internal const val MIN_PING_PONG_DURATION_MS = 100L
+    }
 }
 
 // ── Margins ──────────────────────────────────────────────────────────────
@@ -79,7 +83,7 @@ data class Margins(
 // ── Style ────────────────────────────────────────────────────────────────
 
 data class WatermarkStyle(
-    val position: WatermarkPosition = WatermarkPosition.Static(WatermarkGravity.TOP_RIGHT),
+    val position: WatermarkPosition = WatermarkPosition.Static(WatermarkGravity.CENTER),
     val margins: Margins = Margins.all(16f),
     val opacity: Float = 1f,
     val size: WatermarkSize = WatermarkSize.WrapContent,
@@ -98,14 +102,20 @@ class WatermarkConfig private constructor(
 
     class Builder {
         private var content: WatermarkContent? = null
-        private var position: WatermarkPosition = WatermarkPosition.Static(WatermarkGravity.TOP_RIGHT)
+        private var position: WatermarkPosition =
+            WatermarkPosition.Static(WatermarkGravity.CENTER)
         private var margins: Margins = Margins.all(16f)
         private var opacity: Float = 1f
         private var size: WatermarkSize = WatermarkSize.WrapContent
         private var visibleDuringAds: Boolean = true
         private var visibleWhenPaused: Boolean = true
         private var elevation: Float = 0f
-        private var animation: WatermarkAnimation? = null
+        private var animation: WatermarkAnimation? =
+            WatermarkAnimation.PingPong(
+                from = WatermarkGravity.CENTER_LEFT.toFraction(),
+                to = WatermarkGravity.CENTER_RIGHT.toFraction(),
+                durationMs = 10000L
+            )
 
         // ── Content ──────────────────────────────────────────────────────
 
@@ -239,12 +249,12 @@ class WatermarkConfig private constructor(
         fun pingPong(
             fromGravity: WatermarkGravity,
             toGravity: WatermarkGravity,
-            durationMs: Long = 5000L
+            durationMs: Long = 10000L
         ): Builder {
             this.animation = WatermarkAnimation.PingPong(
                 from = fromGravity.toFraction(),
                 to = toGravity.toFraction(),
-                durationMs = durationMs
+                durationMs = durationMs.coerceAtLeast(WatermarkAnimation.MIN_PING_PONG_DURATION_MS)
             )
             return this
         }
@@ -252,12 +262,12 @@ class WatermarkConfig private constructor(
         fun pingPong(
             fromX: Float, fromY: Float,
             toX: Float, toY: Float,
-            durationMs: Long = 5000L
+            durationMs: Long = 10000L
         ): Builder {
             this.animation = WatermarkAnimation.PingPong(
                 from = fromX.coerceIn(0f, 1f) to fromY.coerceIn(0f, 1f),
                 to = toX.coerceIn(0f, 1f) to toY.coerceIn(0f, 1f),
-                durationMs = durationMs
+                durationMs = durationMs.coerceAtLeast(WatermarkAnimation.MIN_PING_PONG_DURATION_MS)
             )
             return this
         }
