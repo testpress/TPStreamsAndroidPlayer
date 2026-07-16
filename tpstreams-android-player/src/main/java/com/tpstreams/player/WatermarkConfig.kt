@@ -83,7 +83,7 @@ data class Margins(
 // ── Style ────────────────────────────────────────────────────────────────
 
 data class WatermarkStyle(
-    val position: WatermarkPosition = WatermarkPosition.Static(WatermarkGravity.CENTER),
+    val position: WatermarkPosition = WatermarkPosition.Static(WatermarkGravity.CENTER_LEFT),
     val margins: Margins = Margins.all(16f),
     val opacity: Float = 1f,
     val size: WatermarkSize = WatermarkSize.WrapContent,
