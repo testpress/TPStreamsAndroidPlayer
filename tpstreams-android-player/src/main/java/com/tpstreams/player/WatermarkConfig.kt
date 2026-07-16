@@ -103,19 +103,14 @@ class WatermarkConfig private constructor(
     class Builder {
         private var content: WatermarkContent? = null
         private var position: WatermarkPosition =
-            WatermarkPosition.Static(WatermarkGravity.CENTER)
+            WatermarkPosition.Static(WatermarkGravity.CENTER_LEFT)
         private var margins: Margins = Margins.all(16f)
         private var opacity: Float = 1f
         private var size: WatermarkSize = WatermarkSize.WrapContent
         private var visibleDuringAds: Boolean = true
         private var visibleWhenPaused: Boolean = true
         private var elevation: Float = 0f
-        private var animation: WatermarkAnimation? =
-            WatermarkAnimation.PingPong(
-                from = WatermarkGravity.CENTER_LEFT.toFraction(),
-                to = WatermarkGravity.CENTER_RIGHT.toFraction(),
-                durationMs = 10000L
-            )
+        private var animation: WatermarkAnimation? = null
 
         // ── Content ──────────────────────────────────────────────────────
 
@@ -245,6 +240,11 @@ class WatermarkConfig private constructor(
         }
 
         // ── Animation ────────────────────────────────────────────────────
+
+        fun noAnimation(): Builder {
+            this.animation = null
+            return this
+        }
 
         fun pingPong(
             fromGravity: WatermarkGravity,
