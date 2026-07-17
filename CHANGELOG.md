@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.2.1 - 2026-07-11
+## [1.2.2] - 2026-07-17
+### Added
+- Add configurable watermark overlay to player view with text content, 9-position gravity, dynamic text provider, ping-pong animation, and configurable style (#113)
+- Enable screen capture protection for all video playback to prevent screenshots and screen recording on supported devices (#112)
+
+### Fixed
+- Fix secure decoder crash (Error 0x80000000) on MediaTek devices during fullscreen transitions by properly releasing video surface before player detach (#111)
+
+## [1.2.1] - 2026-07-11
 ### Added
 - Improved error reporting with additional device and network context for faster debugging
 
@@ -157,6 +165,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.2.2]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.1...1.2.2
+[1.2.1]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.0...1.2.1
 [1.2.0]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.20...1.2.0
 [1.1.20]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.19...1.1.20
 [1.1.19]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.1.18...1.1.19
