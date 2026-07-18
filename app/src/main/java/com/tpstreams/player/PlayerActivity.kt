@@ -36,7 +36,7 @@ class PlayerActivity : AppCompatActivity() {
                 color = Color.YELLOW,
                 textSize = 18f,
                 opacity = 0.5f,
-                position = WatermarkPosition.CENTER,
+                position = WatermarkPosition.CENTER_LEFT,
                 animation = WatermarkAnimation(
                     type = WatermarkAnimationType.PING_PONG,
                     duration = 5_000L,
