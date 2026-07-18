@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.media3.common.Player
 
 @androidx.media3.common.util.UnstableApi
 internal class WatermarkController(private val parent: TPStreamsPlayerView) {
@@ -80,7 +81,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         reposition()
     }
 
-    fun onPlayerStateChanged(isPlaying: Boolean) {
+    fun onPlayerStateChanged(isPlaying: Boolean, playbackState: Int = Player.STATE_IDLE) {
         currentIsPlaying = isPlaying
 
         if (isPlaying && !hasPlaybackStarted) {
@@ -93,7 +94,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
             }
         }
 
-        updateVisibilityForState(isPlaying)
+        updateVisibilityForState(isPlaying, playbackState == Player.STATE_ENDED)
     }
 
     fun destroy() {
@@ -181,10 +182,13 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         val density = parent.context.resources.displayMetrics.density
         val m = DEFAULT_MARGIN_DP * density
 
-        val x = (parentWidth * xFrac - viewWidth / 2f)
-            .coerceIn(m, (parentWidth - viewWidth - m).coerceAtLeast(m))
-        val y = (parentHeight * yFrac - viewHeight / 2f)
-            .coerceIn(m, (parentHeight - viewHeight - m).coerceAtLeast(m))
+        val minX = m
+        val maxX = (parentWidth - viewWidth - m).coerceAtLeast(m)
+        val minY = m
+        val maxY = (parentHeight - viewHeight - m).coerceAtLeast(m)
+
+        val x = minX + xFrac * (maxX - minX)
+        val y = minY + yFrac * (maxY - minY)
 
         c.pivotX = viewWidth * xFrac
         c.pivotY = viewHeight * yFrac
@@ -195,13 +199,14 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     // ── Visibility ───────────────────────────────────────────────────────
     //
     // Watermark is shown once playback starts. It stays visible while paused
-    // and only hides before first play or after ended.
+    // and hides before first play or after playback ends.
 
-    private fun updateVisibilityForState(isPlaying: Boolean) {
+    private fun updateVisibilityForState(isPlaying: Boolean, hasEnded: Boolean = false) {
         if (manualVisibility != null) return
 
-        if (!hasPlaybackStarted) {
+        if (!hasPlaybackStarted || hasEnded) {
             container?.visibility = View.GONE
+            pingPongAnimator?.let { if (it.isRunning) it.pause() }
             return
         }
 

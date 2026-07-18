@@ -810,7 +810,10 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     private fun notifyWatermarkPlayerState() {
         val player = getPlayer() ?: return
-        watermarkController?.onPlayerStateChanged(isPlaying = player.isPlaying)
+        watermarkController?.onPlayerStateChanged(
+            isPlaying = player.isPlaying,
+            playbackState = player.playbackState
+        )
     }
     
     private fun isDecoderError(message: String): Boolean {
