@@ -799,10 +799,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         watermarkController = null
     }
 
-    fun updateWatermarkPosition(xFraction: Float, yFraction: Float) {
-        watermarkController?.updatePosition(xFraction, yFraction)
-    }
-
     /**
      * Returns the child index at which the watermark container should be inserted.
      * Placed before the error overlay so that watermark renders below error/loading UI.
@@ -814,10 +810,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     private fun notifyWatermarkPlayerState() {
         val player = getPlayer() ?: return
-        watermarkController?.onPlayerStateChanged(
-            isPlaying = player.isPlaying,
-            isAdPlaying = player.isPlayingAd
-        )
+        watermarkController?.onPlayerStateChanged(isPlaying = player.isPlaying)
     }
     
     private fun isDecoderError(message: String): Boolean {
