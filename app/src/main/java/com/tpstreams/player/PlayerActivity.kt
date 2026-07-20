@@ -1,5 +1,6 @@
 package com.tpstreams.player
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
@@ -28,10 +29,20 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.setVideoResolution(720)
         binding.playerView.player = viewModel.player
 
+
         binding.playerView.setWatermark(
-            WatermarkConfig.Builder()
-                .text("TPstreams")
-                .build()
+            WatermarkConfig(
+                text = "© 2026 TPstreams",
+                color = Color.YELLOW,
+                textSize = 18f,
+                opacity = 0.5f,
+                position = WatermarkPosition.CENTER_LEFT,
+                animation = WatermarkAnimation(
+                    type = WatermarkAnimationType.PING_PONG,
+                    duration = 5_000L,
+                ),
+            )
         )
+
     }
 }
