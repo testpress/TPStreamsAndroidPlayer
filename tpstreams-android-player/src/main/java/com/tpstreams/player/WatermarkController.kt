@@ -122,7 +122,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         }
         container = c
 
-        watermarkView = TextView(parent.context).apply {
+        val tv = TextView(parent.context).apply {
             text = config.text
             setTextColor(config.color)
             textSize = config.textSize
@@ -130,15 +130,13 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
             isFocusable = false
         }
 
-        c.addView(watermarkView)
+        c.addView(tv)
         c.layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         )
         c.alpha = config.opacity
     }
-
-    private var watermarkView: View? = null
 
     private fun addToParent() {
         val c = container ?: return
