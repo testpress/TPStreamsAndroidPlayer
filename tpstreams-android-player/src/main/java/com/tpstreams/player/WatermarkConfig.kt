@@ -2,7 +2,7 @@ package com.tpstreams.player
 
 import android.graphics.Color
 
-data class WatermarkConfig(
+data class WatermarkConfig @JvmOverloads constructor(
     val text: String,
     val x: Int = 0,
     val y: Int = 0,
