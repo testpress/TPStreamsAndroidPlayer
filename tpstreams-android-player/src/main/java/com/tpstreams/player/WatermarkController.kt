@@ -12,7 +12,6 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     private var container: FrameLayout? = null
     private var config: WatermarkConfig? = null
 
-    private var manualVisibility: Boolean? = null
     private var currentIsPlaying = false
     private var hasPlaybackStarted = false
 
@@ -55,25 +54,12 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         }
     }
 
-    fun show() {
-        manualVisibility = true
-        container?.visibility = View.VISIBLE
-        pingPongAnimator?.resume()
-    }
-
-    fun hide() {
-        manualVisibility = false
-        container?.visibility = View.GONE
-        pingPongAnimator?.pause()
-    }
-
     fun remove() {
         pingPongAnimator?.cancel()
         pingPongAnimator = null
         container?.let { parent.removeView(it) }
         container = null
         config = null
-        manualVisibility = null
         hasPlaybackStarted = false
     }
 
@@ -200,8 +186,6 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     // and hides before first play or after playback ends.
 
     private fun updateVisibilityForState(isPlaying: Boolean, hasEnded: Boolean = false) {
-        if (manualVisibility != null) return
-
         if (!hasPlaybackStarted || hasEnded) {
             container?.visibility = View.GONE
             pingPongAnimator?.let { if (it.isRunning) it.pause() }

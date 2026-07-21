@@ -40,7 +40,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val settingsPanel = SettingsPanel(this)
     private val captions = Captions(this)
     private val contextAccess = ContextAccess(this)
-    private val watermarkControllers = mutableMapOf<String, WatermarkController>()
+    private val watermarkControllers = mutableListOf<WatermarkController>()
     
     private var playerControlView: TPStreamsPlayerControlView? = null
     private var orientationEventListener: OrientationListener? = null
@@ -193,7 +193,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 enableAutoFullscreenOnRotate()
             }
             registerWithLifecycle()
-            watermarkControllers.values.forEach { it.onViewAttached() }
+            watermarkControllers.forEach { it.onViewAttached() }
         }
     }
 
@@ -487,7 +487,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         super.onLayout(changed, left, top, right, bottom)
         
         // Reposition watermark on layout changes (fullscreen, rotation, resize)
-        watermarkControllers.values.forEach { it.onParentLayout() }
+        watermarkControllers.forEach { it.onParentLayout() }
         
         // Ensure error overlay is properly laid out when view is measured
         errorOverlay?.let { overlay ->
@@ -510,7 +510,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.removeListener(playbackStateListener)
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
-        watermarkControllers.values.forEach { it.onViewDetached() }
+        watermarkControllers.forEach { it.onViewDetached() }
         
         // Always remove FLAG_SECURE on detach. In a Single-Activity architecture the Activity
         // is rarely finishing during normal navigation, so guarding on isFinishing would leak
@@ -775,18 +775,18 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     // ── Watermark ────────────────────────────────────────────────────────
 
     fun setWatermarks(configs: List<WatermarkConfig>) {
-        watermarkControllers.values.forEach { it.destroy() }
+        watermarkControllers.forEach { it.destroy() }
         watermarkControllers.clear()
 
-        configs.forEachIndexed { index, config ->
+        configs.forEach { config ->
             val controller = WatermarkController(this)
-            watermarkControllers[index.toString()] = controller
+            watermarkControllers.add(controller)
             controller.apply(config)
         }
     }
 
     fun clearWatermarks() {
-        watermarkControllers.values.forEach { it.destroy() }
+        watermarkControllers.forEach { it.destroy() }
         watermarkControllers.clear()
     }
 
@@ -801,7 +801,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     private fun notifyWatermarkPlayerState() {
         val player = getPlayer() ?: return
-        watermarkControllers.values.forEach {
+        watermarkControllers.forEach {
             it.onPlayerStateChanged(
                 isPlaying = player.isPlaying,
                 playbackState = player.playbackState
