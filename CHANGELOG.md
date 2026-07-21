@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-07-21
+### Changed
+- Redesign watermark API to support multiple watermarks via `setWatermarks(List<WatermarkConfig>)` and `clearWatermarks()`, replacing the single-watermark `setWatermark()` / `showWatermark()` / `hideWatermark()` / `removeWatermark()` API (#115)
+- Replace enum-based 9-position positioning with `x` and `y` coordinates (0–100, relative percentage) for precise watermark placement (#115)
+- Make `WatermarkAnimation` a nullable field (null = no animation) instead of requiring a `WatermarkAnimation` with a `NONE` type (#115)
+
 ## [1.2.3] - 2026-07-18
 ### Changed
 - Simplify watermark API by replacing Builder pattern with a single `WatermarkConfig` data class (#114)
@@ -170,6 +176,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.2.4]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.3...1.2.4
 [1.2.3]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.2...1.2.3
 [1.2.2]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.1...1.2.2
 [1.2.1]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.0...1.2.1
