@@ -30,16 +30,32 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.player = viewModel.player
 
 
-        binding.playerView.setWatermark(
-            WatermarkConfig(
-                text = "© 2026 TPstreams",
-                color = Color.YELLOW,
-                textSize = 18f,
-                opacity = 0.5f,
-                position = WatermarkPosition.CENTER_LEFT,
-                animation = WatermarkAnimation(
-                    type = WatermarkAnimationType.PING_PONG,
-                    duration = 5_000L,
+        binding.playerView.setWatermarks(
+            listOf(
+                WatermarkConfig(
+                    text = "This is a watermark",
+                    x = 0,
+                    y = 50,
+                    color = Color.YELLOW,
+                    textSize = 18f,
+                    opacity = 0.5f,
+                    animation = WatermarkAnimation(
+                        type = WatermarkAnimationType.PING_PONG,
+                        duration = 5_000L,
+                    ),
+                ),
+                WatermarkConfig(
+                    text = "Test 1",
+                    x = 100,
+                    y = 100,
+                    opacity = 0.2f,
+                ),
+                WatermarkConfig(
+                    text = "Test 2",
+                    x = 0,
+                    y = 0,
+                    opacity = 1f,
+                    animation = WatermarkAnimation(type = WatermarkAnimationType.PING_PONG,duration = 10000L)
                 ),
             )
         )

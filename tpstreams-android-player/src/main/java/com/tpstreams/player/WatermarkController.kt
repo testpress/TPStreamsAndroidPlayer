@@ -12,9 +12,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     private var container: FrameLayout? = null
     private var config: WatermarkConfig? = null
 
-    private var manualVisibility: Boolean? = null
     private var currentIsPlaying = false
-    private var hasPlaybackStarted = false
 
     private var pingPongAnimator: ValueAnimator? = null
     private var applyCounter: Int = 0
@@ -30,7 +28,6 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         val player = parent.getPlayer()
         if (player != null) {
             currentIsPlaying = player.isPlaying
-            hasPlaybackStarted = player.isPlaying
         }
 
         createViews(config)
@@ -44,27 +41,13 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
             if (applyGeneration != applyCounter) return@post
             reposition()
 
-            if (hasPlaybackStarted) {
-                val anim = config.animation
-                if (anim?.type == WatermarkAnimationType.PING_PONG) {
-                    startPingPongAnimation(anim)
-                }
+            val anim = config.animation
+            if (anim?.type == WatermarkAnimationType.PING_PONG) {
+                startPingPongAnimation(anim)
             }
 
             updateVisibilityForState(currentIsPlaying)
         }
-    }
-
-    fun show() {
-        manualVisibility = true
-        container?.visibility = View.VISIBLE
-        pingPongAnimator?.resume()
-    }
-
-    fun hide() {
-        manualVisibility = false
-        container?.visibility = View.GONE
-        pingPongAnimator?.pause()
     }
 
     fun remove() {
@@ -73,8 +56,6 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         container?.let { parent.removeView(it) }
         container = null
         config = null
-        manualVisibility = null
-        hasPlaybackStarted = false
     }
 
     fun onParentLayout() {
@@ -83,18 +64,8 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
 
     fun onPlayerStateChanged(isPlaying: Boolean, playbackState: Int = Player.STATE_IDLE) {
         currentIsPlaying = isPlaying
-
-        if (isPlaying && !hasPlaybackStarted) {
-            hasPlaybackStarted = true
-            config?.let { cfg ->
-                val anim = cfg.animation
-                if (anim?.type == WatermarkAnimationType.PING_PONG) {
-                    startPingPongAnimation(anim)
-                }
-            }
-        }
-
-        updateVisibilityForState(isPlaying, playbackState == Player.STATE_ENDED)
+        val hasEnded = playbackState == Player.STATE_ENDED
+        updateVisibilityForState(isPlaying, hasEnded)
     }
 
     fun destroy() {
@@ -106,9 +77,6 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     }
 
     fun onViewAttached() {
-        if (hasPlaybackStarted) {
-            pingPongAnimator?.resume()
-        }
         updateVisibilityForState(currentIsPlaying)
         reposition()
     }
@@ -153,7 +121,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         if (c.width == 0 || c.height == 0) return
 
         val animXy = getAnimationCurrentPosition()
-        val (xFrac, yFrac) = animXy ?: cfg.position.toFraction()
+        val (xFrac, yFrac) = animXy ?: (cfg.x / 100f to cfg.y / 100f)
 
         placeAt(xFrac, yFrac)
     }
@@ -163,7 +131,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         if (!animator.isRunning && !animator.isPaused) return null
         val fraction = animator.animatedValue as? Float ?: return null
         val cfg = config ?: return null
-        val yFrac = cfg.position.toFraction().second
+        val yFrac = cfg.y / 100f
         return fraction to yFrac
     }
 
@@ -194,26 +162,16 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         c.translationY = y
     }
 
-    // ── Visibility ───────────────────────────────────────────────────────
-    //
-    // Watermark is shown once playback starts. It stays visible while paused
-    // and hides before first play or after playback ends.
+    // Watermark is always visible. The animation pauses when not playing.
 
     private fun updateVisibilityForState(isPlaying: Boolean, hasEnded: Boolean = false) {
-        if (manualVisibility != null) return
-
-        if (!hasPlaybackStarted || hasEnded) {
-            container?.visibility = View.GONE
-            pingPongAnimator?.let { if (it.isRunning) it.pause() }
-            return
-        }
-
         container?.visibility = View.VISIBLE
 
         pingPongAnimator?.let { animator ->
-            if (isPlaying && animator.isPaused) {
+            val shouldAnimate = isPlaying && !hasEnded
+            if (shouldAnimate && animator.isPaused) {
                 animator.resume()
-            } else if (!isPlaying && animator.isRunning) {
+            } else if (!shouldAnimate && animator.isRunning) {
                 animator.pause()
             }
         }
