@@ -2,7 +2,6 @@ name: PR Review with Progress Tracking
 
 # Docs:    https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
 # Example: https://github.com/anthropics/claude-code-action/blob/main/examples/pr-review-comprehensive.yml
-
 on:
   pull_request:
     types:
@@ -164,6 +163,8 @@ jobs:
             - Subjective architectural opinions.
             - Optional refactoring.
             - "Nice-to-have" improvements.
+            - Do NOT request changelog updates or version number changes for feature, fix, refactor, or internal implementation PRs.
+            - Version bumps and CHANGELOG updates are handled separately in dedicated release/build PRs.
             - Micro-optimizations without measurable benefit.
 
             Every review comment must explain:
