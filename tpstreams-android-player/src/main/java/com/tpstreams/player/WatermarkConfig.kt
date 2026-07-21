@@ -4,34 +4,17 @@ import android.graphics.Color
 
 data class WatermarkConfig(
     val text: String,
-    val position: WatermarkPosition = WatermarkPosition.CENTER_LEFT,
+    val x: Int = 0,
+    val y: Int = 0,
     val color: Int = Color.WHITE,
     val textSize: Float = 14f,
     val opacity: Float = 0.3f,
     val animation: WatermarkAnimation? = null,
-)
-
-enum class WatermarkPosition {
-    TOP_LEFT,
-    TOP_CENTER,
-    TOP_RIGHT,
-    CENTER_LEFT,
-    CENTER,
-    CENTER_RIGHT,
-    BOTTOM_LEFT,
-    BOTTOM_CENTER,
-    BOTTOM_RIGHT;
-
-    internal fun toFraction(): Pair<Float, Float> = when (this) {
-        TOP_LEFT      -> 0f to 0f
-        TOP_CENTER    -> 0.5f to 0f
-        TOP_RIGHT     -> 1f to 0f
-        CENTER_LEFT   -> 0f to 0.5f
-        CENTER        -> 0.5f to 0.5f
-        CENTER_RIGHT  -> 1f to 0.5f
-        BOTTOM_LEFT   -> 0f to 1f
-        BOTTOM_CENTER -> 0.5f to 1f
-        BOTTOM_RIGHT  -> 1f to 1f
+) {
+    init {
+        require(x in 0..100) { "x must be 0-100, was $x" }
+        require(y in 0..100) { "y must be 0-100, was $y" }
+        require(opacity in 0f..1f) { "opacity must be 0.0-1.0, was $opacity" }
     }
 }
 

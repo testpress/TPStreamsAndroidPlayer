@@ -40,7 +40,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val settingsPanel = SettingsPanel(this)
     private val captions = Captions(this)
     private val contextAccess = ContextAccess(this)
-    private var watermarkController: WatermarkController? = null
+    private val watermarkControllers = mutableMapOf<String, WatermarkController>()
     
     private var playerControlView: TPStreamsPlayerControlView? = null
     private var orientationEventListener: OrientationListener? = null
@@ -193,7 +193,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 enableAutoFullscreenOnRotate()
             }
             registerWithLifecycle()
-            watermarkController?.onViewAttached()
+            watermarkControllers.values.forEach { it.onViewAttached() }
         }
     }
 
@@ -487,7 +487,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         super.onLayout(changed, left, top, right, bottom)
         
         // Reposition watermark on layout changes (fullscreen, rotation, resize)
-        watermarkController?.onParentLayout()
+        watermarkControllers.values.forEach { it.onParentLayout() }
         
         // Ensure error overlay is properly laid out when view is measured
         errorOverlay?.let { overlay ->
@@ -510,7 +510,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.removeListener(playbackStateListener)
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
-        watermarkController?.onViewDetached()
+        watermarkControllers.values.forEach { it.onViewDetached() }
         
         // Always remove FLAG_SECURE on detach. In a Single-Activity architecture the Activity
         // is rarely finishing during normal navigation, so guarding on isFinishing would leak
@@ -774,34 +774,25 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     // ── Watermark ────────────────────────────────────────────────────────
 
-    fun setWatermark(config: WatermarkConfig?) {
-        if (config == null) {
-            watermarkController?.destroy()
-            watermarkController = null
-            return
+    fun setWatermarks(configs: List<WatermarkConfig>) {
+        watermarkControllers.values.forEach { it.destroy() }
+        watermarkControllers.clear()
+
+        configs.forEachIndexed { index, config ->
+            val controller = WatermarkController(this)
+            watermarkControllers[index.toString()] = controller
+            controller.apply(config)
         }
-        if (watermarkController == null) {
-            watermarkController = WatermarkController(this)
-        }
-        watermarkController?.apply(config)
     }
 
-    fun showWatermark() {
-        watermarkController?.show()
-    }
-
-    fun hideWatermark() {
-        watermarkController?.hide()
-    }
-
-    fun removeWatermark() {
-        watermarkController?.destroy()
-        watermarkController = null
+    fun clearWatermarks() {
+        watermarkControllers.values.forEach { it.destroy() }
+        watermarkControllers.clear()
     }
 
     /**
-     * Returns the child index at which the watermark container should be inserted.
-     * Placed before the error overlay so that watermark renders below error/loading UI.
+     * Returns the child index at which watermark containers should be inserted.
+     * Placed before the error overlay so that watermarks render below error/loading UI.
      */
     internal fun getWatermarkInsertIndex(): Int {
         val index = errorOverlay?.let { indexOfChild(it) } ?: -1
@@ -810,10 +801,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     private fun notifyWatermarkPlayerState() {
         val player = getPlayer() ?: return
-        watermarkController?.onPlayerStateChanged(
-            isPlaying = player.isPlaying,
-            playbackState = player.playbackState
-        )
+        watermarkControllers.values.forEach {
+            it.onPlayerStateChanged(
+                isPlaying = player.isPlaying,
+                playbackState = player.playbackState
+            )
+        }
     }
     
     private fun isDecoderError(message: String): Boolean {

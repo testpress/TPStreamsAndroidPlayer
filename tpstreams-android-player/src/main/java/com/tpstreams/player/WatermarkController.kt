@@ -153,7 +153,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         if (c.width == 0 || c.height == 0) return
 
         val animXy = getAnimationCurrentPosition()
-        val (xFrac, yFrac) = animXy ?: cfg.position.toFraction()
+        val (xFrac, yFrac) = animXy ?: (cfg.x / 100f to cfg.y / 100f)
 
         placeAt(xFrac, yFrac)
     }
@@ -163,7 +163,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         if (!animator.isRunning && !animator.isPaused) return null
         val fraction = animator.animatedValue as? Float ?: return null
         val cfg = config ?: return null
-        val yFrac = cfg.position.toFraction().second
+        val yFrac = cfg.y / 100f
         return fraction to yFrac
     }
 
