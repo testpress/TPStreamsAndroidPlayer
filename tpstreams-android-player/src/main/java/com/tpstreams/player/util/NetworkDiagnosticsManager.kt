@@ -190,9 +190,18 @@ internal class NetworkDiagnosticsManager(
             setData("root_cause", rootCause)
             setData("auto_retry_attempt", displayAttempt.toString())
             setData("internet_reachable", diagnostics.internetReachable.toString())
+            diagnostics.internetDetail?.let { setData("internet_detail", it) }
+            diagnostics.internetLatencyMs?.let { setData("internet_latency_ms", it.toString()) }
             setData("dns_resolves", diagnostics.dnsResolves.toString())
+            diagnostics.dnsDetail?.let { setData("dns_detail", it) }
+            diagnostics.dnsLatencyMs?.let { setData("dns_latency_ms", it.toString()) }
             setData("server_reachable", diagnostics.serverReachable.toString())
+            diagnostics.serverDetail?.let { setData("server_detail", it) }
+            diagnostics.serverLatencyMs?.let { setData("server_latency_ms", it.toString()) }
+            diagnostics.cdnLatencyMs?.let { setData("cdn_latency_ms", it.toString()) }
+            diagnostics.tlsVersion?.let { setData("tls_version", it) }
             setData("cdn_reachable", diagnostics.cdnReachable?.toString() ?: "null")
+            diagnostics.cdnDetail?.let { setData("cdn_detail", it) }
             setData("proxy_configured", diagnostics.proxyConfigured.toString())
             setData("final_error", finalError.name)
             setData("player_state", stateName)
@@ -214,17 +223,26 @@ internal class NetworkDiagnosticsManager(
                 level = io.sentry.SentryLevel.WARNING,
                 context = appContext,
                 player = player,
-                tags = mapOf(
-                    "playerId" to playerId,
-                    "assetId" to assetId,
-                    "rootCause" to rootCause,
-                    "finalError" to finalError.name,
-                    "network_internet" to diagnostics.internetReachable.toString(),
-                    "network_dns" to diagnostics.dnsResolves.toString(),
-                    "network_server" to diagnostics.serverReachable.toString(),
-                    "network_cdn" to (diagnostics.cdnReachable?.toString() ?: "skipped"),
-                    "network_proxy" to diagnostics.proxyConfigured.toString()
-                )
+                tags = buildMap {
+                    put("playerId", playerId)
+                    put("assetId", assetId)
+                    put("rootCause", rootCause)
+                    put("finalError", finalError.name)
+                    put("network_internet", diagnostics.internetReachable.toString())
+                    diagnostics.internetDetail?.let { put("network_internet_detail", it) }
+                    diagnostics.internetLatencyMs?.let { put("network_internet_latency_ms", it.toString()) }
+                    put("network_dns", diagnostics.dnsResolves.toString())
+                    diagnostics.dnsDetail?.let { put("network_dns_detail", it) }
+                    diagnostics.dnsLatencyMs?.let { put("network_dns_latency_ms", it.toString()) }
+                    put("network_server", diagnostics.serverReachable.toString())
+                    diagnostics.serverDetail?.let { put("network_server_detail", it) }
+                    diagnostics.serverLatencyMs?.let { put("network_server_latency_ms", it.toString()) }
+                    put("network_cdn", (diagnostics.cdnReachable?.toString() ?: "skipped"))
+                    diagnostics.cdnDetail?.let { put("network_cdn_detail", it) }
+                    diagnostics.cdnLatencyMs?.let { put("network_cdn_latency_ms", it.toString()) }
+                    diagnostics.tlsVersion?.let { put("network_tls_version", it) }
+                    put("network_proxy", diagnostics.proxyConfigured.toString())
+                }
             )
         }
     }
