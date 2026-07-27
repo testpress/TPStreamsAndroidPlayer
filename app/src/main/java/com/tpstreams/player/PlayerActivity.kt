@@ -1,6 +1,5 @@
 package com.tpstreams.player
 
-import android.graphics.Color
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -19,7 +18,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -44,6 +43,14 @@ class PlayerActivity : AppCompatActivity() {
         viewModel.player?.setMaxResolution(1080)
         binding.playerView.setVideoResolution(720)
         binding.playerView.player = viewModel.player
+        
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                exitTrigger = "back_press"
+                finish()
+            }
+        })
+    }
 
         binding.playerView.setWatermarks(
             listOf(
