@@ -58,12 +58,23 @@ internal class LoggingDataSource(
             }
             return length
         } catch (e: Exception) {
+            val timeoutSubType = if (e is java.net.SocketTimeoutException) {
+                val msg = e.message?.lowercase() ?: ""
+                when {
+                    "connect" in msg -> "CONNECT_TIMEOUT"
+                    "read" in msg -> "READ_TIMEOUT"
+                    "write" in msg -> "WRITE_TIMEOUT"
+                    else -> "SOCKET_TIMEOUT"
+                }
+            } else "N/A"
             FlightRecorder.log(
                 stage = "NETWORK",
                 event = "request_error",
                 data = mapOf(
                     "url" to dataSpec.uri.toString(),
-                    "error" to (e.message ?: e.javaClass.simpleName)
+                    "error" to (e.message ?: e.javaClass.simpleName),
+                    "errorClass" to e.javaClass.simpleName,
+                    "timeoutSubType" to timeoutSubType
                 )
             )
             throw e

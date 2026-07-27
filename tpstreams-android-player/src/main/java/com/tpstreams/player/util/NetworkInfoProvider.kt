@@ -51,6 +51,11 @@ internal object NetworkInfoProvider {
             // Telephony fields (require READ_PHONE_STATE)
             val telephony = getTelephonyInfo(context)
 
+            // Permission-free telephony fields — available on all API levels
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            val simCountryIso = try { tm?.simCountryIso?.takeIf { it.isNotBlank() } } catch (_: Exception) { null }
+            val networkCountryIso = try { tm?.networkCountryIso?.takeIf { it.isNotBlank() } } catch (_: Exception) { null }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 // API 23+: modern NetworkCapabilities-based API
                 val capabilities = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
@@ -82,7 +87,9 @@ internal object NetworkInfoProvider {
                     ipv4 = ipv4,
                     ipv6 = ipv6,
                     dnsServers = dnsServers,
-                    isCaptivePortal = isCaptivePortal
+                    isCaptivePortal = isCaptivePortal,
+                    simCountryIso = simCountryIso,
+                    networkCountryIso = networkCountryIso
                 )
             } else {
                 // API 21-22: fallback using deprecated activeNetworkInfo
@@ -105,7 +112,9 @@ internal object NetworkInfoProvider {
                     ipv4 = ipv4,
                     ipv6 = ipv6,
                     dnsServers = dnsServers,
-                    isCaptivePortal = null
+                    isCaptivePortal = null,
+                    simCountryIso = simCountryIso,
+                    networkCountryIso = networkCountryIso
                 )
             }
         } catch (_: Exception) {

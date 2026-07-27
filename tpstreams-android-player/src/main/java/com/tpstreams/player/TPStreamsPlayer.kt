@@ -452,7 +452,61 @@ private constructor(
                 error: IOException,
                 wasCanceled: Boolean
             ) {
-                FlightRecorder.log("NETWORK", "onLoadError", mapOf("uri" to loadEventInfo.uri.toString(), "error" to error.toString(), "wasCanceled" to wasCanceled))
+                val classification = com.tpstreams.player.telemetry.PlaybackErrorClassifier.classify(
+                    error = error,
+                    expectedBytes = loadEventInfo.bytesLoaded,
+                    actualBytesRead = loadEventInfo.bytesLoaded
+                )
+                val timeoutSubType = classifyTimeout(error) ?: "N/A"
+                val trackTypeName = when (mediaLoadData.trackType) {
+                    androidx.media3.common.C.TRACK_TYPE_VIDEO -> "video"
+                    androidx.media3.common.C.TRACK_TYPE_AUDIO -> "audio"
+                    androidx.media3.common.C.TRACK_TYPE_TEXT -> "text"
+                    else -> "other(${mediaLoadData.trackType})"
+                }
+                FlightRecorder.log("NETWORK", "onLoadError", mapOf(
+                    "uri" to loadEventInfo.uri.toString(),
+                    "error" to error.toString(),
+                    "errorClass" to error.javaClass.simpleName,
+                    "wasCanceled" to wasCanceled,
+                    "classification" to classification.name,
+                    "timeoutSubType" to timeoutSubType,
+                    "loadDurationMs" to loadEventInfo.loadDurationMs,
+                    "bytesLoaded" to loadEventInfo.bytesLoaded,
+                    "trackType" to trackTypeName,
+                    "dataSpecLength" to loadEventInfo.dataSpec.length
+                ))
+                Sentry.addBreadcrumb(Breadcrumb().apply {
+                    setMessage("onLoadError: $classification / $timeoutSubType")
+                    setCategory("network.load")
+                    setLevel(SentryLevel.WARNING)
+                    setData("url", loadEventInfo.uri.toString())
+                    setData("error_class", error.javaClass.simpleName)
+                    setData("error_message", error.message ?: error.toString())
+                    setData("classification", classification.name)
+                    setData("timeout_sub_type", timeoutSubType)
+                    setData("load_duration_ms", loadEventInfo.loadDurationMs)
+                    setData("bytes_loaded", loadEventInfo.bytesLoaded)
+                    setData("track_type", trackTypeName)
+                    setData("was_canceled", wasCanceled)
+                })
+            }
+
+            private fun classifyTimeout(error: IOException): String {
+                var cause: Throwable? = error
+                while (cause != null) {
+                    if (cause is java.net.SocketTimeoutException) {
+                        val msg = cause.message?.lowercase() ?: ""
+                        return when {
+                            "connect" in msg -> "CONNECT_TIMEOUT"
+                            "read" in msg -> "READ_TIMEOUT"
+                            "write" in msg -> "WRITE_TIMEOUT"
+                            else -> "SOCKET_TIMEOUT"
+                        }
+                    }
+                    cause = cause.cause
+                }
+                return "N/A"
             }
 
             override fun onLoadCanceled(
@@ -490,8 +544,17 @@ private constructor(
 
 
             override fun onSeekStarted(eventTime: AnalyticsListener.EventTime) {
+                val stackTrace = Thread.currentThread().stackTrace
+                    .drop(3) // drop getStackTrace, Thread.currentThread, onSeekStarted
+                    .take(6)
+                    .joinToString(" <- ") { "${it.className.substringAfterLast('.')}.${it.methodName}(${it.fileName}:${it.lineNumber})" }
                 FlightRecorder.logSeek(from = eventTime.currentPlaybackPositionMs, to = lastSeekTargetMs)
-                debugLog("SEEK STARTED from ${eventTime.currentPlaybackPositionMs}ms to ${lastSeekTargetMs}ms")
+                FlightRecorder.log("SEEK", "seek_origin", mapOf(
+                    "from" to eventTime.currentPlaybackPositionMs,
+                    "to" to lastSeekTargetMs,
+                    "callerChain" to stackTrace
+                ))
+                debugLog("SEEK STARTED from ${eventTime.currentPlaybackPositionMs}ms to ${lastSeekTargetMs}ms [caller: $stackTrace]")
             }
 
             fun onSeekProcessed(eventTime: AnalyticsListener.EventTime) {

@@ -26,17 +26,17 @@ class TestPlayerActivity : AppCompatActivity() {
 
         TPStreamsSDK.init("9q94nm", TPStreamsSDK.Provider.TPStreams)
 
-        binding.btnDrm.setOnClickListener {
-            launchPlayer("42h2tZ5fmNf", "9327e2d0-fa13-4288-902d-840f32cd0eed", false, "drm")
-        }
-
-        binding.btnNonDrm.setOnClickListener {
-            launchPlayer("4Zs4MNd5Ksj", "c4f36a4f-3859-4b24-aca8-189b7e8cfeb0", false, "non_drm")
-        }
-
-        binding.btnAes.setOnClickListener {
-            launchPlayer("5fK7bSaNYxq", "6dfcb1d2-8cea-468c-b09a-fa89a4a6fcac", false, "aes")
-        }
+        // binding.btnDrm.setOnClickListener {
+        //     launchPlayer("42h2tZ5fmNf", "9327e2d0-fa13-4288-902d-840f32cd0eed", false, "drm")
+        // }
+        //
+        // binding.btnNonDrm.setOnClickListener {
+        //     launchPlayer("4Zs4MNd5Ksj", "c4f36a4f-3859-4b24-aca8-189b7e8cfeb0", false, "non_drm")
+        // }
+        //
+        // binding.btnAes.setOnClickListener {
+        //     launchPlayer("5fK7bSaNYxq", "6dfcb1d2-8cea-468c-b09a-fa89a4a6fcac", false, "aes")
+        // }
 
         binding.btnLogProblem.setOnClickListener {
             launchPlayer("42h2tZ5fmNf", "9327e2d0-fa13-4288-902d-840f32cd0eed", true, "drm")

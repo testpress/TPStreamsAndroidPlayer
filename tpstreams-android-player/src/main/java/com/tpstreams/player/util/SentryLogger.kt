@@ -39,6 +39,11 @@ internal object SentryLogger {
         // SDK version — included on every event for searchability
         scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
 
+        // Organization + test APK identification
+        scope.setTag("organization", "targetboard")
+        val isTestApk = context?.packageName?.contains("test", ignoreCase = true) == true
+        scope.setTag("is_test_apk", isTestApk.toString())
+
         // Device info (cached fields always work, screen resolution needs context)
         try {
             DeviceInfoProvider.getTags(context).forEach { (key, value) -> scope.setTag(key, value) }
@@ -73,6 +78,8 @@ internal object SentryLogger {
             info.ipv6?.let { scope.setTag("ipv6", it) }
             info.dnsServers?.let { scope.setTag("dns_servers", it) }
             info.isCaptivePortal?.let { scope.setTag("captive_portal", it.toString()) }
+            info.simCountryIso?.let { scope.setTag("sim_country_iso", it) }
+            info.networkCountryIso?.let { scope.setTag("network_country_iso", it) }
             scope.setContexts("Network Info", buildMap {
                 info.networkType?.let { put("network_type", it) }
                 info.vpnActive?.let { put("vpn_active", it) }
@@ -88,6 +95,8 @@ internal object SentryLogger {
                 info.ipv6?.let { put("ipv6", it) }
                 info.dnsServers?.let { put("dns_servers", it) }
                 info.isCaptivePortal?.let { put("captive_portal", it) }
+                info.simCountryIso?.let { put("sim_country_iso", it) }
+                info.networkCountryIso?.let { put("network_country_iso", it) }
             })
         } catch (_: Exception) { /* best-effort */ }
 

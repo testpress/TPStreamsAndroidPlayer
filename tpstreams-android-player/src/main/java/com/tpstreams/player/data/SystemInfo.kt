@@ -28,7 +28,9 @@ data class NetworkInfo(
     val ipv4: String? = null,              // from LinkProperties, permission-free
     val ipv6: String? = null,              // from LinkProperties, permission-free
     val dnsServers: String? = null,         // comma-separated, from LinkProperties, permission-free
-    val isCaptivePortal: Boolean? = null    // from NetworkCapabilities, permission-free
+    val isCaptivePortal: Boolean? = null,   // from NetworkCapabilities, permission-free
+    val simCountryIso: String? = null,      // SIM country ISO e.g. "in", permission-free
+    val networkCountryIso: String? = null   // network country ISO, permission-free
 )
 
 /**

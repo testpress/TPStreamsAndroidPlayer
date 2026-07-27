@@ -358,6 +358,8 @@ object FlightRecorder {
             IPv4: ${conn?.ipv4 ?: "N/A"}
             IPv6: ${conn?.ipv6 ?: "N/A"}
             DNS: ${conn?.dnsServers ?: "N/A"}
+            SIM Country: ${conn?.simCountryIso ?: "N/A"}
+            Network Country: ${conn?.networkCountryIso ?: "N/A"}
             Playback Errors: ${errors.get()}
             Total Events: ${eventSequenceNumber.get()}
         """.trimIndent()
@@ -584,7 +586,9 @@ object FlightRecorder {
             "is_roaming" to (info.isRoaming?.toString() ?: "unknown"),
             "network_validated" to (info.networkValidated?.toString() ?: "unknown"),
             "metered" to (info.activeNetworkMetered?.toString() ?: "unknown"),
-            "captive_portal" to (info.isCaptivePortal?.toString() ?: "unknown")
+            "captive_portal" to (info.isCaptivePortal?.toString() ?: "unknown"),
+            "sim_country_iso" to (info.simCountryIso ?: "unknown"),
+            "network_country_iso" to (info.networkCountryIso ?: "unknown")
         ))
     }
 
