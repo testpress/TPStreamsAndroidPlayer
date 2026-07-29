@@ -153,7 +153,8 @@ class MainActivity : AppCompatActivity() {
                 this,
                 "42h2tZ5fmNf",
                 "9327e2d0-fa13-4288-902d-840f32cd0eed",
-                "720"
+                "720",
+                offlineLicenseExpireTime = 30 * 24 * 60 * 60 // 30 days
             )
         }
 

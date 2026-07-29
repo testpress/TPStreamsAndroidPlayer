@@ -139,17 +139,19 @@ class DownloadClient private constructor(private val context: Context) {
         assetId: String,
         accessToken: String,
         resolution: String? = null,
-        metadata: Map<String, String>? = null
+        metadata: Map<String, String>? = null,
+        offlineLicenseExpireTime: Long? = null
     ) {
+        val licenseExpireTime = offlineLicenseExpireTime ?: DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
         val orgId = TPStreamsSDK.requireOrgId()
 
         getAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
             override fun onSuccess(assetInfo: AssetInfo) {
                 if (resolution != null) {
-                    performStartDownload(assetInfo, assetInfo.title, orgId, assetId, accessToken, resolution, metadata)
+                    performStartDownload(assetInfo, assetInfo.title, orgId, assetId, accessToken, resolution, metadata, offlineLicenseExpireTime = licenseExpireTime)
                 } else {
                     if (context is androidx.fragment.app.FragmentActivity) {
-                        showDownloadOptions(context, assetInfo, assetInfo.title, orgId, assetId, accessToken, metadata)
+                        showDownloadOptions(context, assetInfo, assetInfo.title, orgId, assetId, accessToken, metadata, licenseExpireTime)
                     } else {
                         Log.e(TAG, "Resolution is required for non-activity contexts")
                     }
@@ -171,7 +173,8 @@ class DownloadClient private constructor(private val context: Context) {
         orgId: String,
         assetId: String,
         accessToken: String,
-        metadata: Map<String, String>?
+        metadata: Map<String, String>?,
+        offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
     ) {
         val mediaItem = MediaItemUtils.buildMediaItem(assetInfo, title, orgId, assetId, accessToken).mediaItem
         val bottomSheet = DownloadOptionsBottomSheet()
@@ -192,7 +195,7 @@ class DownloadClient private constructor(private val context: Context) {
                 override fun onDownloadResolutionSelected(resolution: String) {
                     val bitrate = bitrates[resolution] ?: 0
                     val totalSize = DownloadUtils.calculateDownloadSize(bitrate.toLong(), assetInfo.durationSeconds)
-                    performStartDownload(assetInfo, title, orgId, assetId, accessToken, resolution, metadata, totalSize)
+                    performStartDownload(assetInfo, title, orgId, assetId, accessToken, resolution, metadata, totalSize, offlineLicenseExpireTime)
                 }
             })
             bottomSheet.show(activity.supportFragmentManager)
@@ -207,10 +210,11 @@ class DownloadClient private constructor(private val context: Context) {
         accessToken: String,
         resolution: String,
         metadata: Map<String, String>?,
-        totalSize: Long = 0
+        totalSize: Long = 0,
+        offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
     ) {
         val mediaItem = MediaItemUtils.buildMediaItem(assetInfo, title, orgId, assetId, accessToken).mediaItem
-        startDownload(mediaItem, resolution, metadata ?: emptyMap(), totalSize)
+        startDownload(mediaItem, resolution, metadata ?: emptyMap(), totalSize, offlineLicenseExpireTime)
     }
 
 
