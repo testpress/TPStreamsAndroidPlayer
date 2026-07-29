@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2026-07-29
+### Added
+- Expose `offlineLicenseExpireTime` parameter in public `DownloadClient.startDownload()` API to allow customizing offline license duration for DRM downloads
+
 ## [1.2.4] - 2026-07-21
 ### Changed
 - Redesign watermark API to support multiple watermarks via `setWatermarks(List<WatermarkConfig>)` and `clearWatermarks()`, replacing the single-watermark `setWatermark()` / `showWatermark()` / `hideWatermark()` / `removeWatermark()` API (#115)
@@ -176,6 +180,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.2.5]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.4...1.2.5
 [1.2.4]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.3...1.2.4
 [1.2.3]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.2...1.2.3
 [1.2.2]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.1...1.2.2
