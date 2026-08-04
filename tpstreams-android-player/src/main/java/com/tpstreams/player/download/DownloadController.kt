@@ -301,6 +301,14 @@ object DownloadController {
 
         helper.prepare(object : DownloadHelper.Callback {
             override fun onPrepared(helper: DownloadHelper, tracksInfoAvailable: Boolean) {
+                // Track information isn't available yet (commonly for progressive sources).
+                // Media3 indicates that mapped track info must not be queried in this case.
+                if (!tracksInfoAvailable) {
+                    Log.d(TAG, "No track info available for ${mediaItem.mediaId} (progressive source)")
+                    helper.release()
+                    callback(emptyList(), emptyMap())
+                    return
+                }
                 try {
                     val resolutions = mutableListOf<String>()
                     val bitrates = mutableMapOf<String, Int>()
@@ -379,19 +387,24 @@ object DownloadController {
                     val request = createDownloadRequest(mediaItem.mediaId, baseRequest, metadataJson)
                         
                     Log.d(TAG, "Created download request with ID: ${request.id} for URL: ${request.uri}")
-                    
+
+                    // Track information isn't available yet (commonly for progressive sources);
+                    // findDrmFormat() must not be called in that case.
                     if (isMediaItemContainsDrm(mediaItem)) {
-                        val drmRequest = mediaItem.localConfiguration?.drmConfiguration?.let { drmConfig ->
-                            handleDrmDownload(context, drmConfig, helper, request, offlineLicenseExpireTime)
+                        if (!tracksInfoAvailable) {
+                            Log.e(TAG, "DRM download failed: track info unavailable for ${mediaItem.mediaId}")
+                        } else {
+                            val drmRequest = mediaItem.localConfiguration?.drmConfiguration?.let { drmConfig ->
+                                handleDrmDownload(context, drmConfig, helper, request, offlineLicenseExpireTime)
+                            }
+                            if (drmRequest != null) {
+                                TPSDownloadService.sendDownload(context, drmRequest, true)
+                                Log.d(TAG, "DRM download started for: ${mediaItem.mediaId}, resolution: $resolution")
+                            }
                         }
-                        if (drmRequest != null) {
-                            TPSDownloadService.sendDownload(context, drmRequest, true)
-                            Log.d(TAG, "DRM download started for: ${mediaItem.mediaId}, resolution: $resolution")
-                        }
-                        
-                    }else {
+                    } else {
                         TPSDownloadService.sendDownload(context, request, true)
-                        Log.d(TAG,"Download started for: ${mediaItem.mediaId}, resolution: $resolution")
+                        Log.d(TAG, "Download started for: ${mediaItem.mediaId}, resolution: $resolution")
                     }
                 } finally {
                     helper.release()
@@ -539,6 +552,14 @@ object DownloadController {
         
         helper.prepare(object : DownloadHelper.Callback {
             override fun onPrepared(helper: DownloadHelper, tracksInfoAvailable: Boolean) {
+                // Track information isn't available yet (commonly for progressive sources);
+                // license renewal reads track info, which must not be queried in this case.
+                if (!tracksInfoAvailable) {
+                    Log.e(TAG, "Track info unavailable for license renewal of $assetId")
+                    onError?.invoke("Failed to renew license: track info unavailable")
+                    helper.release()
+                    return
+                }
                 try {
                     val drmFormat = findDrmFormat(helper)
                     if (drmFormat != null) {
