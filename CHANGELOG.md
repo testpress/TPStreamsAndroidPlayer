@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-08-04
+### Changed
+- Upgrade `androidx.media3` from 1.7.1 to 1.8.1, the last release line that supports minSdk 21 (1.9+ raises the minimum to 23) (#117)
+- 1.8.1 includes playback fixes: VP9 Widevine playback on some devices, an extended detached-surface workaround for Lenovo/Motorola/realme devices, Bluetooth A/V sync after pause-resume, and several DASH/HLS fixes
+- Adapt download preparation to the updated `DownloadHelper.Callback.onPrepared` callback signature in 1.8.0 (#117)
+
 ## [1.2.5] - 2026-07-29
 ### Added
 - Expose `offlineLicenseExpireTime` parameter in public `DownloadClient.startDownload()` API to allow customizing offline license duration for DRM downloads
@@ -180,6 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release with core playback and DRM support
 
+[1.2.6]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.5...1.2.6
 [1.2.5]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.4...1.2.5
 [1.2.4]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.3...1.2.4
 [1.2.3]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.2...1.2.3
