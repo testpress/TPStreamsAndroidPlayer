@@ -16,6 +16,14 @@ object TPStreamsSDK {
     internal var authToken: String? = null
         private set
 
+    /**
+     * Logged-in user's ID. Must be set before creating a [TPStreamsPlayer] to enable resume
+     * playback; changing it after the player is created has no effect on that player.
+     * When null (default), all resume-related requests are silently skipped.
+     */
+    @JvmStatic
+    var userId: String? = null
+
     internal var orgId: String?
         get() = _orgCode
         private set(value) {
