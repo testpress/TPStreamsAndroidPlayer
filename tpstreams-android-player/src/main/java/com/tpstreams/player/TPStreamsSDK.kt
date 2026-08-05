@@ -17,7 +17,8 @@ object TPStreamsSDK {
         private set
 
     /**
-     * Logged-in user's ID. Set before creating a [TPStreamsPlayer] to enable resume playback.
+     * Logged-in user's ID. Must be set before creating a [TPStreamsPlayer] to enable resume
+     * playback; changing it after the player is created has no effect on that player.
      * When null (default), all resume-related requests are silently skipped.
      */
     @JvmStatic

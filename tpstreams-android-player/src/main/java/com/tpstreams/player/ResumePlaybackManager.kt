@@ -46,7 +46,9 @@ internal class ResumePlaybackManager(
     private val periodicSaveJob = scope.launch {
         while (isActive) {
             delay(SAVE_INTERVAL_MS)
-            if (player.isPlaying) saveWatchedPosition()
+            withContext(Dispatchers.Main) {
+                if (player.isPlaying) saveWatchedPosition()
+            }
         }
     }
 
