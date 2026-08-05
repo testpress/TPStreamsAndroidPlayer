@@ -156,6 +156,9 @@ private constructor(
         }
     )
 
+    private val resumePlaybackManager: ResumePlaybackManager? =
+        TPStreamsSDK.userId?.let { ResumePlaybackManager(this, assetId) }
+
     fun retry() {
         if (released) return
         networkDiagnosticsManager.onManualRetry()
@@ -344,6 +347,13 @@ private constructor(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
                 seekToStartAt()
+                if (playbackState == Player.STATE_READY) {
+                    if (startAt <= 0 && !_isLiveStream) {
+                        resumePlaybackManager?.onPlayerReady()
+                    }
+                } else if (playbackState == Player.STATE_ENDED) {
+                    resumePlaybackManager?.onVideoEnded()
+                }
             }
             
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -352,7 +362,11 @@ private constructor(
             
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 Log.d("TPStreamsPlayer", "Is playing changed: $isPlaying")
-                if (isPlaying) networkDiagnosticsManager.onPlaybackRecovered()
+                if (isPlaying) {
+                    networkDiagnosticsManager.onPlaybackRecovered()
+                } else {
+                    resumePlaybackManager?.onPaused()
+                }
             }
             
             override fun onPlayerError(error: PlaybackException) {
@@ -393,6 +407,16 @@ private constructor(
             
             override fun onIsLoadingChanged(isLoading: Boolean) {
                 Log.d("TPStreamsPlayer", "Is loading changed: $isLoading")
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                discontinuityReason: Int
+            ) {
+                if (discontinuityReason == Player.DISCONTINUITY_REASON_SEEK) {
+                    resumePlaybackManager?.onSeeked()
+                }
             }
         })
 
@@ -668,6 +692,7 @@ private constructor(
     override fun release() {
         debugLog("Surface DETACH (Player Released)")
         debugLog("Player RELEASE - assetId: $assetId")
+        resumePlaybackManager?.onRelease()
         synchronized(TPStreamsPlayer::class.java) {
             activePlayerCount--
             debugLog("Active Player COUNT: $activePlayerCount")

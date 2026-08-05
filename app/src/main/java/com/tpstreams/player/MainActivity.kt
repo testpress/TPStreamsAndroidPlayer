@@ -77,6 +77,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initTPStreams() {
         TPStreamsSDK.init("9q94nm", TPStreamsSDK.Provider.TPStreams)
+        TPStreamsSDK.userId = "kaizen"
     }
 
     private fun initTestpress() {
