@@ -18,7 +18,8 @@ import org.json.JSONObject
 
 internal class ResumePlaybackManager(
     private val player: Player,
-    private val assetId: String
+    private val assetId: String,
+    private val userId: String
 ) {
 
     companion object {
@@ -55,7 +56,6 @@ internal class ResumePlaybackManager(
     fun onPlayerReady() {
         if (fetched) return
         fetched = true
-        val userId = TPStreamsSDK.userId ?: return
         val orgId = TPStreamsSDK.orgId ?: return
         val body = watchPositionBody(userId, orgId, assetId)
         scope.launch {
@@ -73,7 +73,6 @@ internal class ResumePlaybackManager(
 
     fun onVideoEnded() {
         periodicSaveJob.cancel()
-        val userId = TPStreamsSDK.userId ?: return
         val orgId = TPStreamsSDK.orgId ?: return
         scope.launch { delete(LAST_WATCHED_POSITION_URL, watchPositionBody(userId, orgId, assetId)) }
     }
@@ -84,7 +83,6 @@ internal class ResumePlaybackManager(
     }
 
     private fun saveWatchedPosition(allowCancellation: Boolean = true) {
-        val userId = TPStreamsSDK.userId ?: return
         val orgId = TPStreamsSDK.orgId ?: return
         if (player.playbackState == Player.STATE_ENDED) return
         val body = updateBody(userId, orgId, assetId, (player.currentPosition / 1000).toInt())

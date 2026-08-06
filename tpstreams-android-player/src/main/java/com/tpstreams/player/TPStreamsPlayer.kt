@@ -76,7 +76,8 @@ private constructor(
     private val showDefaultCaptions: Boolean = false,
     val startInFullscreen: Boolean = false,
     val downloadMetadata: Map<String, String>? = null,
-    val offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
+    val offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
+    val userId: String? = null
 ) : Player by exoPlayer {
 
     val playbackSessionId = (1..6)
@@ -157,7 +158,7 @@ private constructor(
     )
 
     private val resumePlaybackManager: ResumePlaybackManager? =
-        TPStreamsSDK.userId?.let { ResumePlaybackManager(this, assetId) }
+        userId?.let { ResumePlaybackManager(this, assetId, it) }
 
     fun retry() {
         if (released) return
@@ -998,6 +999,7 @@ private constructor(
                 .build() to trackSelector
         }
 
+        @JvmOverloads
         @OptIn(UnstableApi::class)
         fun create(
             context: Context,
@@ -1011,7 +1013,8 @@ private constructor(
             downloadMetadata: Map<String, String>? = null,
             offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
             seekBackIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
-            seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS
+            seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
+            userId: String? = null
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context, seekBackIncrementMs, seekForwardIncrementMs)
             return TPStreamsPlayer(
@@ -1026,7 +1029,8 @@ private constructor(
                 showDefaultCaptions,
                 startInFullscreen,
                 downloadMetadata,
-                offlineLicenseExpireTime)
+                offlineLicenseExpireTime,
+                userId)
         }
     }
 
