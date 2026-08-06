@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-08-06
+### Added
+- Resume playback from the last watched position (#118): the position is saved on pause, on seek, periodically every 2 minutes while watching, and when the player is closed; reopening the same asset restores the position automatically, and it is cleared when the video is played to the end
+- The feature is opt-in per user: set a `userId` when creating the player to enable it; without a user id nothing is saved or restored
+
 ## [1.2.6] - 2026-08-04
 ### Changed
 - Upgrade `androidx.media3` from 1.7.1 to 1.8.1, the last release line that supports minSdk 21 (1.9+ raises the minimum to 23) (#117)
