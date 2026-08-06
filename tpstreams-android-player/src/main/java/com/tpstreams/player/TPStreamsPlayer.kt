@@ -999,6 +999,7 @@ private constructor(
                 .build() to trackSelector
         }
 
+        @JvmOverloads
         @OptIn(UnstableApi::class)
         fun create(
             context: Context,
@@ -1011,9 +1012,9 @@ private constructor(
             startInFullscreen: Boolean = false,
             downloadMetadata: Map<String, String>? = null,
             offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
-            userId: String? = null,
             seekBackIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
-            seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS
+            seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
+            userId: String? = null
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context, seekBackIncrementMs, seekForwardIncrementMs)
             return TPStreamsPlayer(
