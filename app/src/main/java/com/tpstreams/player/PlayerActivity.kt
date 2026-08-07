@@ -26,6 +26,7 @@ class PlayerActivity : AppCompatActivity() {
         val assetId = intent.getStringExtra(MainActivity.EXTRA_ASSET_ID) ?: return
         val accessToken = intent.getStringExtra(MainActivity.EXTRA_ACCESS_TOKEN) ?: return
         val isTestpress = intent.getBooleanExtra(MainActivity.EXTRA_IS_TESTPRESS, false)
+        val userId = intent.getStringExtra(MainActivity.EXTRA_USER_ID)
         
         val enableDiagnostics = intent.getBooleanExtra("extra_enable_diagnostics", false)
         val playbackType = intent.getStringExtra("extra_playback_type") ?: ""
@@ -35,7 +36,7 @@ class PlayerActivity : AppCompatActivity() {
             com.tpstreams.player.util.FlightRecorder.startSession(java.util.UUID.randomUUID().toString().take(6))
         }
 
-        viewModel.initPlayer(assetId, accessToken, isTestpress)
+        viewModel.initPlayer(assetId, accessToken, isTestpress, userId)
         
         if (enableDiagnostics) {
             binding.playerView.showDiagnosticIndicator()

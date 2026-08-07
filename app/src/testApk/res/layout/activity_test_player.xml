@@ -27,37 +27,31 @@
                 android:textSize="24sp"
                 android:textStyle="bold" />
 
-            <!-- <com.google.android.material.button.MaterialButton -->
-            <!--     android:id="@+id/btn_drm" -->
-            <!--     android:layout_width="match_parent" -->
-            <!--     android:layout_height="wrap_content" -->
-            <!--     android:layout_marginTop="32dp" -->
-            <!--     android:padding="16dp" -->
-            <!--     android:text="DRM" /> -->
-            <!---->
-            <!-- <com.google.android.material.button.MaterialButton -->
-            <!--     android:id="@+id/btn_non_drm" -->
-            <!--     android:layout_width="match_parent" -->
-            <!--     android:layout_height="wrap_content" -->
-            <!--     android:layout_marginTop="16dp" -->
-            <!--     android:padding="16dp" -->
-            <!--     android:text="NON-DRM" /> -->
-            <!---->
-            <!-- <com.google.android.material.button.MaterialButton -->
-            <!--     android:id="@+id/btn_aes" -->
-            <!--     android:layout_width="match_parent" -->
-            <!--     android:layout_height="wrap_content" -->
-            <!--     android:layout_marginTop="16dp" -->
-            <!--     android:padding="16dp" -->
-            <!--     android:text="AES" /> -->
-
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_log_problem"
+                android:id="@+id/btn_drm_try_1"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="32dp"
                 android:padding="16dp"
-                android:text="Log Your Problem"
+                android:text="DRM TRY 1"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_drm_try_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:padding="16dp"
+                android:text="DRM TRY 2"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_drm_try_3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:padding="16dp"
+                android:text="DRM TRY 3"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
 
             <com.google.android.material.button.MaterialButton

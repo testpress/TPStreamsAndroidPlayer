@@ -13,7 +13,7 @@ class PlayerUIViewModel(application: Application) : AndroidViewModel(application
     val player: TPStreamsPlayer?
         get() = _player
 
-    fun initPlayer(assetId: String, accessToken: String, isTestpress: Boolean = false) {
+    fun initPlayer(assetId: String, accessToken: String, isTestpress: Boolean = false, userId: String? = null) {
         if (_player == null) {
             _player = if (isTestpress) {
                 TestpressPlayer.create(
@@ -30,7 +30,7 @@ class PlayerUIViewModel(application: Application) : AndroidViewModel(application
                     accessToken = accessToken,
                     shouldAutoPlay = true,
                     enableDownload = true,
-                    userId = "test_user"
+                    userId = userId
                 )
             }
         }

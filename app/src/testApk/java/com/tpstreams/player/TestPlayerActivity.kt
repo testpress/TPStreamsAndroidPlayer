@@ -31,20 +31,16 @@ class TestPlayerActivity : AppCompatActivity() {
 
         TPStreamsSDK.init("9q94nm", TPStreamsSDK.Provider.TPStreams)
 
-        // binding.btnDrm.setOnClickListener {
-        //     launchPlayer("42h2tZ5fmNf", "9327e2d0-fa13-4288-902d-840f32cd0eed", false, "drm")
-        // }
-        //
-        // binding.btnNonDrm.setOnClickListener {
-        //     launchPlayer("4Zs4MNd5Ksj", "c4f36a4f-3859-4b24-aca8-189b7e8cfeb0", false, "non_drm")
-        // }
-        //
-        // binding.btnAes.setOnClickListener {
-        //     launchPlayer("5fK7bSaNYxq", "6dfcb1d2-8cea-468c-b09a-fa89a4a6fcac", false, "aes")
-        // }
+        binding.btnDrmTry1.setOnClickListener {
+            launchPlayer("42h2tZ5fmNf", "9327e2d0-fa13-4288-902d-840f32cd0eed", true, "drm_try_1")
+        }
 
-        binding.btnLogProblem.setOnClickListener {
-            launchPlayer("42h2tZ5fmNf", "9327e2d0-fa13-4288-902d-840f32cd0eed", true, "drm")
+        binding.btnDrmTry2.setOnClickListener {
+            launchPlayer("7xbZeQzR36h", "3d9838f3-db51-4fc3-8472-075ab5e40b64", true, "drm_try_2")
+        }
+
+        binding.btnDrmTry3.setOnClickListener {
+            launchPlayer("3K8QH4GXgUD", "162bbe89-eb9c-49f6-8907-e9d63ba5a414", true, "drm_try_3")
         }
 
         binding.btnCustom.setOnClickListener {

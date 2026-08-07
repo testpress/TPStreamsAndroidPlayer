@@ -126,6 +126,7 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, PlayerActivity::class.java).apply {
             putExtra(EXTRA_ASSET_ID, item.assetId)
             putExtra(EXTRA_ACCESS_TOKEN, "downloaded")
+            putExtra(EXTRA_USER_ID, "test_user")
         }
         startActivity(intent)
     }
@@ -136,6 +137,7 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_ASSET_ID, "42h2tZ5fmNf")
                 putExtra(EXTRA_ACCESS_TOKEN, "9327e2d0-fa13-4288-902d-840f32cd0eed")
+                putExtra(EXTRA_USER_ID, "test_user")
             }
             startActivity(intent)
         }
@@ -144,6 +146,7 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_ASSET_ID, "4Zs4MNd5Ksj")
                 putExtra(EXTRA_ACCESS_TOKEN, "c4f36a4f-3859-4b24-aca8-189b7e8cfeb0")
+                putExtra(EXTRA_USER_ID, "test_user")
             }
             startActivity(intent)
         }
@@ -195,5 +198,6 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_ASSET_ID = "extra_asset_id"
         const val EXTRA_ACCESS_TOKEN = "extra_access_token"
         const val EXTRA_IS_TESTPRESS = "extra_is_testpress"
+        const val EXTRA_USER_ID = "extra_user_id"
     }
 }
