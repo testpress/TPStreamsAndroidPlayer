@@ -29,8 +29,7 @@ class PlayerUIViewModel(application: Application) : AndroidViewModel(application
                     assetId = assetId,
                     accessToken = accessToken,
                     shouldAutoPlay = true,
-                    enableDownload = true,
-                    userId = "test_user"
+                    enableDownload = true
                 )
             }
         }

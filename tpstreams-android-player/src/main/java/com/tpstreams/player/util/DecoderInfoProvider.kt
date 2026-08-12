@@ -98,7 +98,12 @@ internal object DecoderInfoProvider {
 
     private fun heuristicIsHardware(decoderName: String): Boolean {
         val lower = decoderName.lowercase()
-        if (lower.contains("omx.google.") || lower.contains(".sw.") || lower.contains("avc.decoder")) return false
+        // Software decoders: Google/Android reference implementations and emulator decoders
+        if (lower.contains("omx.google.") || 
+            lower.contains("c2.android.") ||
+            lower.contains("c2.goldfish.") ||
+            lower.contains(".sw.") || 
+            lower.contains("avc.decoder")) return false
         return true
     }
 

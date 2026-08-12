@@ -15,6 +15,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -217,6 +218,9 @@ private constructor(
                     videoDecoderName = decoderName,
                     videoDecoderIsHardware = isHardware
                 )
+                // Log L3 enforcement status
+                val drmSecurityLevel = if (isHardware) "L1 (hardware)" else "L3 (software)"
+                Log.i("TPStreamsPlayer", "L3 ENFORCEMENT: Video decoder '$decoderName' is $drmSecurityLevel")
                 CodecManager.logCodecStatus(decoderName, "video/avc")
             }
 
@@ -970,8 +974,18 @@ private constructor(
                     .build()
             }
 
+            // Custom MediaCodecSelector that forces L3 by not returning secure decoders
+            val forceL3Selector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+                if (requiresSecureDecoder) {
+                    emptyList() // No secure decoders -> forces L3 (software)
+                } else {
+                    MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, false, requiresTunnelingDecoder)
+                }
+            }
+
             val renderersFactory = DefaultRenderersFactory(context.applicationContext)
                 .setEnableDecoderFallback(true)
+                .setMediaCodecSelector(forceL3Selector)
 
             DownloadController.initialize(context)
 
@@ -982,6 +996,9 @@ private constructor(
             
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(cacheDataSourceFactory)
+
+            // L3 is enforced via the custom MediaCodecSelector above
+            // which prevents secure decoder usage, ensuring software-only Widevine decryption
 
             return ExoPlayer.Builder(context, renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
