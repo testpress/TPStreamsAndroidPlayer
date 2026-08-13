@@ -16,6 +16,16 @@
             android:foregroundServiceType="dataSync"
             android:exported="false" />
         
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.debugfileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+        
         <meta-data android:name="io.sentry.dsn" android:value="https://1a888cef4d504918b5b506f9b1decef7@sentry.testpress.in/23" />
         <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />
         <meta-data android:name="io.sentry.traces.user-interaction.enable" android:value="true" />

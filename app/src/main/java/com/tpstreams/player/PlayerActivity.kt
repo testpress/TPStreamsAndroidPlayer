@@ -95,11 +95,15 @@ class PlayerActivity : AppCompatActivity() {
         // Send AFTER super.onDestroy() so FlightRecorder captures ALL exit events
         // (PlayerLifecycleManager.onDestroy() + TPStreamsPlayer.release() are now logged)
         // Note: sendAndCheck() inside sendDiagnostics prevents duplicates — no isActive() gate needed
+        val player = viewModel.player as? TPStreamsPlayer
         if (enableDiagnostics) {
-            (viewModel.player as? TPStreamsPlayer)?.sendDiagnostics(
+            player?.sendDiagnostics(
                 triggerReason = exitTrigger,
                 playbackType = playbackType
             )
         }
+        // Export a .txt debug report and open the share sheet so the user can
+        // download/share it with the dev team once the player ends.
+        player?.shareDebugReport(triggerReason = exitTrigger)
     }
 }

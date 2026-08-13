@@ -59,6 +59,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var retryIndicator: TextView? = null
     private var bufferingView: View? = null
     
+    private val debugOverlay by lazy { DebugOverlay(this) }
+    
 
     private val liveBadge: View? by lazy { findViewById(R.id.live_badge) }
     private val durationView: View? by lazy { findViewById(androidx.media3.ui.R.id.exo_duration) }
@@ -190,6 +192,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         FlightRecorder.logSurfaceEvent("attached", surfaceType)
         getPlayer()?.addListener(playbackStateListener)
         ensureErrorOverlaySetup()
+        debugOverlay.attach()
         
         // Re-apply FLAG_SECURE on re-attach — handles fullscreen transitions where the view is
         // temporarily detached from its parent and re-parented to the decor view.
@@ -543,6 +546,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                           if (videoSurfaceView is android.view.SurfaceView) "SurfaceView" else "unknown"
         FlightRecorder.logSurfaceEvent("detached", surfaceType, mapOf("isFinishing" to (getActivity()?.isFinishing ?: true)))
         getPlayer()?.removeListener(playbackStateListener)
+        debugOverlay.detach()
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
         watermarkControllers.forEach { it.onViewDetached() }

@@ -27,6 +27,24 @@ internal object DecoderInfoProvider {
     /** Cached Widevine security level. Collected once via MediaDrm. */
     private val widevineLevel: String? by lazy { collectWidevineLevel() }
 
+    /** Returns the device's cached Widevine security level ("L1", "L3", ...) or null. */
+    fun getWidevineSecurityLevel(): String? = widevineLevel
+
+    /** Widevine level actually enforced on the player session (e.g. "L3"). Null until set. */
+    @Volatile
+    private var enforcedWidevineLevel: String? = null
+
+    /**
+     * Records the Widevine security level actually enforced on the player's DRM session.
+     * Called when the player creates its [androidx.media3.exoplayer.drm.ExoMediaDrm].
+     */
+    fun recordEnforcedWidevineLevel(level: String?) {
+        enforcedWidevineLevel = level
+    }
+
+    /** Returns the Widevine level enforced on the player session, or null if unknown. */
+    fun getEnforcedWidevineSecurityLevel(): String? = enforcedWidevineLevel
+
     /** Cache of isDecoderHardware results to avoid redundant MediaCodecList enumeration. */
     private val decoderHardwareCache = ConcurrentHashMap<String, Boolean>()
 
@@ -34,6 +52,7 @@ internal object DecoderInfoProvider {
     fun buildTags(decoderState: PlayerDecoderState?): Map<String, String> {
         return buildMap {
             widevineLevel?.let { put("widevine_security_level", it) }
+            enforcedWidevineLevel?.let { put("widevine_security_level_enforced", it) }
             val activeCount = CodecManager.getActiveDecoderCount()
             put("active_decoder_count", activeCount.toString())
             decoderState?.videoDecoderName?.let { put("video_decoder_name", it) }
@@ -51,9 +70,14 @@ internal object DecoderInfoProvider {
             decoderState?.audioDecoderIsHardware?.let { put("audio_decoder_is_hardware", it) }
             decoderState?.videoMimeType?.let { put("video_mime_type", it) }
             decoderState?.audioMimeType?.let { put("audio_mime_type", it) }
+            decoderState?.videoWidth?.let { put("video_width", it) }
+            decoderState?.videoHeight?.let { put("video_height", it) }
+            decoderState?.videoBitrate?.let { put("video_bitrate", it) }
+            decoderState?.audioBitrate?.let { put("audio_bitrate", it) }
             val activeCount = CodecManager.getActiveDecoderCount()
             put("active_decoder_count", activeCount)
-            widevineLevel?.let { put("widevine_security_level", it) }
+            widevineLevel?.let { put("widevine_security_level_device_default", it) }
+            enforcedWidevineLevel?.let { put("widevine_security_level_enforced", it) }
         }
     }
 

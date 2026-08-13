@@ -45,7 +45,11 @@ internal data class PlayerDecoderState(
     val videoDecoderIsHardware: Boolean? = null,
     val audioDecoderIsHardware: Boolean? = null,
     val videoMimeType: String? = null,
-    val audioMimeType: String? = null
+    val audioMimeType: String? = null,
+    val videoWidth: Int? = null,
+    val videoHeight: Int? = null,
+    val videoBitrate: Int? = null,
+    val audioBitrate: Int? = null
 )
 
 

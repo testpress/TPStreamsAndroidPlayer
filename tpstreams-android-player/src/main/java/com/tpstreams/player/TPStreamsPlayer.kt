@@ -66,6 +66,16 @@ import com.tpstreams.player.util.LoggingMediaDrmCallback
 import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.exoplayer.source.LoadEventInfo
 import com.tpstreams.player.util.NetworkMonitor
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.DrmSessionManager
+import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
+import androidx.media3.exoplayer.drm.ExoMediaDrm
+import androidx.media3.exoplayer.drm.FrameworkMediaDrm
+import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
+import androidx.media3.common.util.Util
+import com.tpstreams.player.util.DebugReportExporter
+import java.io.File
 import java.io.IOException
 
 
@@ -128,6 +138,9 @@ private constructor(
      */
     val isDrmContent: Boolean
         get() = drmLicenseUrl != null || currentMediaItem?.localConfiguration?.drmConfiguration != null
+
+    /** Returns the DRM license URL used for the current asset, or null when not DRM. */
+    fun getDrmLicenseUrl(): String? = drmLicenseUrl
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
@@ -318,7 +331,12 @@ private constructor(
                 decoderReuseEvaluation: DecoderReuseEvaluation?
             ) {
                 debugLog("Decoder Format - ${format.sampleMimeType}, Res: ${format.width}x${format.height}, Bitrate: ${format.bitrate}")
-                decoderState = decoderState.copy(videoMimeType = format.sampleMimeType)
+                decoderState = decoderState.copy(
+                    videoMimeType = format.sampleMimeType,
+                    videoWidth = if (format.width != C.LENGTH_UNSET) format.width else null,
+                    videoHeight = if (format.height != C.LENGTH_UNSET) format.height else null,
+                    videoBitrate = if (format.bitrate != C.LENGTH_UNSET) format.bitrate else null
+                )
                 if (decoderReuseEvaluation != null) {
                     val resultLabel = when (decoderReuseEvaluation.result) {
                         DecoderReuseEvaluation.REUSE_RESULT_NO -> "NO"
@@ -357,7 +375,10 @@ private constructor(
                 format: Format,
                 decoderReuseEvaluation: DecoderReuseEvaluation?
             ) {
-                decoderState = decoderState.copy(audioMimeType = format.sampleMimeType)
+                decoderState = decoderState.copy(
+                    audioMimeType = format.sampleMimeType,
+                    audioBitrate = if (format.bitrate != C.LENGTH_UNSET) format.bitrate else null
+                )
             }
 
             override fun onSurfaceSizeChanged(eventTime: AnalyticsListener.EventTime, width: Int, height: Int) {
@@ -1014,6 +1035,13 @@ private constructor(
         playerScope.cancel()
         networkDiagnosticsManager.onRelease()
         audioManager.abandonAudioFocus(audioFocusListener)
+        // Auto-export the full debug report once the player ends so the user can
+        // share it with the dev team. Captured BEFORE exoPlayer.release() so the
+        // player state snapshot is still valid. Best-effort; the app may also
+        // trigger the share sheet via shareDebugReport().
+        runCatching {
+            exportDebugReport(triggerReason = "release")
+        }.onFailure { Log.w(DEBUG_TAG, "Failed to auto-export debug report on release: ${it.message}") }
         // Clear surface binding before releasing the player.
         // Prevents codec crashes on MediaTek secure decoders (NO_MEMORY)
         // where the codec retains a reference to a released surface.
@@ -1295,6 +1323,7 @@ private constructor(
 
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(cacheDataSourceFactory)
+                .setDrmSessionManagerProvider(buildL3DrmSessionManagerProvider(context))
 
             return ExoPlayer.Builder(context, renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
@@ -1310,6 +1339,67 @@ private constructor(
                 .setSeekBackIncrementMs(seekBackIncrementMs)
                 .setSeekForwardIncrementMs(seekForwardIncrementMs)
                 .build() to trackSelector
+        }
+
+        /**
+         * Builds a [DrmSessionManagerProvider] that forces Widevine **L3** (software
+         * security level) for all DRM playback instead of the device's default L1.
+         *
+         * A single [ExoMediaDrm.Provider] creates the [FrameworkMediaDrm] and sets the
+         * `securityLevel` property to `L3` before any session is opened. If the device
+         * rejects the level (e.g. L1-only devices), it logs the failure and falls back
+         * to the default security level so playback can still continue. License URL and
+         * request headers are taken from each media item (mirroring
+         * [androidx.media3.exoplayer.source.DefaultMediaSourceFactory] behaviour).
+         */
+        @OptIn(UnstableApi::class)
+        private fun buildL3DrmSessionManagerProvider(context: Context): DrmSessionManagerProvider {
+            val dataSourceFactory = DefaultHttpDataSource.Factory()
+                .setAllowCrossProtocolRedirects(true)
+                .setUserAgent(Util.getUserAgent(context, "TPStreams Player"))
+
+            val drmProvider = ExoMediaDrm.Provider { uuid ->
+                val drm = FrameworkMediaDrm.newInstance(uuid)
+                if (uuid != C.WIDEVINE_UUID) return@Provider drm
+                try {
+                    // Request L3 before the DRM session is opened.
+                    drm.setPropertyString("securityLevel", "L3")
+                    DecoderInfoProvider.recordEnforcedWidevineLevel("L3")
+                    Log.d(DEBUG_TAG, "Widevine security level forced to L3 (software, not L1)")
+                    FlightRecorder.log("DRM", "security_level_forced", mapOf("level" to "L3"))
+                } catch (e: Exception) {
+                    DecoderInfoProvider.recordEnforcedWidevineLevel(null)
+                    Log.w(DEBUG_TAG, "Failed to force Widevine L3, falling back to default: ${e.message}")
+                    FlightRecorder.log(
+                        "DRM",
+                        "security_level_force_failed",
+                        mapOf("level" to "L3", "error" to (e.message ?: e.javaClass.simpleName))
+                    )
+                }
+                drm
+            }
+
+            return DrmSessionManagerProvider { mediaItem ->
+                val drmConfig = mediaItem.localConfiguration?.drmConfiguration
+                val licenseUri = drmConfig?.licenseUri
+                if (drmConfig == null || licenseUri == null) {
+                    DrmSessionManager.DRM_UNSUPPORTED
+                } else {
+                    // Mirror DefaultDrmSessionManagerProvider: license URL defaults to the
+                    // media item's license URI, with request headers forwarded to the server.
+                    val httpCallback = HttpMediaDrmCallback(licenseUri.toString(), dataSourceFactory)
+                    httpCallback.setKeyRequestProperty("User-Agent", Util.getUserAgent(context, "TPStreams Player"))
+                    drmConfig.licenseRequestHeaders.forEach { (name, value) ->
+                        httpCallback.setKeyRequestProperty(name, value)
+                    }
+
+                    val drmSessionManager =
+                        DefaultDrmSessionManager.Builder()
+                            .setUuidAndExoMediaDrmProvider(drmConfig.scheme, drmProvider)
+                            .build(LoggingMediaDrmCallback(httpCallback))
+                    drmSessionManager
+                }
+            }
         }
 
         @JvmOverloads
@@ -1413,5 +1503,23 @@ private constructor(
             assetId = assetId,
             decoderState = decoderState
         )
+    }
+
+    /**
+     * Exports a full debug report of the current session as a `.txt` file that can be
+     * shared with the development team. Returns the written file, or null on failure.
+     */
+    fun exportDebugReport(triggerReason: String): File? {
+        val content = DebugReportExporter.buildReport(context, this, triggerReason, decoderState)
+        return DebugReportExporter.writeReport(context, content)
+    }
+
+    /**
+     * Exports the debug report and immediately opens the Android share sheet so the
+     * user can save or share the `.txt` file with the development team.
+     */
+    fun shareDebugReport(triggerReason: String) {
+        val file = exportDebugReport(triggerReason) ?: return
+        DebugReportExporter.launchShare(context, file)
     }
 }
