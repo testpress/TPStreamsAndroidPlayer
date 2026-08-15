@@ -78,7 +78,7 @@ internal class WidevineDrmSessionManagerProvider(
     }
 
     companion object {
-        private val L3_EXO_MEDIA_DRM_PROVIDER = ExoMediaDrm.Provider { uuid ->
+        internal val L3_EXO_MEDIA_DRM_PROVIDER = ExoMediaDrm.Provider { uuid ->
             try {
                 FrameworkMediaDrm.newInstance(uuid).apply {
                     if (uuid == C.WIDEVINE_UUID) {
@@ -88,6 +88,30 @@ internal class WidevineDrmSessionManagerProvider(
             } catch (_: UnsupportedDrmException) {
                 DummyExoMediaDrm()
             }
+        }
+
+        fun createOfflineLicenseHelper(
+            licenseUri: String,
+            dataSourceFactory: DataSource.Factory,
+            eventDispatcher: androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher = androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher()
+        ): androidx.media3.exoplayer.drm.OfflineLicenseHelper {
+            if (!WidevinePlaybackLevelResolver.shouldForceL3()) {
+                return androidx.media3.exoplayer.drm.OfflineLicenseHelper.newWidevineInstance(
+                    licenseUri,
+                    false,
+                    dataSourceFactory,
+                    eventDispatcher
+                )
+            }
+            val httpDrmCallback = HttpMediaDrmCallback(
+                licenseUri,
+                false,
+                dataSourceFactory
+            )
+            val drmSessionManager = DefaultDrmSessionManager.Builder()
+                .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, L3_EXO_MEDIA_DRM_PROVIDER)
+                .build(httpDrmCallback)
+            return androidx.media3.exoplayer.drm.OfflineLicenseHelper(drmSessionManager, eventDispatcher)
         }
     }
 }

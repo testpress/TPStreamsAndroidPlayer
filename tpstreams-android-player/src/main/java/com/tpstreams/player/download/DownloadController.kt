@@ -28,6 +28,7 @@ import androidx.media3.exoplayer.drm.OfflineLicenseHelper
 import androidx.media3.exoplayer.drm.DrmSessionEventListener
 import com.tpstreams.player.R
 import com.tpstreams.player.util.WidevinePlaybackLevelResolver
+import com.tpstreams.player.util.WidevineDrmSessionManagerProvider
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Format
 import androidx.media3.common.C
@@ -565,9 +566,8 @@ object DownloadController {
                 try {
                     val drmFormat = findDrmFormat(helper)
                     if (drmFormat != null) {
-                        val licenseHelper = OfflineLicenseHelper.newWidevineInstance(
+                        val licenseHelper = WidevineDrmSessionManagerProvider.createOfflineLicenseHelper(
                             licenseUri,
-                            false,
                             getDataSourceFactory(context),
                             DrmSessionEventListener.EventDispatcher()
                         )
@@ -696,9 +696,8 @@ object DownloadController {
         baseRequest: DownloadRequest,
         dataSourceFactory: DataSource.Factory
     ): DownloadRequest? {
-        val licenseHelper = OfflineLicenseHelper.newWidevineInstance(
+        val licenseHelper = WidevineDrmSessionManagerProvider.createOfflineLicenseHelper(
             licenseUri,
-            false,
             dataSourceFactory,
             DrmSessionEventListener.EventDispatcher()
         )

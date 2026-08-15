@@ -165,28 +165,6 @@ internal object WidevinePlaybackLevelResolver {
         return false
     }
 
-    internal fun resolvePlaybackLevel(
-        forceL3Persisted: Boolean,
-        nativeWidevineLevel: String?,
-        probeResult: ProvisioningProbeResult,
-        onPersistForceL3: () -> Unit,
-    ): WidevinePlaybackLevel {
-        if (forceL3Persisted || nativeLevel == "L3") {
-            return WidevinePlaybackLevel.L3
-        }
-
-        return when (probeResult) {
-            ProvisioningProbeResult.PERMANENT_FAILURE -> {
-                onPersistForceL3()
-                WidevinePlaybackLevel.L3
-            }
-            ProvisioningProbeResult.SUCCESS,
-            ProvisioningProbeResult.TRANSIENT_FAILURE -> {
-                WidevinePlaybackLevel.L1
-            }
-        }
-    }
-
     private fun persistForceL3(prefs: SharedPreferences) {
         prefs.edit().putBoolean(KEY_FORCE_L3, true).apply()
     }
