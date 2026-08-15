@@ -2,10 +2,8 @@ package com.tpstreams.player.util
 
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
-import android.media.MediaDrm
 import android.os.Build
 import com.tpstreams.player.data.PlayerDecoderState
-import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -21,11 +19,9 @@ import java.util.concurrent.ConcurrentHashMap
  */
 internal object DecoderInfoProvider {
 
-    private const val WIDEVINE_UUID_STRING = "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
-    private val WIDEVINE_UUID = UUID.fromString(WIDEVINE_UUID_STRING)
-
-    /** Cached Widevine security level. Collected once via MediaDrm. */
-    private val widevineLevel: String? by lazy { collectWidevineLevel() }
+    /** Native Widevine security level sourced from [WidevinePlaybackLevelResolver]. */
+    private val widevineLevel: String?
+        get() = WidevinePlaybackLevelResolver.getNativeWidevineLevel()
 
     /** Cache of isDecoderHardware results to avoid redundant MediaCodecList enumeration. */
     private val decoderHardwareCache = ConcurrentHashMap<String, Boolean>()
@@ -106,19 +102,5 @@ internal object DecoderInfoProvider {
         val lower = decoderName.lowercase()
         if (lower.contains("omx.google.") || lower.contains(".sw.") || lower.contains("avc.decoder")) return false
         return true
-    }
-
-    private fun collectWidevineLevel(): String? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) return null
-        return try {
-            val mediaDrm = MediaDrm(WIDEVINE_UUID)
-            try {
-                mediaDrm.getPropertyString("securityLevel")
-            } finally {
-                if (Build.VERSION.SDK_INT >= 28) mediaDrm.close() else mediaDrm.release()
-            }
-        } catch (_: Exception) {
-            null
-        }
     }
 }

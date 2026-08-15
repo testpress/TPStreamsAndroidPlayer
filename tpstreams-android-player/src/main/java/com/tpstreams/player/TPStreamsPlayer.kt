@@ -1,7 +1,6 @@
 package com.tpstreams.player
 
 import android.content.Context
-import android.media.MediaCodec
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -493,7 +492,9 @@ private constructor(
             exoPlayer.stop()
             exoPlayer.setMediaItem(mediaItem)
             exoPlayer.prepare()
-            exoPlayer.seekTo(currentPosition)
+            if (!_isLiveStream) {
+                exoPlayer.seekTo(currentPosition)
+            }
             exoPlayer.playWhenReady = playWhenReady
         }
         return true
