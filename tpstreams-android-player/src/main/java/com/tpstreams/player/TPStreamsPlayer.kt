@@ -137,6 +137,12 @@ private constructor(
     @Volatile
     private var cdnHostname: String? = null
 
+    // The media URL the player is currently trying to load (with tp_token for AES
+    // streams). Used by the network probes to verify the actual CDN endpoint rather
+    // than just the hostname.
+    @Volatile
+    private var mediaUrl: String? = null
+
     // Per-player decoder state (not global — avoids cross-player corruption)
     @Volatile
     private var decoderState = PlayerDecoderState()
@@ -154,8 +160,22 @@ private constructor(
         retryPlayback = { retryPlayback() },
         onDiagnosticsStarted = {
             _listener?.onNetworkDiagnosticsStarted()
-        }
+        },
+        diagnosticHostProvider = ::resolveDiagnosticHost
     )
+
+    private fun resolveDiagnosticHost(): String {
+        return try {
+            val url = TPStreamsSDK.apiService.assetInfoUrl(
+                TPStreamsSDK.requireOrgId(),
+                DIAGNOSTIC_DUMMY_ASSET_ID,
+                ""
+            )
+            Uri.parse(url).host ?: NetworkDiagnosticsManager.DIAGNOSTIC_HOST_DEFAULT
+        } catch (_: Exception) {
+            NetworkDiagnosticsManager.DIAGNOSTIC_HOST_DEFAULT
+        }
+    }
 
     private val resumePlaybackManager: ResumePlaybackManager? =
         userId?.let { ResumePlaybackManager(this, assetId, it) }
@@ -385,7 +405,7 @@ private constructor(
                 }
 
                 if (isNetworkError(error)) {
-                    networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname, decoderState)
+                    networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname, decoderState, mediaUrl)
                     return
                 }
                 
@@ -469,7 +489,12 @@ private constructor(
                     if (error == PlaybackError.NETWORK_CONNECTION_FAILED || 
                         error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
                         playerScope.launch {
-                            networkDiagnosticsManager.handleError(error, cdnHostname = cdnHostname, decoderState = decoderState)
+                            networkDiagnosticsManager.handleError(
+                                error,
+                                cdnHostname = cdnHostname,
+                                decoderState = decoderState,
+                                mediaUrl = mediaUrl
+                            )
                         }
                     } else {
                         SentryLogger.logMessageWithEnrichment(
@@ -507,6 +532,7 @@ private constructor(
         val result = MediaItemUtils.buildMediaItem(assetInfo, assetInfo.title, orgId, assetId, accessToken)
         drmLicenseUrl = result.drmLicenseUrl
         setSubtitleMetadata(result.subtitleMetadata)
+        mediaUrl = result.mediaItem.localConfiguration?.uri?.toString()
 
         playerScope.launch(Dispatchers.Main) {
             _isLiveStream = assetInfo.isLiveStream
@@ -950,6 +976,7 @@ private constructor(
         private var activePlayerCount = 0
         internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
         private const val DEFAULT_SEEK_INCREMENT_MS = 10000L
+        private const val DIAGNOSTIC_DUMMY_ASSET_ID = "00000000000"
         private val client = OkHttpClient.Builder()
             .addInterceptor(ServerDateHeaderInterceptor())
             .build()

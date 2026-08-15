@@ -25,11 +25,11 @@ internal class NetworkDiagnosticsManager(
     private val listener: (PlaybackError, String, NetworkDiagnostics) -> Unit,
     private val retryPlayback: () -> Unit,
     private val onDiagnosticsStarted: (() -> Unit)? = null,
-    private val diagnosticHost: String = DIAGNOSTIC_HOST_DEFAULT
+    private val diagnosticHostProvider: () -> String = { DIAGNOSTIC_HOST_DEFAULT }
 ) {
     // Application context to avoid Activity leaks
     private val appContext: Context? = context?.applicationContext
-    private val probeRunner = NetworkProbeRunner(diagnosticHost)
+    private val probeRunner = NetworkProbeRunner(diagnosticHostProvider)
 
     private var networkErrorJob: Job? = null
     // Generation counter to invalidate in-flight probe results when a new error arrives
@@ -51,7 +51,7 @@ internal class NetworkDiagnosticsManager(
         private const val NETWORK_ERROR_DEBOUNCE_MS = 500L
         private const val MAX_AUTO_RETRIES = 3
         private const val AUTO_RETRY_DELAY_MS = 2000L
-        private const val DIAGNOSTIC_HOST_DEFAULT = "app.tpstreams.com"
+        internal const val DIAGNOSTIC_HOST_DEFAULT = "app.tpstreams.com"
     }
 
     fun onManualRetry() {
@@ -87,7 +87,13 @@ internal class NetworkDiagnosticsManager(
         networkErrorJob?.cancel()
     }
 
-    fun handleError(errorType: PlaybackError, exoError: PlaybackException? = null, cdnHostname: String? = null, decoderState: PlayerDecoderState? = null) {
+    fun handleError(
+        errorType: PlaybackError,
+        exoError: PlaybackException? = null,
+        cdnHostname: String? = null,
+        decoderState: PlayerDecoderState? = null,
+        mediaUrl: String? = null
+    ) {
         networkErrorJob?.cancel()
         val attempt = ++probeGeneration
         hasPendingError = true
@@ -100,7 +106,7 @@ internal class NetworkDiagnosticsManager(
 
             delay(NETWORK_ERROR_DEBOUNCE_MS)
 
-            val diagnostics = probeRunner.run(cdnHostname)
+            val diagnostics = probeRunner.run(cdnHostname, mediaUrl)
 
             yield()
             if (attempt != probeGeneration) return@launch
