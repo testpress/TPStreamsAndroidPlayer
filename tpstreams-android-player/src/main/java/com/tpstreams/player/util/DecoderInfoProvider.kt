@@ -34,6 +34,9 @@ internal object DecoderInfoProvider {
     fun buildTags(decoderState: PlayerDecoderState?): Map<String, String> {
         return buildMap {
             widevineLevel?.let { put("widevine_security_level", it) }
+            WidevinePlaybackLevelResolver.getPlaybackLevelOrNull()?.let {
+                put("widevine_playback_level", it.name)
+            }
             val activeCount = CodecManager.getActiveDecoderCount()
             put("active_decoder_count", activeCount.toString())
             decoderState?.videoDecoderName?.let { put("video_decoder_name", it) }
@@ -54,6 +57,9 @@ internal object DecoderInfoProvider {
             val activeCount = CodecManager.getActiveDecoderCount()
             put("active_decoder_count", activeCount)
             widevineLevel?.let { put("widevine_security_level", it) }
+            WidevinePlaybackLevelResolver.getPlaybackLevelOrNull()?.let {
+                put("widevine_playback_level", it.name)
+            }
         }
     }
 
