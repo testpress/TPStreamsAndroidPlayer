@@ -382,8 +382,8 @@ private constructor(
             }
             
             override fun onPlayerError(error: PlaybackException) {
-                if (error.errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED) {
-                    Log.d("TPStreamsPlayer", "DRM license expired for asset: $assetId")
+                if (error.errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED && isDownloadedAsset(assetId)) {
+                    Log.d("TPStreamsPlayer", "DRM license expired for downloaded asset: $assetId")
                     DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)
                     return
                 }
@@ -430,11 +430,7 @@ private constructor(
                         }
                     }
                 }
-                if (isDrmLicenseExpiredError(error)) {
-                    Log.d("TPStreamsPlayer", "DRM license renewal triggered for asset: $assetId")
-                    DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)
-                    return
-                }
+
                 // Non-network errors go directly to _listener?.onError() (not onNetworkError).
                 // Network errors route through handleError → manager → _listener?.onNetworkError().
                 debugLog("Player ERROR - ${error.errorCodeName}")
@@ -503,20 +499,12 @@ private constructor(
         return true
     }
 
-    private fun isDrmLicenseExpiredError(error: PlaybackException): Boolean {
-        if (error.errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED) {
-            return true
+    private fun isDownloadedAsset(assetId: String): Boolean {
+        return try {
+            DownloadClient.getInstance(context).getDownload(assetId) != null
+        } catch (_: Exception) {
+            false
         }
-        if (WidevinePlaybackLevelResolver.shouldForceL3()) {
-            var cause: Throwable? = error.cause
-            while (cause != null) {
-                if (cause is MediaCodec.CryptoException) {
-                    return true
-                }
-                cause = cause.cause
-            }
-        }
-        return false
     }
 
     @OptIn(androidx.media3.common.util.UnstableApi::class)
