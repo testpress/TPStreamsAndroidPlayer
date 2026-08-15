@@ -27,6 +27,7 @@ import androidx.core.app.NotificationCompat
 import androidx.media3.exoplayer.drm.OfflineLicenseHelper
 import androidx.media3.exoplayer.drm.DrmSessionEventListener
 import com.tpstreams.player.R
+import com.tpstreams.player.util.WidevinePlaybackLevelResolver
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Format
 import androidx.media3.common.C
@@ -73,6 +74,7 @@ object DownloadController {
         if (isInitialized) return
         
         val appContext = context.applicationContext
+        WidevinePlaybackLevelResolver.initialize(appContext)
         
         createNotificationChannel(appContext)
         
