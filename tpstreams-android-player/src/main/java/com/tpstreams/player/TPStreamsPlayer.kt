@@ -161,20 +161,36 @@ private constructor(
         onDiagnosticsStarted = {
             _listener?.onNetworkDiagnosticsStarted()
         },
-        diagnosticHostProvider = ::resolveDiagnosticHost
+        diagnosticHostProvider = ::resolveDiagnosticHost,
+        serverProbePathProvider = ::resolveServerProbePath
     )
 
     private fun resolveDiagnosticHost(): String {
         return try {
-            val url = TPStreamsSDK.apiService.assetInfoUrl(
-                TPStreamsSDK.requireOrgId(),
-                DIAGNOSTIC_DUMMY_ASSET_ID,
-                ""
-            )
+            val url = diagnosticAssetInfoUrl()
             Uri.parse(url).host ?: NetworkDiagnosticsManager.DIAGNOSTIC_HOST_DEFAULT
         } catch (_: Exception) {
             NetworkDiagnosticsManager.DIAGNOSTIC_HOST_DEFAULT
         }
+    }
+
+    private fun resolveServerProbePath(): String {
+        return try {
+            val path = Uri.parse(diagnosticAssetInfoUrl()).path
+                ?: return NetworkDiagnosticsManager.DEFAULT_SERVER_PROBE_PATH
+            SERVER_PROBE_PATH_REGEX.find(path)?.value
+                ?: NetworkDiagnosticsManager.DEFAULT_SERVER_PROBE_PATH
+        } catch (_: Exception) {
+            NetworkDiagnosticsManager.DEFAULT_SERVER_PROBE_PATH
+        }
+    }
+
+    private fun diagnosticAssetInfoUrl(): String {
+        return TPStreamsSDK.apiService.assetInfoUrl(
+            TPStreamsSDK.requireOrgId(),
+            DIAGNOSTIC_DUMMY_ASSET_ID,
+            ""
+        )
     }
 
     private val resumePlaybackManager: ResumePlaybackManager? =
@@ -977,6 +993,7 @@ private constructor(
         internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
         private const val DEFAULT_SEEK_INCREMENT_MS = 10000L
         private const val DIAGNOSTIC_DUMMY_ASSET_ID = "00000000000"
+        private val SERVER_PROBE_PATH_REGEX = Regex("^/api/[^/]+/")
         private val client = OkHttpClient.Builder()
             .addInterceptor(ServerDateHeaderInterceptor())
             .build()

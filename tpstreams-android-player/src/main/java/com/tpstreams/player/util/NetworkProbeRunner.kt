@@ -15,7 +15,8 @@ import java.net.URL
 import javax.net.ssl.SSLException
 
 internal class NetworkProbeRunner(
-    private val diagnosticHostProvider: () -> String
+    private val diagnosticHostProvider: () -> String,
+    private val serverProbePathProvider: () -> String,
 ) {
     suspend fun run(cdnHostname: String?, mediaUrl: String? = null, timeoutMs: Long = PROBE_TIMEOUT_MS): NetworkDiagnostics {
         return withContext(Dispatchers.IO) {
@@ -157,11 +158,12 @@ internal class NetworkProbeRunner(
 
     private fun probeServer(): Triple<Boolean, String?, Long?> {
         val diagnosticHost = diagnosticHostProvider()
+        val serverProbePath = serverProbePathProvider()
         val start = System.currentTimeMillis()
         // Hit the API root rather than the marketing/login page at the apex host.
         // The apex (https://$diagnosticHost/) returns a 302 to /accounts/login/ and
         // would create unnecessary access log noise on the auth server.
-        val probeUrl = "https://$diagnosticHost$SERVER_PROBE_PATH"
+        val probeUrl = "https://$diagnosticHost$serverProbePath"
         val (ok, detail) = try {
             val conn = (URL(probeUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = SINGLE_PROBE_TIMEOUT_MS
@@ -297,8 +299,6 @@ internal class NetworkProbeRunner(
         private const val INTERNET_PROBE_HTTP_HOST = "connectivitycheck.gstatic.com"
         // Canonical Android connectivity check path — returns HTTP 204 No Content.
         private const val INTERNET_PROBE_PATH = "/generate_204"
-        // Probes the API root, not the apex marketing/login page.
-        private const val SERVER_PROBE_PATH = "/api/v1/"
         private const val INTERNET_PROBE_HOST_PRIMARY = "8.8.8.8"
         private const val INTERNET_PROBE_HOST_FALLBACK = "1.1.1.1"
         private const val INTERNET_PROBE_PORT = 443

@@ -25,11 +25,12 @@ internal class NetworkDiagnosticsManager(
     private val listener: (PlaybackError, String, NetworkDiagnostics) -> Unit,
     private val retryPlayback: () -> Unit,
     private val onDiagnosticsStarted: (() -> Unit)? = null,
-    private val diagnosticHostProvider: () -> String = { DIAGNOSTIC_HOST_DEFAULT }
+    private val diagnosticHostProvider: () -> String = { DIAGNOSTIC_HOST_DEFAULT },
+    private val serverProbePathProvider: () -> String = { DEFAULT_SERVER_PROBE_PATH },
 ) {
     // Application context to avoid Activity leaks
     private val appContext: Context? = context?.applicationContext
-    private val probeRunner = NetworkProbeRunner(diagnosticHostProvider)
+    private val probeRunner = NetworkProbeRunner(diagnosticHostProvider, serverProbePathProvider)
 
     private var networkErrorJob: Job? = null
     // Generation counter to invalidate in-flight probe results when a new error arrives
@@ -52,6 +53,7 @@ internal class NetworkDiagnosticsManager(
         private const val MAX_AUTO_RETRIES = 3
         private const val AUTO_RETRY_DELAY_MS = 2000L
         internal const val DIAGNOSTIC_HOST_DEFAULT = "app.tpstreams.com"
+        internal const val DEFAULT_SERVER_PROBE_PATH = "/api/v1/"
     }
 
     fun onManualRetry() {
