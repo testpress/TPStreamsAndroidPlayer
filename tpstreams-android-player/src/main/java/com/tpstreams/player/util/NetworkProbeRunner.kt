@@ -203,30 +203,11 @@ internal class NetworkProbeRunner(
         }
         val start = System.currentTimeMillis()
         val (ok, detail) = try {
-            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                connectTimeout = SINGLE_PROBE_TIMEOUT_MS
-                readTimeout = SINGLE_PROBE_TIMEOUT_MS
-                instanceFollowRedirects = true
-                requestMethod = "GET"
-                setRequestProperty("User-Agent", USER_AGENT)
-                setRequestProperty("Cache-Control", "no-cache")
-                setRequestProperty("Range", "bytes=0-0")
-            }
-            // Mirror the real playback request: include auth headers and the tp_token
-            // already present in the media URL so the probe reflects actual reachability.
-            TPStreamsSDK.getAuthHeaders().forEach { (name, value) ->
-                conn.setRequestProperty(name, value)
-            }
-            try {
-                val code = conn.responseCode
-                logDebug("CDN HTTPS probe to ${redactQuery(url)} → $code")
-                when {
-                    code in HTTP_PROBE_SUCCESS_RANGE -> true to null
-                    code in HTTP_PROBE_CLIENT_ERROR_RANGE -> false to "$code (rejected)"
-                    else -> false to "$code blocked"
-                }
-            } finally {
-                conn.disconnect()
+            val headResult = executeCdnProbe(url, method = "HEAD")
+            if (headResult.shouldFallbackToGet) {
+                executeCdnProbe(url, method = "GET", rangeHeader = CDN_PROBE_RANGE_HEADER).result
+            } else {
+                headResult.result
             }
         } catch (e: Exception) {
             val detail = when {
@@ -240,6 +221,49 @@ internal class NetworkProbeRunner(
             false to detail
         }
         return Triple(ok, detail, if (ok) System.currentTimeMillis() - start else null)
+    }
+
+    private data class CdnProbeAttempt(
+        val result: Pair<Boolean, String?>,
+        val shouldFallbackToGet: Boolean = false,
+    )
+
+    private fun executeCdnProbe(
+        url: String,
+        method: String,
+        rangeHeader: String? = null,
+    ): CdnProbeAttempt {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = SINGLE_PROBE_TIMEOUT_MS
+            readTimeout = SINGLE_PROBE_TIMEOUT_MS
+            instanceFollowRedirects = true
+            requestMethod = method
+            setRequestProperty("User-Agent", USER_AGENT)
+            setRequestProperty("Cache-Control", "no-cache")
+            if (rangeHeader != null) {
+                setRequestProperty("Range", rangeHeader)
+            }
+        }
+        TPStreamsSDK.getAuthHeaders().forEach { (name, value) ->
+            conn.setRequestProperty(name, value)
+        }
+        return try {
+            val code = conn.responseCode
+            logDebug("CDN HTTPS $method probe to ${redactQuery(url)} → $code")
+            if (method == "HEAD" && code == HttpURLConnection.HTTP_BAD_METHOD) {
+                CdnProbeAttempt(result = false to "$code (method not allowed)", shouldFallbackToGet = true)
+            } else {
+                CdnProbeAttempt(result = evaluateCdnProbeStatus(code))
+            }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun evaluateCdnProbeStatus(code: Int): Pair<Boolean, String?> = when {
+        code in HTTP_PROBE_SUCCESS_RANGE -> true to null
+        code in HTTP_PROBE_CLIENT_ERROR_RANGE -> false to "$code (rejected)"
+        else -> false to "$code blocked"
     }
 
     private fun redactQuery(url: String): String {
@@ -281,6 +305,7 @@ internal class NetworkProbeRunner(
         private const val SINGLE_PROBE_TIMEOUT_MS = 3000
         private const val PROBE_TIMEOUT_MS = 8000L
         private const val USER_AGENT = "TPStreamsSDK/1.0 (diagnostic-probe)"
+        private const val CDN_PROBE_RANGE_HEADER = "bytes=0-0"
         private val HTTP_PROBE_SUCCESS_RANGE = 200..399
         private val HTTP_PROBE_CLIENT_ERROR_RANGE = 400..499
     }
