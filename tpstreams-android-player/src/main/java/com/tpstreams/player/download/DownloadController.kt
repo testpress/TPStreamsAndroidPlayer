@@ -75,7 +75,7 @@ object DownloadController {
         if (isInitialized) return
         
         val appContext = context.applicationContext
-        WidevinePlaybackLevelResolver.initialize(appContext)
+        WidevinePlaybackLevelResolver.initialize(appContext, TPStreamsSDK.allowFallbackToL3)
         
         createNotificationChannel(appContext)
         

@@ -8,7 +8,11 @@ object TestpressSDK {
      */
     @JvmStatic
     @JvmOverloads
-    fun init(subdomain: String, authToken: String? = null) {
-        TPStreamsSDK.init(subdomain, TPStreamsSDK.Provider.TestPress, authToken)
+    fun init(
+        subdomain: String,
+        authToken: String? = null,
+        allowFallbackToL3: Boolean = false,
+    ) {
+        TPStreamsSDK.init(subdomain, TPStreamsSDK.Provider.TestPress, authToken, allowFallbackToL3)
     }
 }

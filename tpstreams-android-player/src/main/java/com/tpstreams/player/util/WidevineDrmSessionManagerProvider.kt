@@ -13,7 +13,7 @@ import androidx.media3.exoplayer.drm.DummyExoMediaDrm
 import androidx.media3.exoplayer.drm.ExoMediaDrm
 import androidx.media3.exoplayer.drm.FrameworkMediaDrm
 import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
-import androidx.media3.exoplayer.drm.UnsupportedDrmException
+import android.util.Log
 import com.google.common.primitives.Ints
 import java.util.Objects
 
@@ -24,7 +24,6 @@ import java.util.Objects
 @UnstableApi
 internal class WidevineDrmSessionManagerProvider(
     private val drmHttpDataSourceFactory: DataSource.Factory,
-    private val allowFallbackToL3: Boolean = false,
 ) : DrmSessionManagerProvider {
 
     private val lock = Any()
@@ -40,10 +39,7 @@ internal class WidevineDrmSessionManagerProvider(
     private var l3Manager: DrmSessionManager? = null
 
     override fun get(mediaItem: MediaItem): DrmSessionManager {
-        val isNativeL3 = WidevinePlaybackLevelResolver.isNativeL3()
-        val shouldForceL3 = WidevinePlaybackLevelResolver.shouldForceL3()
-
-        if (!isNativeL3 && (!allowFallbackToL3 || !shouldForceL3)) {
+        if (!WidevinePlaybackLevelResolver.shouldUseL3Drm()) {
             return defaultProvider.get(mediaItem)
         }
 
@@ -82,6 +78,8 @@ internal class WidevineDrmSessionManagerProvider(
     }
 
     companion object {
+        private const val TAG = "WidevineDrmSessionManager"
+
         internal val L3_EXO_MEDIA_DRM_PROVIDER = ExoMediaDrm.Provider { uuid ->
             try {
                 FrameworkMediaDrm.newInstance(uuid).apply {
@@ -89,7 +87,8 @@ internal class WidevineDrmSessionManagerProvider(
                         setPropertyString("securityLevel", "L3")
                     }
                 }
-            } catch (_: UnsupportedDrmException) {
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to create L3 MediaDrm for uuid=$uuid", e)
                 DummyExoMediaDrm()
             }
         }
@@ -99,7 +98,7 @@ internal class WidevineDrmSessionManagerProvider(
             dataSourceFactory: DataSource.Factory,
             eventDispatcher: androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher = androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher()
         ): androidx.media3.exoplayer.drm.OfflineLicenseHelper {
-            if (!WidevinePlaybackLevelResolver.shouldForceL3()) {
+            if (!WidevinePlaybackLevelResolver.shouldUseL3Drm()) {
                 return androidx.media3.exoplayer.drm.OfflineLicenseHelper.newWidevineInstance(
                     licenseUri,
                     false,

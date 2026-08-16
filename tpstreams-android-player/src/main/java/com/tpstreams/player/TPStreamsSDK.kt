@@ -22,9 +22,17 @@ object TPStreamsSDK {
             _orgCode = value
         }
 
+    internal var allowFallbackToL3: Boolean = false
+        private set
+
     @JvmStatic
     @JvmOverloads
-    fun init(orgId: String, provider: Provider = Provider.TPStreams, authToken: String? = null) {
+    fun init(
+        orgId: String,
+        provider: Provider = Provider.TPStreams,
+        authToken: String? = null,
+        allowFallbackToL3: Boolean = false,
+    ) {
         require(orgId.isNotBlank()) { "orgId cannot be empty." }
         if (provider == Provider.TPStreams && authToken != null) {
             throw IllegalArgumentException("authToken must be null for TPStreams provider")
@@ -36,6 +44,7 @@ object TPStreamsSDK {
         }
         _orgCode = orgId
         this.authToken = authToken
+        this.allowFallbackToL3 = allowFallbackToL3
     }
 
     internal fun getAuthHeaders(): Map<String, String> {
