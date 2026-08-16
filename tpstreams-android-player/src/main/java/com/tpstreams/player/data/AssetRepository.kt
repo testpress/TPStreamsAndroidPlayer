@@ -8,6 +8,7 @@ import com.tpstreams.player.constants.toPlaybackError
 import com.tpstreams.player.data.network.model.AssetInfo
 import com.tpstreams.player.util.ServerDateHeaderInterceptor
 import com.tpstreams.player.util.SentryLogger
+import com.tpstreams.player.util.toPlaybackErrorFromHttpStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -85,11 +86,7 @@ object AssetRepository {
         val errorPlayerId = SentryLogger.generatePlayerIdString()
         SentryLogger.logAPIException(Exception("API request failed with code: $code"), assetId, code, errorPlayerId, url, context = context)
 
-        val errorType = when (code) {
-            404 -> PlaybackError.INVALID_ASSETS_ID
-            401, 403 -> PlaybackError.INVALID_ACCESS_TOKEN_FOR_ASSETS
-            else -> PlaybackError.UNSPECIFIED
-        }
+        val errorType = code.toPlaybackErrorFromHttpStatus()
 
         val errorMessage = Exception().getErrorMessage(errorPlayerId, code)
         CoroutineScope(Dispatchers.Main).launch {

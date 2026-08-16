@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.media3.common.PlaybackException
+import com.tpstreams.player.util.isAuthOrContentHttpFailure
 
 class NetworkRecoveryHandler(context: Context) {
     private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -96,6 +97,8 @@ class NetworkRecoveryHandler(context: Context) {
 }
 
 fun isNetworkError(error: PlaybackException): Boolean {
+    if (error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) return false
+    if (error.isAuthOrContentHttpFailure()) return false
     return error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
            (error.cause is java.io.IOException && error.errorCode != PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND)

@@ -1,6 +1,7 @@
 package com.tpstreams.player.util
 
 import android.util.Log
+import com.tpstreams.player.TPStreamsSDK
 import com.tpstreams.player.constants.NetworkDiagnostics
 import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
@@ -14,25 +15,26 @@ import java.net.URL
 import javax.net.ssl.SSLException
 
 internal class NetworkProbeRunner(
-    private val diagnosticHost: String
+    private val diagnosticHostProvider: () -> String,
+    private val serverProbePathProvider: () -> String,
 ) {
-    suspend fun run(cdnHostname: String?, timeoutMs: Long = PROBE_TIMEOUT_MS): NetworkDiagnostics {
+    suspend fun run(cdnHostname: String?, mediaUrl: String? = null, timeoutMs: Long = PROBE_TIMEOUT_MS): NetworkDiagnostics {
         return withContext(Dispatchers.IO) {
             coroutineScope {
                 withTimeoutOrNull(timeoutMs) {
-                    runProbes(cdnHostname)
+                    runProbes(cdnHostname, mediaUrl)
                 } ?: createTimeoutFallback(cdnHostname)
             }
         }
     }
 
-    private suspend fun runProbes(cdnHostname: String?): NetworkDiagnostics = coroutineScope {
+    private suspend fun runProbes(cdnHostname: String?, mediaUrl: String?): NetworkDiagnostics = coroutineScope {
         val proxyConfigured = isProxyConfigured()
 
         val internetDef = async { probeInternet(proxyConfigured) }
         val dnsDef = async { probeDns(cdnHostname) }
         val serverDef = async { probeServer() }
-        val cdnDef = async { probeCdn(cdnHostname) }
+        val cdnDef = async { probeCdn(mediaUrl) }
 
         val (internet, internetLatency) = internetDef.await()
         val (dns, dnsLatency) = dnsDef.await()
@@ -97,6 +99,7 @@ internal class NetworkProbeRunner(
 
     private fun isProxyConfigured(): Boolean {
         return try {
+            val diagnosticHost = diagnosticHostProvider()
             val uri = URI("https://$diagnosticHost")
             ProxySelector.getDefault()?.select(uri)?.any {
                 it.type() != java.net.Proxy.Type.DIRECT
@@ -126,6 +129,7 @@ internal class NetworkProbeRunner(
     }
 
     private fun probeDns(cdnHostname: String?): Pair<Boolean, Long?> {
+        val diagnosticHost = diagnosticHostProvider()
         val start = System.currentTimeMillis()
         // Resolve the API host and, if provided, the CDN hostname.
         // Both must resolve for the DNS check to pass — this catches cases
@@ -153,11 +157,13 @@ internal class NetworkProbeRunner(
     }
 
     private fun probeServer(): Triple<Boolean, String?, Long?> {
+        val diagnosticHost = diagnosticHostProvider()
+        val serverProbePath = serverProbePathProvider()
         val start = System.currentTimeMillis()
         // Hit the API root rather than the marketing/login page at the apex host.
         // The apex (https://$diagnosticHost/) returns a 302 to /accounts/login/ and
         // would create unnecessary access log noise on the auth server.
-        val probeUrl = "https://$diagnosticHost$SERVER_PROBE_PATH"
+        val probeUrl = "https://$diagnosticHost$serverProbePath"
         val (ok, detail) = try {
             val conn = (URL(probeUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = SINGLE_PROBE_TIMEOUT_MS
@@ -170,8 +176,8 @@ internal class NetworkProbeRunner(
                 val code = conn.responseCode
                 logDebug("$probeUrl HEAD responseCode=$code")
                 when {
-                    code in 200..399 -> true to null
-                    code in 400..499 -> true to "$code (rejected)"
+                    code in HTTP_PROBE_SUCCESS_RANGE -> true to null
+                    code in HTTP_PROBE_CLIENT_ERROR_RANGE -> true to "$code (rejected)"
                     else -> false to "$code blocked"
                 }
             } finally {
@@ -191,18 +197,20 @@ internal class NetworkProbeRunner(
         return Triple(ok, detail, if (ok) System.currentTimeMillis() - start else null)
     }
 
-    private fun probeCdn(cdnHostname: String?): Triple<Boolean?, String?, Long?> {
-        if (cdnHostname == null) {
-            logDebug("no CDN hostname available, skipping probe")
+    private fun probeCdn(mediaUrl: String?): Triple<Boolean?, String?, Long?> {
+        val url = mediaUrl?.takeIf { it.isNotBlank() }
+        if (url == null) {
+            logDebug("no CDN media URL available, skipping probe")
             return Triple(null, null, null)
         }
         val start = System.currentTimeMillis()
         val (ok, detail) = try {
-            java.net.Socket().use { socket ->
-                socket.connect(java.net.InetSocketAddress(cdnHostname, CDN_PORT), SINGLE_PROBE_TIMEOUT_MS)
+            val headResult = executeCdnProbe(url, method = "HEAD")
+            if (headResult.shouldFallbackToGet) {
+                executeCdnProbe(url, method = "GET", rangeHeader = CDN_PROBE_RANGE_HEADER).result
+            } else {
+                headResult.result
             }
-            logDebug("CDN socket to $cdnHostname:$CDN_PORT succeeded")
-            true to null
         } catch (e: Exception) {
             val detail = when {
                 e.message?.contains("timeout", ignoreCase = true) == true -> "timeout"
@@ -211,10 +219,57 @@ internal class NetworkProbeRunner(
                 e is javax.net.ssl.SSLException -> "ssl error"
                 else -> "failed"
             }
-            logDebug("CDN socket to $cdnHostname:$CDN_PORT failed: ${e::class.simpleName}: ${e.message}")
+            logDebug("CDN HTTPS probe failed: ${e::class.simpleName}: ${e.message}")
             false to detail
         }
         return Triple(ok, detail, if (ok) System.currentTimeMillis() - start else null)
+    }
+
+    private data class CdnProbeAttempt(
+        val result: Pair<Boolean, String?>,
+        val shouldFallbackToGet: Boolean = false,
+    )
+
+    private fun executeCdnProbe(
+        url: String,
+        method: String,
+        rangeHeader: String? = null,
+    ): CdnProbeAttempt {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = SINGLE_PROBE_TIMEOUT_MS
+            readTimeout = SINGLE_PROBE_TIMEOUT_MS
+            instanceFollowRedirects = true
+            requestMethod = method
+            setRequestProperty("User-Agent", USER_AGENT)
+            setRequestProperty("Cache-Control", "no-cache")
+            if (rangeHeader != null) {
+                setRequestProperty("Range", rangeHeader)
+            }
+        }
+        TPStreamsSDK.getAuthHeaders().forEach { (name, value) ->
+            conn.setRequestProperty(name, value)
+        }
+        return try {
+            val code = conn.responseCode
+            logDebug("CDN HTTPS $method probe to ${redactQuery(url)} → $code")
+            if (method == "HEAD" && code == HttpURLConnection.HTTP_BAD_METHOD) {
+                CdnProbeAttempt(result = false to "$code (method not allowed)", shouldFallbackToGet = true)
+            } else {
+                CdnProbeAttempt(result = evaluateCdnProbeStatus(code))
+            }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun evaluateCdnProbeStatus(code: Int): Pair<Boolean, String?> = when {
+        code in HTTP_PROBE_SUCCESS_RANGE -> true to null
+        code in HTTP_PROBE_CLIENT_ERROR_RANGE -> false to "$code (rejected)"
+        else -> false to "$code blocked"
+    }
+
+    private fun redactQuery(url: String): String {
+        return url.substringBefore('?')
     }
 
     private fun createTimeoutFallback(cdnHostname: String?): NetworkDiagnostics {
@@ -244,14 +299,14 @@ internal class NetworkProbeRunner(
         private const val INTERNET_PROBE_HTTP_HOST = "connectivitycheck.gstatic.com"
         // Canonical Android connectivity check path — returns HTTP 204 No Content.
         private const val INTERNET_PROBE_PATH = "/generate_204"
-        // Probes the API root, not the apex marketing/login page.
-        private const val SERVER_PROBE_PATH = "/api/v1/"
         private const val INTERNET_PROBE_HOST_PRIMARY = "8.8.8.8"
         private const val INTERNET_PROBE_HOST_FALLBACK = "1.1.1.1"
         private const val INTERNET_PROBE_PORT = 443
-        private const val CDN_PORT = 443
         private const val SINGLE_PROBE_TIMEOUT_MS = 3000
         private const val PROBE_TIMEOUT_MS = 8000L
         private const val USER_AGENT = "TPStreamsSDK/1.0 (diagnostic-probe)"
+        private const val CDN_PROBE_RANGE_HEADER = "bytes=0-0"
+        private val HTTP_PROBE_SUCCESS_RANGE = 200..399
+        private val HTTP_PROBE_CLIENT_ERROR_RANGE = 400..499
     }
 }
