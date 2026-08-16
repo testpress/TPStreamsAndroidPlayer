@@ -50,13 +50,17 @@ internal object WidevinePlaybackLevelResolver {
     @Volatile
     private var nativeLevel: String? = null
 
+    @Volatile
+    private var allowFallbackToL3: Boolean = false
+
     enum class ProvisioningProbeResult {
         SUCCESS,
         PERMANENT_FAILURE,
         TRANSIENT_FAILURE
     }
 
-    fun initialize(context: Context) {
+    fun initialize(context: Context, allowFallbackToL3: Boolean = false) {
+        this.allowFallbackToL3 = this.allowFallbackToL3 || allowFallbackToL3
         if (cachedLevel != null) return
 
         synchronized(this) {
@@ -68,36 +72,44 @@ internal object WidevinePlaybackLevelResolver {
             nativeLevel = readNativeWidevineLevel()
             val forceL3Persisted = prefs.getBoolean(KEY_FORCE_L3, false)
 
-            if (forceL3Persisted || nativeLevel == "L3") {
+            if (nativeLevel == "L3" || (this.allowFallbackToL3 && forceL3Persisted)) {
                 cachedLevel = WidevinePlaybackLevel.L3
                 Log.i(
                     TAG,
-                    "Resolved playback level=L3, native=$nativeLevel, persistedL3=$forceL3Persisted",
+                    "Resolved playback level=L3, native=$nativeLevel, persistedL3=$forceL3Persisted, fallbackAllowed=${this.allowFallbackToL3}",
                 )
             } else {
-                // Default immediately to native level (L1) without blocking the calling thread
                 cachedLevel = WidevinePlaybackLevel.L1
                 Log.i(
                     TAG,
-                    "Defaulting playback level to L1 (native=$nativeLevel); launching background provisioning probe",
+                    "Defaulting playback level to L1 (native=$nativeLevel, fallbackAllowed=${this.allowFallbackToL3})",
                 )
-                // Run provisioning probe asynchronously in background
-                CoroutineScope(Dispatchers.IO).launch {
-                    when (runProvisioningProbe()) {
-                        ProvisioningProbeResult.PERMANENT_FAILURE -> {
-                            Log.w(TAG, "Provisioning probe permanently rejected device; persisting L3")
-                            persistForceL3(prefs)
-                        }
-                        ProvisioningProbeResult.SUCCESS -> {
-                            Log.i(TAG, "Provisioning probe succeeded; maintaining L1")
-                        }
-                        ProvisioningProbeResult.TRANSIENT_FAILURE -> {
-                            Log.i(TAG, "Provisioning probe transient failure; maintaining L1 for this session without persisting L3")
+                if (this.allowFallbackToL3) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        when (runProvisioningProbe()) {
+                            ProvisioningProbeResult.PERMANENT_FAILURE -> {
+                                Log.w(TAG, "Provisioning probe permanently rejected device; persisting L3")
+                                persistForceL3ToPrefs(prefs)
+                            }
+                            ProvisioningProbeResult.SUCCESS -> {
+                                Log.i(TAG, "Provisioning probe succeeded; maintaining L1")
+                            }
+                            ProvisioningProbeResult.TRANSIENT_FAILURE -> {
+                                Log.i(TAG, "Provisioning probe transient failure; maintaining L1 for this session without persisting L3")
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    fun isFallbackAllowed(): Boolean = allowFallbackToL3
+
+    fun shouldUseL3Drm(): Boolean {
+        if (nativeLevel == "L3") return true
+        if (!allowFallbackToL3) return false
+        return cachedLevel == WidevinePlaybackLevel.L3
     }
 
     fun getPlaybackLevel(): WidevinePlaybackLevel {
@@ -108,7 +120,7 @@ internal object WidevinePlaybackLevelResolver {
 
     fun getNativeWidevineLevel(): String? = nativeLevel
 
-    fun shouldForceL3(): Boolean = getPlaybackLevelOrNull() == WidevinePlaybackLevel.L3
+    fun isAlreadyOnL3PlaybackLevel(): Boolean = getPlaybackLevelOrNull() == WidevinePlaybackLevel.L3
 
     /**
      * Forces L3 for the current in-memory session only.
@@ -118,15 +130,16 @@ internal object WidevinePlaybackLevelResolver {
      * For permanent failures (revoked keybox/certificate), use [persistForceL3] instead.
      */
     fun forceL3ForSession() {
+        if (!allowFallbackToL3) return
         cachedLevel = WidevinePlaybackLevel.L3
         Log.i(TAG, "L3 forced for current session only (not persisted)")
     }
 
     fun persistForceL3(context: Context? = appContext) {
+        if (!allowFallbackToL3) return
         val prefs = (context ?: appContext)?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             ?: return
-        persistForceL3(prefs)
-        cachedLevel = WidevinePlaybackLevel.L3
+        persistForceL3ToPrefs(prefs)
         Log.i(TAG, "Persisted L3 playback level for future sessions")
     }
 
@@ -135,7 +148,8 @@ internal object WidevinePlaybackLevelResolver {
      * These warrant persisting L3 across all future sessions (e.g. revoked keybox).
      */
     fun isDrmPermanentFailure(error: PlaybackException): Boolean {
-        return error.errorCode == PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED
+        return error.errorCode == PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
+            error.errorCode == PlaybackException.ERROR_CODE_DRM_DEVICE_REVOKED
     }
 
     /**
@@ -147,6 +161,7 @@ internal object WidevinePlaybackLevelResolver {
     fun isDrmFallbackError(error: PlaybackException): Boolean {
         if (when (error.errorCode) {
                 PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED,
+                PlaybackException.ERROR_CODE_DRM_DEVICE_REVOKED,
                 PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED,
                 PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR,
                 PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION -> true
@@ -165,8 +180,9 @@ internal object WidevinePlaybackLevelResolver {
         return false
     }
 
-    private fun persistForceL3(prefs: SharedPreferences) {
+    private fun persistForceL3ToPrefs(prefs: SharedPreferences) {
         prefs.edit().putBoolean(KEY_FORCE_L3, true).apply()
+        cachedLevel = WidevinePlaybackLevel.L3
     }
 
     private fun readNativeWidevineLevel(): String? {
@@ -197,34 +213,41 @@ internal object WidevinePlaybackLevelResolver {
         return try {
             mediaDrm = MediaDrm(WIDEVINE_UUID)
             val request = mediaDrm.provisionRequest
-            val response = provisioningClient.newCall(
-                Request.Builder()
-                    .url(request.defaultUrl)
-                    .post(request.data.toRequestBody("application/octet-stream".toMediaType()))
-                    .build(),
-            ).execute()
-
-            if (!response.isSuccessful) {
-                val code = response.code
-                Log.w(TAG, "Widevine provisioning probe failed: HTTP $code")
-                // HTTP 4xx (e.g. 400, 403, 404) indicates explicit client/certificate rejection by the server.
-                // HTTP 5xx indicates transient server issue.
-                return if (code in 400..499) {
-                    ProvisioningProbeResult.PERMANENT_FAILURE
-                } else {
-                    ProvisioningProbeResult.TRANSIENT_FAILURE
-                }
-            }
-
-            val responseBody = response.body?.bytes()
-            if (responseBody == null) {
-                Log.w(TAG, "Widevine provisioning probe failed: empty response body")
+            val defaultUrl = request.defaultUrl
+            if (defaultUrl.isNullOrBlank()) {
+                Log.w(TAG, "Widevine provisioning probe failed: empty defaultUrl")
                 return ProvisioningProbeResult.TRANSIENT_FAILURE
             }
 
-            mediaDrm.provideProvisionResponse(responseBody)
-            Log.i(TAG, "Widevine provisioning probe succeeded")
-            ProvisioningProbeResult.SUCCESS
+            val httpRequest = Request.Builder()
+                .url(defaultUrl)
+                .post(request.data.toRequestBody("application/octet-stream".toMediaType()))
+                .build()
+
+            val response = provisioningClient.newCall(httpRequest).execute()
+            response.use { res ->
+                if (!res.isSuccessful) {
+                    val code = res.code
+                    Log.w(TAG, "Widevine provisioning probe failed: HTTP $code")
+                    // HTTP 4xx (e.g. 400, 403, 404) indicates explicit client/certificate rejection by the server.
+                    // HTTP 5xx indicates transient server issue.
+                    return if (code in 400..499) {
+                        ProvisioningProbeResult.PERMANENT_FAILURE
+                    } else {
+                        ProvisioningProbeResult.TRANSIENT_FAILURE
+                    }
+                }
+
+                val responseBody = res.body?.bytes()
+                if (responseBody == null) {
+                    Log.w(TAG, "Widevine provisioning probe failed: empty response body")
+                    return ProvisioningProbeResult.TRANSIENT_FAILURE
+                }
+
+                mediaDrm.provideProvisionResponse(responseBody)
+                Log.i(TAG, "Widevine provisioning probe succeeded")
+                ProvisioningProbeResult.SUCCESS
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Widevine provisioning probe failed: ${e.message}")
             if (e is android.media.DeniedByServerException || e.javaClass.simpleName.contains("DeniedByServer")) {

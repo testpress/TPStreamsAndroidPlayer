@@ -404,8 +404,11 @@ private constructor(
                 //   PROVISIONING_FAILED, LICENSE_ACQUISITION_FAILED, SYSTEM_ERROR,
                 //   DISALLOWED_OPERATION, MediaCodec.CryptoException
                 // DRM_LICENSE_EXPIRED is excluded — it has its own renewal path above.
-                if (isDrmContent && WidevinePlaybackLevelResolver.isDrmFallbackError(error)) {
-                    if (!WidevinePlaybackLevelResolver.shouldForceL3()) {
+                if (WidevinePlaybackLevelResolver.isFallbackAllowed() &&
+                    isDrmContent &&
+                    WidevinePlaybackLevelResolver.isDrmFallbackError(error)
+                ) {
+                    if (!WidevinePlaybackLevelResolver.isAlreadyOnL3PlaybackLevel()) {
                         if (WidevinePlaybackLevelResolver.isDrmPermanentFailure(error)) {
                             // e.g. PROVISIONING_FAILED: device certificate rejected by Google.
                             // Persist L3 across all future sessions.
@@ -490,11 +493,10 @@ private constructor(
 
         playerScope.launch(Dispatchers.Main) {
             exoPlayer.stop()
-            exoPlayer.setMediaItem(mediaItem)
+            exoPlayer.clearMediaItems()
+            val startPositionMs = if (!_isLiveStream && currentPosition > 0) currentPosition else C.TIME_UNSET
+            exoPlayer.setMediaItem(mediaItem, startPositionMs)
             exoPlayer.prepare()
-            if (!_isLiveStream) {
-                exoPlayer.seekTo(currentPosition)
-            }
             exoPlayer.playWhenReady = playWhenReady
         }
         return true

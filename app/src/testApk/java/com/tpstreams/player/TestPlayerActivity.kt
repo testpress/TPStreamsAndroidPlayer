@@ -24,7 +24,7 @@ class TestPlayerActivity : AppCompatActivity() {
             scope.setTag("is_test_apk", "true")
         }
 
-        TPStreamsSDK.init("9q94nm", TPStreamsSDK.Provider.TPStreams)
+        TPStreamsSDK.init("9q94nm", TPStreamsSDK.Provider.TPStreams, allowFallbackToL3 = true)
 
         binding.btnDrm.setOnClickListener {
             launchPlayer("42h2tZ5fmNf", "9327e2d0-fa13-4288-902d-840f32cd0eed")
@@ -76,7 +76,7 @@ class TestPlayerActivity : AppCompatActivity() {
                     Toast.makeText(this, "All fields are required", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                TPStreamsSDK.init(orgId)
+                TPStreamsSDK.init(orgId, allowFallbackToL3 = true)
                 launchPlayer(assetId, accessToken)
             }
             .setNegativeButton("Cancel", null)
