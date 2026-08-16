@@ -661,6 +661,7 @@ private constructor(
 
             val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
             exoPlayer.setAudioAttributes(audioAttributes, true)
+            l3FallbackAttempted = false
             debugLog("MediaItem SET - ${result.mediaItem.mediaId}")
             exoPlayer.setMediaItem(result.mediaItem)
             debugLog("Player PREPARE")
@@ -704,6 +705,7 @@ private constructor(
                     val audioAttributes = buildAudioAttributes(isDrm)
 
                     exoPlayer.setAudioAttributes(audioAttributes, true)
+                    l3FallbackAttempted = false
                     exoPlayer.setMediaItem(downloadedMediaItem)
                     exoPlayer.prepare()
                     isPrepared = true
@@ -746,6 +748,7 @@ private constructor(
             exoPlayer.clearMediaItems()
             
             debugLog("MediaItem SET (Download) - ${mediaItem.mediaId}")
+            l3FallbackAttempted = false
             exoPlayer.setMediaItem(mediaItem)
             debugLog("Player PREPARE")
             exoPlayer.prepare()
