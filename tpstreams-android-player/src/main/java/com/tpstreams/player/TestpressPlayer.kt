@@ -20,7 +20,8 @@ object TestpressPlayer {
         showDefaultCaptions: Boolean = false,
         startInFullscreen: Boolean = false,
         downloadMetadata: Map<String, String>? = null,
-        offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS
+        offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
+        allowFallbackToL3: Boolean = false
     ): TPStreamsPlayer {
         return TPStreamsPlayer.create(
             context,
@@ -32,7 +33,8 @@ object TestpressPlayer {
             showDefaultCaptions,
             startInFullscreen,
             downloadMetadata,
-            offlineLicenseExpireTime
+            offlineLicenseExpireTime,
+            allowFallbackToL3 = allowFallbackToL3
         )
     }
 }
