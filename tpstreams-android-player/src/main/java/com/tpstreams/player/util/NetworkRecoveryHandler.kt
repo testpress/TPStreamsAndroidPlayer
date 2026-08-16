@@ -97,6 +97,7 @@ class NetworkRecoveryHandler(context: Context) {
 }
 
 fun isNetworkError(error: PlaybackException): Boolean {
+    if (error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) return false
     if (error.isAuthOrContentHttpFailure()) return false
     return error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
