@@ -24,6 +24,7 @@ import java.util.Objects
 @UnstableApi
 internal class WidevineDrmSessionManagerProvider(
     private val drmHttpDataSourceFactory: DataSource.Factory,
+    private val allowFallbackToL3: Boolean = false,
 ) : DrmSessionManagerProvider {
 
     private val lock = Any()
@@ -39,7 +40,10 @@ internal class WidevineDrmSessionManagerProvider(
     private var l3Manager: DrmSessionManager? = null
 
     override fun get(mediaItem: MediaItem): DrmSessionManager {
-        if (!WidevinePlaybackLevelResolver.shouldForceL3()) {
+        val isNativeL3 = WidevinePlaybackLevelResolver.isNativeL3()
+        val shouldForceL3 = WidevinePlaybackLevelResolver.shouldForceL3()
+
+        if (!isNativeL3 && (!allowFallbackToL3 || !shouldForceL3)) {
             return defaultProvider.get(mediaItem)
         }
 

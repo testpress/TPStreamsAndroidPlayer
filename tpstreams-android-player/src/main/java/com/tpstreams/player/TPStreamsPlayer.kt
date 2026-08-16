@@ -78,7 +78,8 @@ private constructor(
     val startInFullscreen: Boolean = false,
     val downloadMetadata: Map<String, String>? = null,
     val offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
-    val userId: String? = null
+    val userId: String? = null,
+    val allowFallbackToL3: Boolean = false
 ) : Player by exoPlayer {
 
     val playbackSessionId = (1..6)
@@ -440,7 +441,7 @@ private constructor(
                 //   PROVISIONING_FAILED, LICENSE_ACQUISITION_FAILED, SYSTEM_ERROR,
                 //   DISALLOWED_OPERATION, MediaCodec.CryptoException
                 // DRM_LICENSE_EXPIRED is excluded — it has its own renewal path above.
-                if (isDrmContent && WidevinePlaybackLevelResolver.isDrmFallbackError(error)) {
+                if (allowFallbackToL3 && isDrmContent && WidevinePlaybackLevelResolver.isDrmFallbackError(error)) {
                     if (!WidevinePlaybackLevelResolver.shouldForceL3()) {
                         if (WidevinePlaybackLevelResolver.isDrmPermanentFailure(error)) {
                             // e.g. PROVISIONING_FAILED: device certificate rejected by Google.
@@ -1071,7 +1072,8 @@ private constructor(
         private fun createExoPlayer(
             context: Context,
             seekBackIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
-            seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS
+            seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
+            allowFallbackToL3: Boolean = false
         ): Pair<ExoPlayer, DefaultTrackSelector> {
             require(seekBackIncrementMs > 0) { "seekBackIncrementMs must be greater than 0, was $seekBackIncrementMs" }
             require(seekForwardIncrementMs > 0) { "seekForwardIncrementMs must be greater than 0, was $seekForwardIncrementMs" }
@@ -1093,6 +1095,7 @@ private constructor(
 
             val drmSessionManagerProvider = WidevineDrmSessionManagerProvider(
                 DownloadController.httpDataSourceFactory,
+                allowFallbackToL3 = allowFallbackToL3
             )
 
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
@@ -1130,9 +1133,10 @@ private constructor(
             offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
             seekBackIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
             seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
-            userId: String? = null
+            userId: String? = null,
+            allowFallbackToL3: Boolean = false
         ): TPStreamsPlayer {
-            val (exo, trackSelector) = createExoPlayer(context, seekBackIncrementMs, seekForwardIncrementMs)
+            val (exo, trackSelector) = createExoPlayer(context, seekBackIncrementMs, seekForwardIncrementMs, allowFallbackToL3)
             return TPStreamsPlayer(
                 context,
                 exo,
@@ -1146,7 +1150,8 @@ private constructor(
                 startInFullscreen,
                 downloadMetadata,
                 offlineLicenseExpireTime,
-                userId)
+                userId,
+                allowFallbackToL3)
         }
     }
 
