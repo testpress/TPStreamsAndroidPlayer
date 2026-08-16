@@ -88,7 +88,7 @@ internal class WidevineDrmSessionManagerProvider(
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to create L3 MediaDrm for uuid=$uuid", e)
+                Log.e(TAG, "Failed to create L3 MediaDrm for uuid=$uuid; playback will fail at DRM init", e)
                 DummyExoMediaDrm()
             }
         }

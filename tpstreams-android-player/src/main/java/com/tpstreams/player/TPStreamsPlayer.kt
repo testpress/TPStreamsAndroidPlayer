@@ -140,6 +140,9 @@ private constructor(
     @Volatile
     private var released = false
 
+    @Volatile
+    private var l3FallbackAttempted = false
+
     internal var onLiveStreamStatusChanged: ((Boolean) -> Unit)? = null
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -244,6 +247,10 @@ private constructor(
         }
 
     init {
+        WidevinePlaybackLevelResolver.initialize(
+            context.applicationContext,
+            TPStreamsSDK.allowFallbackToL3,
+        )
         debugLog("Player INIT - Instance created for assetId: $assetId")
         synchronized(TPStreamsPlayer::class.java) {
             activePlayerCount++
@@ -442,7 +449,8 @@ private constructor(
                 // DRM_LICENSE_EXPIRED is excluded — it has its own renewal path above.
                 if (WidevinePlaybackLevelResolver.isFallbackAllowed() &&
                     isDrmContent &&
-                    WidevinePlaybackLevelResolver.isDrmFallbackError(error)
+                    WidevinePlaybackLevelResolver.isDrmFallbackError(error) &&
+                    !l3FallbackAttempted
                 ) {
                     if (!WidevinePlaybackLevelResolver.isAlreadyOnL3PlaybackLevel()) {
                         if (WidevinePlaybackLevelResolver.isDrmPermanentFailure(error)) {
@@ -523,19 +531,45 @@ private constructor(
     }
 
     private fun retryPlaybackAfterL3Persist(): Boolean {
+        if (l3FallbackAttempted) {
+            Log.w("TPStreamsPlayer", "L3 fallback retry skipped: already attempted for asset $assetId")
+            return false
+        }
+
         val mediaItem = exoPlayer.currentMediaItem ?: return false
+        val retryMediaItem = buildMediaItemForL3Retry(mediaItem) ?: run {
+            Log.w("TPStreamsPlayer", "L3 fallback retry aborted: could not preserve DRM configuration for asset $assetId")
+            return false
+        }
+
+        l3FallbackAttempted = true
         val currentPosition = exoPlayer.currentPosition
         val playWhenReady = exoPlayer.playWhenReady
 
         playerScope.launch(Dispatchers.Main) {
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
-            val startPositionMs = if (!_isLiveStream && currentPosition > 0) currentPosition else C.TIME_UNSET
-            exoPlayer.setMediaItem(mediaItem, startPositionMs)
+            val startPositionMs = if (!_isLiveStream && currentPosition > 0) {
+                currentPosition
+            } else {
+                C.TIME_UNSET
+            }
+            exoPlayer.setMediaItem(retryMediaItem, startPositionMs)
             exoPlayer.prepare()
             exoPlayer.playWhenReady = playWhenReady
         }
         return true
+    }
+
+    private fun buildMediaItemForL3Retry(mediaItem: MediaItem): MediaItem? {
+        val localConfiguration = mediaItem.localConfiguration ?: return mediaItem
+        val drmConfiguration = localConfiguration.drmConfiguration
+        if (isDrmContent && drmConfiguration == null) {
+            return null
+        }
+        val builder = mediaItem.buildUpon()
+        drmConfiguration?.let { builder.setDrmConfiguration(it) }
+        return builder.build()
     }
 
     private fun isDownloadedAsset(assetId: String): Boolean {
