@@ -129,6 +129,18 @@ private constructor(
      */
     val isDrmContent: Boolean
         get() = drmLicenseUrl != null || currentMediaItem?.localConfiguration?.drmConfiguration != null
+
+    /** DRM license URL for the current asset, or null when content is not DRM-protected / not yet prepared. */
+    fun getDrmLicenseUrl(): String? = drmLicenseUrl
+
+    /** Resolved Widevine playback level actually used for DRM (`L1` or `L3`). */
+    fun getDrmPlaybackLevel(): String =
+        if (WidevinePlaybackLevelResolver.shouldUseL3Drm()) "L3" else "L1"
+
+    /** Device-reported native Widevine security level, or null if unavailable. */
+    fun getNativeWidevineLevel(): String? =
+        WidevinePlaybackLevelResolver.getNativeWidevineLevel()
+
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
@@ -437,11 +449,6 @@ private constructor(
                     return
                 }
 
-                if (isNetworkError(error)) {
-                    networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname, decoderState, mediaUrl)
-                    return
-                }
-
                 // --- DRM fallback to L3 ---
                 // Covers all DRM errors worth retrying at L3:
                 //   PROVISIONING_FAILED, LICENSE_ACQUISITION_FAILED, SYSTEM_ERROR,
@@ -475,6 +482,11 @@ private constructor(
                             return
                         }
                     }
+                }
+
+                if (isNetworkError(error)) {
+                    networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname, decoderState, mediaUrl)
+                    return
                 }
 
                 // Non-network errors go directly to _listener?.onError() (not onNetworkError).
