@@ -159,7 +159,10 @@ internal object WidevinePlaybackLevelResolver {
                 PlaybackException.ERROR_CODE_DRM_DEVICE_REVOKED,
                 PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED,
                 PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR,
-                PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION -> true
+                PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION,
+                PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+                PlaybackException.ERROR_CODE_DECODING_FAILED,
+                PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED -> true
                 else -> false
             }
         ) {
