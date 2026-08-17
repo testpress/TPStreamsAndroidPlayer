@@ -23,6 +23,10 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import com.tpstreams.player.presence.HandlerPresenceScheduler
+import com.tpstreams.player.presence.PresenceConfig
+import com.tpstreams.player.presence.PresenceHeartbeatManager
+import com.tpstreams.player.presence.PresenceViewerIdStore
 import androidx.media3.common.Format
 import android.net.Uri
 import androidx.media3.common.MimeTypes
@@ -101,6 +105,20 @@ private constructor(
          * probes complete. The UI can use this to show a "Diagnosing…" state.
          */
         fun onNetworkDiagnosticsStarted() {}
+        /**
+         * Called on a 401 from the presence heartbeat loop — an expired token and a
+         * device-binding mismatch look identical from here, and both are resolved the
+         * same way: fetch a fresh playback config and call [callback] with its presence
+         * token, or with an empty string if none could be obtained. Mirrors the shape of
+         * [onAccessTokenExpired].
+         *
+         * Default no-op: presence is still rollout-gated to a handful of organizations,
+         * and a required override would break every existing integrator for a feature
+         * almost none of them have enabled. An app that doesn't override this simply
+         * never has its heartbeat loop resume after a 401 — it just quietly stops, the
+         * same as if presence were disabled.
+         */
+        fun onPresenceTokenExpired(videoId: String, callback: (String) -> Unit) {}
     }
 
     private var isPrepared = false
@@ -147,6 +165,14 @@ private constructor(
     @Volatile
     private var decoderState = PlayerDecoderState()
     internal fun getDecoderState(): PlayerDecoderState = decoderState
+
+    // Set from AssetInfo.presence in preparePlayer; read fresh on every
+    // startPresenceHeartbeat() call rather than cached at construction, so a
+    // reload that picks up a renewed token is used without any extra plumbing.
+    @Volatile
+    private var presenceConfig: PresenceConfig? = null
+    private var presenceHeartbeatManager: PresenceHeartbeatManager? = null
+    private val presenceViewerIdStore by lazy { PresenceViewerIdStore(context) }
 
     private val networkDiagnosticsManager = NetworkDiagnosticsManager(
         playerScope = playerScope,
@@ -401,8 +427,10 @@ private constructor(
                 Log.d("TPStreamsPlayer", "Is playing changed: $isPlaying")
                 if (isPlaying) {
                     networkDiagnosticsManager.onPlaybackRecovered()
+                    startPresenceHeartbeat()
                 } else {
                     resumePlaybackManager?.onPaused()
+                    stopPresenceHeartbeat()
                 }
             }
             
@@ -493,6 +521,10 @@ private constructor(
         CoroutineScope(Dispatchers.IO).launch {
             if (playFromDownload(assetId)) return@launch
 
+            // Only meaningful for the TPStreams provider; TPStreamsApiService is
+            // what actually uses it, TestPressApiService ignores it.
+            val viewerId = presenceViewerIdStore.getOrCreate()
+
             AssetRepository.fetchAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
                 override fun onSuccess(assetInfo: AssetInfo) {
                     val safeHost = try { Uri.parse(assetInfo.mediaUrl).host } catch (_: Exception) { "unknown" }
@@ -533,13 +565,14 @@ private constructor(
                         }
                     }
                 }
-            }, context = context)
+            }, context = context, viewerId = viewerId)
         }
     }
 
     @OptIn(UnstableApi::class)
     private fun preparePlayer(assetInfo: AssetInfo, assetId: String, accessToken: String) {
         val orgId = TPStreamsSDK.requireOrgId()
+        presenceConfig = assetInfo.presence
         cdnHostname = try {
             Uri.parse(assetInfo.mediaUrl).host?.takeIf { it.isNotBlank() }
         } catch (_: Exception) { null }
@@ -735,6 +768,7 @@ private constructor(
     override fun release() {
         debugLog("Surface DETACH (Player Released)")
         debugLog("Player RELEASE - assetId: $assetId")
+        stopPresenceHeartbeat()
         resumePlaybackManager?.onRelease()
         synchronized(TPStreamsPlayer::class.java) {
             activePlayerCount--
@@ -969,6 +1003,25 @@ private constructor(
                 }
             }
         }
+    }
+
+    private fun startPresenceHeartbeat() {
+        val presence = presenceConfig ?: return
+        if (presenceHeartbeatManager == null) {
+            presenceHeartbeatManager = PresenceHeartbeatManager(
+                httpClient = client,
+                viewerId = presenceViewerIdStore.getOrCreate(),
+                scheduler = HandlerPresenceScheduler(),
+                onTokenExpired = { callback ->
+                    listener?.onPresenceTokenExpired(assetId, callback) ?: callback("")
+                },
+            )
+        }
+        presenceHeartbeatManager?.start(presence.baseUrl, presence.token)
+    }
+
+    private fun stopPresenceHeartbeat() {
+        presenceHeartbeatManager?.stop()
     }
 
     fun getNewToken(assetId: String, callback: (String) -> Unit) {

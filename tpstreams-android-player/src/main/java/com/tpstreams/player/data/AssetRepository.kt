@@ -34,13 +34,14 @@ object AssetRepository {
         assetId: String,
         accessToken: String,
         callback: AssetCallback,
-        context: Context? = null
+        context: Context? = null,
+        viewerId: String? = null
     ) {
         TPStreamsSDK.requireOrgId()
         val apiService = TPStreamsSDK.apiService
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val assetApiUrl = apiService.assetInfoUrl(orgId, assetId, accessToken)
+                val assetApiUrl = apiService.assetInfoUrl(orgId, assetId, accessToken, viewerId)
                 val requestBuilder = Request.Builder().url(assetApiUrl)
                 TPStreamsSDK.getAuthHeaders().forEach { (name, value) ->
                     requestBuilder.addHeader(name, value)
@@ -67,7 +68,7 @@ object AssetRepository {
                     callback.onSuccess(assetInfo)
                 }
             } catch (e: Exception) {
-                val url = runCatching { apiService.assetInfoUrl(orgId, assetId, accessToken) }.getOrNull() ?: ""
+                val url = runCatching { apiService.assetInfoUrl(orgId, assetId, accessToken, viewerId) }.getOrNull() ?: ""
                 handleException(assetId, e, url, callback, context)
             }
         }
@@ -77,9 +78,10 @@ object AssetRepository {
         assetId: String,
         accessToken: String,
         callback: AssetCallback,
-        context: Context? = null
+        context: Context? = null,
+        viewerId: String? = null
     ) {
-        fetchAssetInfo(TPStreamsSDK.requireOrgId(), assetId, accessToken, callback, context)
+        fetchAssetInfo(TPStreamsSDK.requireOrgId(), assetId, accessToken, callback, context, viewerId)
     }
 
     private fun handleApiError(assetId: String, code: Int, url: String, callback: AssetCallback, context: Context? = null) {

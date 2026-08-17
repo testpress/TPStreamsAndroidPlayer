@@ -1,5 +1,6 @@
 package com.tpstreams.player.data.network.model
 
+import com.tpstreams.player.presence.PresenceConfig
 import org.json.JSONObject
 
 /**
@@ -14,6 +15,8 @@ import org.json.JSONObject
  * @property isLiveStream Whether this asset is an active live stream (not recorded)
  * @property durationSeconds Duration of the video in seconds
  * @property isAes Whether the stream uses AES content protection
+ * @property presence Live-viewer-count config for this stream, when the organization has opted
+ *   into that rollout — null otherwise, including for non-live-stream assets.
  */
 data class AssetInfo(
     val title: String,
@@ -23,5 +26,6 @@ data class AssetInfo(
     val videoObj: JSONObject?,
     val isLiveStream: Boolean = false,
     val durationSeconds: Double = 0.0,
-    val isAes: Boolean = false
+    val isAes: Boolean = false,
+    val presence: PresenceConfig? = null
 )
