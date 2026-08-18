@@ -3,13 +3,20 @@ package com.tpstreams.player.data.network.api
 import com.tpstreams.player.constants.LiveStreamEndedException
 import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.data.network.model.AssetInfo
+import com.tpstreams.player.presence.PresenceConfig
 import org.json.JSONObject
 import java.util.Locale
 
 class TPStreamsApiService : BaseApiService() {
-    override fun assetInfoUrl(orgId: String, assetId: String, accessToken: String): String {
+    override fun assetInfoUrl(orgId: String, assetId: String, accessToken: String, viewerId: String?): String {
         val baseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/"
-        return if (accessToken.isNotBlank()) "$baseUrl?access_token=$accessToken" else baseUrl
+        val withToken = if (accessToken.isNotBlank()) "$baseUrl?access_token=$accessToken" else baseUrl
+        if (viewerId.isNullOrEmpty()) return withToken
+        // Without this the server mints a fresh anonymous id per request, and
+        // the presence token it hands back could never pass device binding at
+        // all — see PresenceViewerIdStore.
+        val separator = if (withToken.contains("?")) "&" else "?"
+        return "$withToken${separator}viewer_id=$viewerId"
     }
 
     override fun drmLicenseUrl(
@@ -84,7 +91,8 @@ class TPStreamsApiService : BaseApiService() {
                     videoObj = null,
                     isLiveStream = true,
                     durationSeconds = liveStreamObj.optDouble("duration", 0.0),
-                    title = title
+                    title = title,
+                    presence = parsePresence(liveStreamObj.optJSONObject("presence"))
                 )
             }
         }
@@ -130,5 +138,17 @@ class TPStreamsApiService : BaseApiService() {
     private fun getThumbnail(videoObj: JSONObject): String {
         return videoObj.optString("preview_thumbnail_url")
             .ifEmpty { videoObj.optJSONArray("thumbnails")?.optString(0) ?: "" }
+    }
+
+    // A malformed or absent presence payload is treated as no presence at
+    // all, rather than propagating a half-populated config further —
+    // presence is a bolt-on feature that must never be able to break asset
+    // parsing or playback.
+    private fun parsePresence(presenceObj: JSONObject?): PresenceConfig? {
+        if (presenceObj == null) return null
+        val token = presenceObj.optString("token")
+        val baseUrl = presenceObj.optString("base_url")
+        if (token.isBlank() || baseUrl.isBlank()) return null
+        return PresenceConfig(token = token, baseUrl = baseUrl)
     }
 }

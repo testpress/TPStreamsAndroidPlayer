@@ -7,7 +7,9 @@ import org.json.JSONObject
 import java.util.Locale
 
 class TestPressApiService : BaseApiService() {
-    override fun assetInfoUrl(orgId: String, assetId: String, accessToken: String): String {
+    // viewerId is accepted but ignored: this provider has no presence/live-
+    // viewer-count support to bind a device to.
+    override fun assetInfoUrl(orgId: String, assetId: String, accessToken: String, viewerId: String?): String {
         val baseUrl = "https://$orgId.testpress.in/api/v2.5/video_info/$assetId/?v=2"
         return if (accessToken.isNotBlank()) "$baseUrl&access_token=$accessToken" else baseUrl
     }
