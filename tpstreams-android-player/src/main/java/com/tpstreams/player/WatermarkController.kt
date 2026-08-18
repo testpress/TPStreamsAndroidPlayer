@@ -13,9 +13,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
 
     private var container: FrameLayout? = null
     private var config: WatermarkConfig? = null
-
-    private val contentFrame: AspectRatioFrameLayout?
-        get() = parent.findViewById(androidx.media3.ui.R.id.exo_content_frame)
+    private var contentFrame: AspectRatioFrameLayout? = null
 
     private var currentIsPlaying = false
 
@@ -29,6 +27,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         if (config == null) return
 
         this.config = config
+        contentFrame = parent.findViewById(androidx.media3.ui.R.id.exo_content_frame)
 
         val player = parent.getPlayer()
         if (player != null) {
@@ -61,6 +60,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         container?.let { contentFrame?.removeView(it) }
         container = null
         config = null
+        contentFrame = null
     }
 
     fun onParentLayout() {
