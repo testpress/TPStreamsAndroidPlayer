@@ -158,15 +158,12 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         if (viewWidth == 0 || viewHeight == 0) return
 
         val density = parent.context.resources.displayMetrics.density
-        val m = DEFAULT_MARGIN_DP * density
 
-        val minX = m
-        val maxX = (parentWidth - viewWidth - m).coerceAtLeast(m)
-        val minY = m
-        val maxY = (parentHeight - viewHeight - m).coerceAtLeast(m)
+        val maxX = (parentWidth - viewWidth).coerceAtLeast(0)
+        val maxY = (parentHeight - viewHeight).coerceAtLeast(0)
 
-        val x = minX + xFrac * (maxX - minX)
-        val y = minY + yFrac * (maxY - minY)
+        val x = xFrac * maxX
+        val y = yFrac * maxY
 
         c.pivotX = viewWidth * xFrac
         c.pivotY = viewHeight * yFrac
@@ -209,6 +206,5 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
 
     companion object {
         private const val TAG = "WatermarkController"
-        private const val DEFAULT_MARGIN_DP = 16
     }
 }
