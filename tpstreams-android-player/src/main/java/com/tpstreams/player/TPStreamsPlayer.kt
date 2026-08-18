@@ -452,7 +452,7 @@ private constructor(
                 // --- DRM fallback to L3 ---
                 // Covers all DRM errors worth retrying at L3:
                 //   PROVISIONING_FAILED, LICENSE_ACQUISITION_FAILED, SYSTEM_ERROR,
-                //   DISALLOWED_OPERATION, MediaCodec.CryptoException
+                //   DISALLOWED_OPERATION, DECODER_INIT_FAILED, MediaCodec.CryptoException
                 // DRM_LICENSE_EXPIRED is excluded — it has its own renewal path above.
                 if (WidevinePlaybackLevelResolver.isFallbackAllowed() &&
                     isDrmContent &&
