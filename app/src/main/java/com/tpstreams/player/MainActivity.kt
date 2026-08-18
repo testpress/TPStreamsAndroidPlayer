@@ -76,11 +76,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initTPStreams() {
-        TPStreamsSDK.init("9q94nm", TPStreamsSDK.Provider.TPStreams)
+        TPStreamsSDK.init("9q94nm", TPStreamsSDK.Provider.TPStreams, allowFallbackToL3 = true)
     }
 
     private fun initTestpress() {
-        TestpressSDK.init("lmsdemo")
+        TestpressSDK.init("lmsdemo", allowFallbackToL3 = true)
     }
 
     private fun setupDownloadsList() {

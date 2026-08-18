@@ -1,7 +1,6 @@
 package com.tpstreams.player
 
 import android.content.Context
-import android.media.MediaCodec
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -55,6 +54,8 @@ import com.tpstreams.player.util.PlaybackHistoryManager
 import com.tpstreams.player.util.CodecManager
 import com.tpstreams.player.util.ServerDateHeaderInterceptor
 import com.tpstreams.player.util.DecoderInfoProvider
+import com.tpstreams.player.util.WidevineDrmSessionManagerProvider
+import com.tpstreams.player.util.WidevinePlaybackLevelResolver
 import com.tpstreams.player.data.PlayerDecoderState
 import io.sentry.Breadcrumb
 import io.sentry.Sentry
@@ -107,6 +108,15 @@ private constructor(
     private var drmLicenseUrl: String? = null
 
     /**
+     * The native Widevine security level for this device, cached once for the session.
+     * Used for Sentry enrichment on every DRM error.
+     * Sourced from [WidevinePlaybackLevelResolver] which reads it via MediaDrm at init.
+     */
+    private val drmSecurityLevel: String by lazy {
+        WidevinePlaybackLevelResolver.getNativeWidevineLevel() ?: "unknown"
+    }
+
+    /**
      * True when the current asset is DRM-protected.
      *
      * Covers two cases:
@@ -119,6 +129,18 @@ private constructor(
      */
     val isDrmContent: Boolean
         get() = drmLicenseUrl != null || currentMediaItem?.localConfiguration?.drmConfiguration != null
+
+    /** DRM license URL for the current asset, or null when content is not DRM-protected / not yet prepared. */
+    fun getDrmLicenseUrl(): String? = drmLicenseUrl
+
+    /** Resolved Widevine playback level actually used for DRM (`L1` or `L3`). */
+    fun getDrmPlaybackLevel(): String =
+        if (WidevinePlaybackLevelResolver.shouldUseL3Drm()) "L3" else "L1"
+
+    /** Device-reported native Widevine security level, or null if unavailable. */
+    fun getNativeWidevineLevel(): String? =
+        WidevinePlaybackLevelResolver.getNativeWidevineLevel()
+
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var subtitleMetadata = mapOf<String, Boolean>()
@@ -129,6 +151,9 @@ private constructor(
     
     @Volatile
     private var released = false
+
+    @Volatile
+    private var l3FallbackAttempted = false
 
     internal var onLiveStreamStatusChanged: ((Boolean) -> Unit)? = null
     
@@ -234,6 +259,10 @@ private constructor(
         }
 
     init {
+        WidevinePlaybackLevelResolver.initialize(
+            context.applicationContext,
+            TPStreamsSDK.allowFallbackToL3,
+        )
         debugLog("Player INIT - Instance created for assetId: $assetId")
         synchronized(TPStreamsPlayer::class.java) {
             activePlayerCount++
@@ -407,9 +436,9 @@ private constructor(
             }
             
             override fun onPlayerError(error: PlaybackException) {
-                if (isDrmLicenseExpiredError(error)) {
-                    Log.d("TPStreamsPlayer", "DRM error detected for asset: $assetId")
-                    DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)  
+                if (error.errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED && isDownloadedAsset(assetId)) {
+                    Log.d("TPStreamsPlayer", "DRM license expired for downloaded asset: $assetId")
+                    DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)
                     return
                 }
 
@@ -420,16 +449,60 @@ private constructor(
                     return
                 }
 
+                // --- DRM fallback to L3 ---
+                // Covers all DRM errors worth retrying at L3:
+                //   PROVISIONING_FAILED, LICENSE_ACQUISITION_FAILED, SYSTEM_ERROR,
+                //   DISALLOWED_OPERATION, MediaCodec.CryptoException
+                // DRM_LICENSE_EXPIRED is excluded — it has its own renewal path above.
+                if (WidevinePlaybackLevelResolver.isFallbackAllowed() &&
+                    isDrmContent &&
+                    WidevinePlaybackLevelResolver.isDrmFallbackError(error) &&
+                    !l3FallbackAttempted
+                ) {
+                    if (!WidevinePlaybackLevelResolver.isAlreadyOnL3PlaybackLevel()) {
+                        if (WidevinePlaybackLevelResolver.isDrmPermanentFailure(error)) {
+                            // e.g. PROVISIONING_FAILED: device certificate rejected by Google.
+                            // Persist L3 across all future sessions.
+                            Log.w("TPStreamsPlayer", "Permanent DRM failure — persisting L3 for all sessions: $assetId")
+                            WidevinePlaybackLevelResolver.persistForceL3(context)
+                        } else {
+                            // Transient failure (license acquisition, system error, hardware fault).
+                            // Fall back to L3 for this session only — device may recover next launch.
+                            Log.w("TPStreamsPlayer", "Transient DRM failure — session L3 fallback for asset: $assetId")
+                            WidevinePlaybackLevelResolver.forceL3ForSession()
+                        }
+                        if (retryPlaybackAfterL3Persist()) {
+                            Sentry.addBreadcrumb(Breadcrumb().apply {
+                                setMessage("L3 fallback triggered after DRM failure")
+                                setData("asset_id", assetId)
+                                setData("error_code", error.errorCodeName)
+                                setData("is_permanent", WidevinePlaybackLevelResolver.isDrmPermanentFailure(error).toString())
+                                setData("native_level", drmSecurityLevel)
+                            })
+                            return
+                        }
+                    }
+                }
+
                 if (isNetworkError(error)) {
                     networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname, decoderState, mediaUrl)
                     return
                 }
-                
+
                 // Non-network errors go directly to _listener?.onError() (not onNetworkError).
                 // Network errors route through handleError → manager → _listener?.onNetworkError().
                 debugLog("Player ERROR - ${error.errorCodeName}")
                 val errorPlayerId = SentryLogger.generatePlayerIdString()
-                SentryLogger.logPlaybackException(error, assetId, errorPlayerId, drmLicenseUrl = drmLicenseUrl, context = context, player = exoPlayer, decoderState = decoderState)
+                SentryLogger.logPlaybackException(
+                    error,
+                    assetId,
+                    errorPlayerId,
+                    drmLicenseUrl = drmLicenseUrl,
+                    context = context,
+                    player = exoPlayer,
+                    decoderState = decoderState,
+                    drmSecurityLevel = drmSecurityLevel
+                )
                 
                 val errorType = error.toError()
                 val errorMessage = error.getErrorMessage(errorPlayerId)
@@ -469,12 +542,54 @@ private constructor(
         }
     }
 
-    private fun isDrmLicenseExpiredError(error: PlaybackException): Boolean {
-        val cause = error.cause
-        return error.errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED ||
-               error.errorCode == PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION ||
-                error.errorCode == PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR ||
-                cause is MediaCodec.CryptoException
+    private fun retryPlaybackAfterL3Persist(): Boolean {
+        if (l3FallbackAttempted) {
+            Log.w("TPStreamsPlayer", "L3 fallback retry skipped: already attempted for asset $assetId")
+            return false
+        }
+
+        val mediaItem = exoPlayer.currentMediaItem ?: return false
+        val retryMediaItem = buildMediaItemForL3Retry(mediaItem) ?: run {
+            Log.w("TPStreamsPlayer", "L3 fallback retry aborted: could not preserve DRM configuration for asset $assetId")
+            return false
+        }
+
+        l3FallbackAttempted = true
+        val currentPosition = exoPlayer.currentPosition
+        val playWhenReady = exoPlayer.playWhenReady
+
+        playerScope.launch(Dispatchers.Main) {
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+            val startPositionMs = if (!_isLiveStream && currentPosition > 0) {
+                currentPosition
+            } else {
+                C.TIME_UNSET
+            }
+            exoPlayer.setMediaItem(retryMediaItem, startPositionMs)
+            exoPlayer.prepare()
+            exoPlayer.playWhenReady = playWhenReady
+        }
+        return true
+    }
+
+    private fun buildMediaItemForL3Retry(mediaItem: MediaItem): MediaItem? {
+        val localConfiguration = mediaItem.localConfiguration ?: return mediaItem
+        val drmConfiguration = localConfiguration.drmConfiguration
+        if (isDrmContent && drmConfiguration == null) {
+            return null
+        }
+        val builder = mediaItem.buildUpon()
+        drmConfiguration?.let { builder.setDrmConfiguration(it) }
+        return builder.build()
+    }
+
+    private fun isDownloadedAsset(assetId: String): Boolean {
+        return try {
+            DownloadClient.getInstance(context).getDownload(assetId) != null
+        } catch (_: Exception) {
+            false
+        }
     }
 
     @OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -558,6 +673,7 @@ private constructor(
 
             val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
             exoPlayer.setAudioAttributes(audioAttributes, true)
+            l3FallbackAttempted = false
             debugLog("MediaItem SET - ${result.mediaItem.mediaId}")
             exoPlayer.setMediaItem(result.mediaItem)
             debugLog("Player PREPARE")
@@ -601,6 +717,7 @@ private constructor(
                     val audioAttributes = buildAudioAttributes(isDrm)
 
                     exoPlayer.setAudioAttributes(audioAttributes, true)
+                    l3FallbackAttempted = false
                     exoPlayer.setMediaItem(downloadedMediaItem)
                     exoPlayer.prepare()
                     isPrepared = true
@@ -643,6 +760,7 @@ private constructor(
             exoPlayer.clearMediaItems()
             
             debugLog("MediaItem SET (Download) - ${mediaItem.mediaId}")
+            l3FallbackAttempted = false
             exoPlayer.setMediaItem(mediaItem)
             debugLog("Player PREPARE")
             exoPlayer.prepare()
@@ -1023,9 +1141,14 @@ private constructor(
                 .setCache(DownloadController.downloadCache)
                 .setUpstreamDataSourceFactory(DownloadController.httpDataSourceFactory)
                 .setCacheWriteDataSinkFactory(null)
-            
+
+            val drmSessionManagerProvider = WidevineDrmSessionManagerProvider(
+                DownloadController.httpDataSourceFactory,
+            )
+
             val mediaSourceFactory = DefaultMediaSourceFactory(context)
                 .setDataSourceFactory(cacheDataSourceFactory)
+                .setDrmSessionManagerProvider(drmSessionManagerProvider)
 
             return ExoPlayer.Builder(context, renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)

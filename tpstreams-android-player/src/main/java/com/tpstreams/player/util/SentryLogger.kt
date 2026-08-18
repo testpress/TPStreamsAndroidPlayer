@@ -97,7 +97,8 @@ internal object SentryLogger {
         rootCause: String? = null,
         context: Context? = null,
         player: Player? = null,
-        decoderState: PlayerDecoderState? = null
+        decoderState: PlayerDecoderState? = null,
+        drmSecurityLevel: String = "unknown"
     ): String? {
         return Sentry.captureException(error) { scope ->
             val nowEpochMs = System.currentTimeMillis()
@@ -110,7 +111,13 @@ internal object SentryLogger {
             scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
             drmLicenseUrl?.takeIf { it.isNotEmpty() }?.let { scope.setTag("drmLicenseUrl", it) }
-            rootCause?.let { scope.setTag("rootCause", it) }
+            scope.setTag("widevine_security_level", drmSecurityLevel)
+            // Set rootCause: prefer explicit value, then auto-derive from DRM error code
+            val derivedRootCause = rootCause ?: when {
+                error.errorCodeName?.contains("DRM", ignoreCase = true) == true -> error.errorCodeName
+                else -> null
+            }
+            derivedRootCause?.let { scope.setTag("rootCause", it) }
             scope.setContexts(
                 "TPStreamsPlayer",
                 mapOf(

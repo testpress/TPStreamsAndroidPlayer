@@ -99,6 +99,7 @@ class NetworkRecoveryHandler(context: Context) {
 fun isNetworkError(error: PlaybackException): Boolean {
     if (error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) return false
     if (error.isAuthOrContentHttpFailure()) return false
+    if (error.errorCode in 6000..6999) return false
     return error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
            (error.cause is java.io.IOException && error.errorCode != PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND)
