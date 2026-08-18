@@ -790,15 +790,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         watermarkControllers.clear()
     }
 
-    /**
-     * Returns the child index at which watermark containers should be inserted.
-     * Placed before the error overlay so that watermarks render below error/loading UI.
-     */
-    internal fun getWatermarkInsertIndex(): Int {
-        val index = errorOverlay?.let { indexOfChild(it) } ?: -1
-        return if (index >= 0) index else childCount
-    }
-
     private fun notifyWatermarkPlayerState() {
         val player = getPlayer() ?: return
         watermarkControllers.forEach {

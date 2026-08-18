@@ -1,16 +1,21 @@
 package com.tpstreams.player
 
 import android.animation.ValueAnimator
+import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.media3.common.Player
+import androidx.media3.ui.AspectRatioFrameLayout
 
 @androidx.media3.common.util.UnstableApi
 internal class WatermarkController(private val parent: TPStreamsPlayerView) {
 
     private var container: FrameLayout? = null
     private var config: WatermarkConfig? = null
+
+    private val contentFrame: AspectRatioFrameLayout?
+        get() = parent.findViewById(androidx.media3.ui.R.id.exo_content_frame)
 
     private var currentIsPlaying = false
 
@@ -53,7 +58,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     fun remove() {
         pingPongAnimator?.cancel()
         pingPongAnimator = null
-        container?.let { parent.removeView(it) }
+        container?.let { contentFrame?.removeView(it) }
         container = null
         config = null
     }
@@ -108,8 +113,13 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
 
     private fun addToParent() {
         val c = container ?: return
-        val insertIndex = parent.getWatermarkInsertIndex()
-        parent.addView(c, insertIndex)
+        val frame = contentFrame
+        if (frame == null) {
+            Log.w(TAG, "exo_content_frame not found — watermark will not be displayed. " +
+                "Ensure the player layout contains an AspectRatioFrameLayout with id exo_content_frame.")
+            return
+        }
+        frame.addView(c, frame.childCount)
     }
 
     // ── Positioning ──────────────────────────────────────────────────────
@@ -117,7 +127,8 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     private fun reposition() {
         val c = container ?: return
         val cfg = config ?: return
-        if (parent.width == 0 || parent.height == 0) return
+        val frame = contentFrame ?: return
+        if (frame.width == 0 || frame.height == 0) return
         if (c.width == 0 || c.height == 0) return
 
         val animXy = getAnimationCurrentPosition()
@@ -137,8 +148,9 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
 
     private fun placeAt(xFrac: Float, yFrac: Float) {
         val c = container ?: return
-        val parentWidth = parent.width
-        val parentHeight = parent.height
+        val frame = contentFrame ?: return
+        val parentWidth = frame.width
+        val parentHeight = frame.height
         if (parentWidth == 0 || parentHeight == 0) return
 
         val viewWidth = c.width
@@ -196,6 +208,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     // ── Helpers ──────────────────────────────────────────────────────────
 
     companion object {
+        private const val TAG = "WatermarkController"
         private const val DEFAULT_MARGIN_DP = 16
     }
 }
