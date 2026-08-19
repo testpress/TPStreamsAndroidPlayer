@@ -41,14 +41,19 @@ class TPStreamsApiService : BaseApiService() {
     private fun parseLiveStreamAssetInfo(json: JSONObject, title: String): AssetInfo {
         val liveStreamObj = json.getJSONObject("live_stream")
         val liveStreamStatus = liveStreamObj.optString("status", "")
+        val transcodeRecordedVideo = liveStreamObj.optBoolean("transcodeRecordedVideo", true)
 
         return when (liveStreamStatus.uppercase(Locale.ROOT)) {
             "NOT STARTED" -> throw LiveStreamNotStartedException("Live stream will begin soon")
             "COMPLETED" -> {
-                // Backend marks the live stream COMPLETED before VOD transcoding finishes.
-                // Keep serving the live proxy until a playable recorded URL exists.
-                createRecordedAssetInfoIfReady(json, title)
-                    ?: createLiveStreamAssetInfo(liveStreamObj, title)
+                val recordedInfo = createRecordedAssetInfoIfReady(json, title)
+                if (!transcodeRecordedVideo && recordedInfo == null) {
+                    createLiveStreamAssetInfo(liveStreamObj, title)
+                } else if (recordedInfo != null) {
+                    recordedInfo
+                } else {
+                    createLiveStreamAssetInfo(liveStreamObj, title)
+                }
             }
 
             else -> {
