@@ -57,9 +57,11 @@ import com.tpstreams.player.util.DecoderInfoProvider
 import com.tpstreams.player.util.WidevineDrmSessionManagerProvider
 import com.tpstreams.player.util.WidevinePlaybackLevelResolver
 import com.tpstreams.player.data.PlayerDecoderState
+import com.tpstreams.player.util.*
 import io.sentry.Breadcrumb
 import io.sentry.Sentry
 import io.sentry.SentryLevel
+import com.tpstreams.player.util.findHttpResponseCode
 
 
 
@@ -481,6 +483,20 @@ private constructor(
                             })
                             return
                         }
+                    }
+                }
+
+                if (_isLiveStream && error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) {
+                    val httpResponseCode = error.findHttpResponseCode()
+                    val isAppropriateForLiveStreamEnd = httpResponseCode != null &&
+                        httpResponseCode != HTTP_STATUS_UNAUTHORIZED &&
+                        httpResponseCode != HTTP_STATUS_FORBIDDEN &&
+                        httpResponseCode != HTTP_STATUS_NOT_FOUND &&
+                        httpResponseCode !in HTTP_STATUS_SERVER_ERROR_MIN..HTTP_STATUS_SERVER_ERROR_MAX
+                    if (isAppropriateForLiveStreamEnd) {
+                        debugLog("Live stream source returned bad HTTP status — stream likely ended")
+                        _listener?.onError(PlaybackError.LIVE_STREAM_ENDED, "Live stream has ended")
+                        return
                     }
                 }
 
