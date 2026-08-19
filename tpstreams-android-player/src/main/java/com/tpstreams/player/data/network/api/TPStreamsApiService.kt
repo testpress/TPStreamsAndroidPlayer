@@ -45,49 +45,60 @@ class TPStreamsApiService : BaseApiService() {
         return when (liveStreamStatus.uppercase(Locale.ROOT)) {
             "NOT STARTED" -> throw LiveStreamNotStartedException("Live stream will begin soon")
             "COMPLETED" -> {
-                if (json.has("video") && !json.isNull("video")) {
-                    val videoObj = json.getJSONObject("video")
-                    val videoStatus = videoObj.optString("status", "")
-
-                    if (videoStatus.equals("Completed", ignoreCase = true)) {
-                        val enableDrm = videoObj.optBoolean("enable_drm", false)
-                        val isAes = videoObj.optString("content_protection_type").equals("aes", ignoreCase = true)
-                        AssetInfo(
-                            mediaUrl = getVideoPlaybackUrl(videoObj, enableDrm),
-                            enableDrm = enableDrm,
-                            thumbnailUrl = getThumbnail(videoObj),
-                            videoObj = videoObj,
-                            isLiveStream = false,
-                            durationSeconds = videoObj.optDouble("duration", 0.0),
-                            title = title,
-                            isAes = isAes
-                        )
-                    } else {
-                        throw LiveStreamEndedException("Live stream has ended")
-                    }
-                } else {
-                    throw LiveStreamEndedException("Live stream has ended")
-                }
+                // Backend marks the live stream COMPLETED before VOD transcoding finishes.
+                // Keep serving the live proxy until a playable recorded URL exists.
+                createRecordedAssetInfoIfReady(json, title)
+                    ?: createLiveStreamAssetInfo(liveStreamObj, title)
             }
 
             else -> {
-                val enableDrm = liveStreamObj.optBoolean("enable_drm", false)
-                val mediaUrl = if (enableDrm) {
-                    liveStreamObj.optString("dash_url")
-                } else {
-                    liveStreamObj.optString("hls_url")
-                }
-                AssetInfo(
-                    mediaUrl = mediaUrl,
-                    enableDrm = enableDrm,
-                    thumbnailUrl = "",
-                    videoObj = null,
-                    isLiveStream = true,
-                    durationSeconds = liveStreamObj.optDouble("duration", 0.0),
-                    title = title
-                )
+                createLiveStreamAssetInfo(liveStreamObj, title)
             }
         }
+    }
+
+    private fun createRecordedAssetInfoIfReady(json: JSONObject, title: String): AssetInfo? {
+        if (!json.has("video") || json.isNull("video")) return null
+
+        val videoObj = json.getJSONObject("video")
+        if (!videoObj.optString("status").equals("Completed", ignoreCase = true)) return null
+
+        val enableDrm = videoObj.optBoolean("enable_drm", false)
+        val mediaUrl = getVideoPlaybackUrl(videoObj, enableDrm)
+        if (mediaUrl.isEmpty()) return null
+
+        val isAes = videoObj.optString("content_protection_type").equals("aes", ignoreCase = true)
+        return AssetInfo(
+            mediaUrl = mediaUrl,
+            enableDrm = enableDrm,
+            thumbnailUrl = getThumbnail(videoObj),
+            videoObj = videoObj,
+            isLiveStream = false,
+            durationSeconds = videoObj.optDouble("duration", 0.0),
+            title = title,
+            isAes = isAes
+        )
+    }
+
+    private fun createLiveStreamAssetInfo(liveStreamObj: JSONObject, title: String): AssetInfo {
+        val enableDrm = liveStreamObj.optBoolean("enable_drm", false)
+        val mediaUrl = if (enableDrm) {
+            liveStreamObj.optString("dash_url")
+        } else {
+            liveStreamObj.optString("hls_url")
+        }
+        if (mediaUrl.isEmpty()) {
+            throw LiveStreamEndedException("Live stream has ended")
+        }
+        return AssetInfo(
+            mediaUrl = mediaUrl,
+            enableDrm = enableDrm,
+            thumbnailUrl = "",
+            videoObj = null,
+            isLiveStream = true,
+            durationSeconds = liveStreamObj.optDouble("duration", 0.0),
+            title = title
+        )
     }
 
     private fun parseVideoAssetInfo(json: JSONObject, title: String): AssetInfo {

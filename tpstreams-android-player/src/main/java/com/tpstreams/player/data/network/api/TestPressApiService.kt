@@ -60,8 +60,12 @@ class TestPressApiService : BaseApiService() {
             }
 
             else -> {
+                val mediaUrl = liveStreamObj.optString("stream_url", "")
+                if (mediaUrl.isEmpty()) {
+                    throw LiveStreamEndedException(noticeMessage)
+                }
                 AssetInfo(
-                    mediaUrl = liveStreamObj.optString("stream_url", ""),
+                    mediaUrl = mediaUrl,
                     enableDrm = false,
                     thumbnailUrl = "",
                     videoObj = null,

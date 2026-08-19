@@ -484,6 +484,12 @@ private constructor(
                     }
                 }
 
+                if (_isLiveStream && error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) {
+                    debugLog("Live stream source returned bad HTTP status — stream likely ended")
+                    _listener?.onError(PlaybackError.LIVE_STREAM_ENDED, "Live stream has ended")
+                    return
+                }
+
                 if (isNetworkError(error)) {
                     networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname, decoderState, mediaUrl)
                     return
