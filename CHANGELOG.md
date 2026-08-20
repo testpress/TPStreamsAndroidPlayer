@@ -5,192 +5,294 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.7] - 2026-08-06
+## [1.2.8] - 2026-08-20
+
 ### Added
+
+- Add opt-in Widevine L3 fallback for DRM playback failures (#120): automatically falls back to software decryption when hardware-secured decryption fails, providing graceful degradation instead of complete playback failure
+
+### Changed
+
+- Move user ID from SDK initialization to player configuration (#119): `userId` is now passed when creating the player instance instead of during SDK setup
+
+### Fixed
+
+- Allow continuous playback when live stream ends before VOD is ready (#123): prevents black screen after live stream ends by falling back to live proxy URLs during the gap before recording transcoding completes
+- Position watermark within video content area instead of full player (#127): watermarks now appear within the actual video rectangle, avoiding black bars when aspect ratios differ
+- Fallback to L3 when decoder initialization fails (#125): playback continues automatically when hardware decoder cannot be initialized
+- Stop routing HTTP auth/content errors to network diagnostics (#121): HTTP 401/403/404 errors from media CDN are now correctly classified instead of being treated as network failures
+
+## [1.2.7] - 2026-08-06
+
+### Added
+
 - Resume playback from the last watched position (#118): the position is saved on pause, on seek, periodically every 2 minutes while watching, and when the player is closed; reopening the same asset restores the position automatically, and it is cleared when the video is played to the end
 - The feature is opt-in per user: set a `userId` when creating the player to enable it; without a user id nothing is saved or restored
 
 ## [1.2.6] - 2026-08-04
+
 ### Changed
+
 - Upgrade `androidx.media3` from 1.7.1 to 1.8.1, the last release line that supports minSdk 21 (1.9+ raises the minimum to 23) (#117)
 - 1.8.1 includes playback fixes: VP9 Widevine playback on some devices, an extended detached-surface workaround for Lenovo/Motorola/realme devices, Bluetooth A/V sync after pause-resume, and several DASH/HLS fixes
 - Adapt download preparation to the updated `DownloadHelper.Callback.onPrepared` callback signature in 1.8.0 (#117)
 
 ## [1.2.5] - 2026-07-29
+
 ### Added
+
 - Expose `offlineLicenseExpireTime` parameter in public `DownloadClient.startDownload()` API to allow customizing offline license duration for DRM downloads
 
 ## [1.2.4] - 2026-07-21
+
 ### Changed
+
 - Redesign watermark API to support multiple watermarks via `setWatermarks(List<WatermarkConfig>)` and `clearWatermarks()`, replacing the single-watermark `setWatermark()` / `showWatermark()` / `hideWatermark()` / `removeWatermark()` API (#115)
 - Replace enum-based 9-position positioning with `x` and `y` coordinates (0–100, relative percentage) for precise watermark placement (#115)
 - Make `WatermarkAnimation` a nullable field (null = no animation) instead of requiring a `WatermarkAnimation` with a `NONE` type (#115)
 
 ## [1.2.3] - 2026-07-18
+
 ### Changed
+
 - Simplify watermark API by replacing Builder pattern with a single `WatermarkConfig` data class (#114)
 - Replace nested configuration models (`WatermarkContent`, `WatermarkStyle`, `WatermarkSize`, `Margins`, `WatermarkPosition.Static/Dynamic`) with a flat `WatermarkPosition` enum and nullable `WatermarkAnimation` model (#114)
 
 ## [1.2.2] - 2026-07-17
+
 ### Added
+
 - Add configurable watermark overlay to player view with text content, 9-position gravity, dynamic text provider, ping-pong animation, and configurable style (#113)
 - Enable screen capture protection for all video playback to prevent screenshots and screen recording on supported devices (#112)
 
 ### Fixed
+
 - Fix secure decoder crash (Error 0x80000000) on MediaTek devices during fullscreen transitions by properly releasing video surface before player detach (#111)
 
 ## [1.2.1] - 2026-07-11
+
 ### Added
+
 - Improved error reporting with additional device and network context for faster debugging
 
 ### Fixed
+
 - Fix MediaTek secure decoder NO_MEMORY crash during fullscreen transitions by explicitly releasing video surface before player detach
 
 ## [1.2.0] - 2026-07-02
+
 ### Added
+
 - Add `setMaxResolution` API to limit maximum playback quality and automatically hide unallowed resolutions in the settings panel (#105)
+
 ### Changed
+
 - Update `setVideoResolution` API to explicitly set the user's preferred resolution rather than just setting a track selector upper bound (#106)
 
 ## [1.1.20] - 2026-06-25
+
 ### Fixed
+
 - Fix SentryLogger methods not returning the Sentry event ID, resolving a build error in network diagnostics integration
 
 ## [1.1.19] - 2026-06-25
+
 ### Added
+
 - Add network diagnostics and playback error classification with automatic retry handling for recoverable network issues
 - Add request URLs in Sentry error reports to improve debugging of asset loading failures
 
 ### Fixed
+
 - Asset loading failures now include request URLs in error reports for better troubleshooting of invalid parameters, expired tokens, and incorrect endpoint generation
 
 ## [1.1.18] - 2026-06-12
+
 ### Fixed
+
 - Gracefully handle HLS live stream pauses by suppressing `PlaylistStuckException` to prevent player crashes and unnecessary Sentry logs.
 
 ## [1.1.17] - 2026-05-11
+
 ### Added
+
 - Added public API to enable or disable auto-fullscreen on device rotation in Android.
 
 ## [1.1.16] - 2026-05-05
+
 ### Fixed
+
 - Prevent fullscreen reattachment from showing the loading spinner when playback is already ready.
 
 ## [1.1.15] - 2026-05-05
+
 ### Fixed
+
 - Prevent fullscreen transitions from crashing with `Detaching surface timed out` by detaching and reattaching the player around view reparenting.
 
 ## [1.1.14] - 2026-04-30
+
 ### Fixed
+
 - Improve Testpress live stream notice messages and recorded states handling.
 
 ## [1.1.13] - 2026-04-28
+
 ### Added
+
 - Automatic AES-128 authentication support for both TPStreams and Testpress backends.
 - Stateless "Token Handoff" logic to prevent manifest signature invalidation.
 
 ### Fixed
+
 - Resolved playback failures for AES-protected videos where encryption keys were being rejected.
 
 ## [1.1.13-beta.2] - 2026-04-24
+
 ### Added
+
 - Implement clock drift diagnostics to track time differences between device and server in error reports.
 - Add `ServerDateHeaderInterceptor` to capture server time from HTTP responses.
 - Enrich Sentry error logs with human-readable time drift and timing context.
 
 ## [1.1.13-beta.1] - 2026-04-21
+
 ### Added
+
 - Enable decoder fallback to automatically roll over to software decoders on hardware failure.
 - Include global auth headers in token validation to support extended authentication flows.
 - Add `TestpressSDK` and `TestpressPlayer` wrappers for simplified authentication and initialization for testpress usecases.
 
 ## [1.1.12] - 2026-04-13
+
 ### Added
+
 - Multi-provider support for TPStreams and Testpress backends (#90)
 - Integrated bottom navigation in the example app for managing multiple providers and downloads.
 
 ## [1.1.11-beta.1] - 2026-04-02
+
 ### Added
+
 - Add `CodecManager` for real-time hardware decoder instance tracking and capacity diagnostics.
 - Add `PlaybackHistoryManager` to maintain a global 500-line buffer of player events.
 - Attach full playback history to Sentry crash reports for enhanced production debugging.
 - Add support for `onAccessTokenExpired` event in `TPStreamsPlayer.Listener` for dynamic token refreshing during playback and renewal.
 
 ### Fixed
+
 - Resolve offline DRM playback failure where metadata JSON in the download request incorrectly blocked initialization.
 - Fix DRM background license renewal flow to correctly handle expired licenses for downloaded content.
 
 ## [1.1.10] - 2026-03-10
+
 ### Fixed
+
 - Prevent audio capture for DRM-protected videos (#85)
 
 ## [1.1.9] - 2026-02-25
+
 ### Added
+
 - Expose public `startDownload` API in `DownloadClient` (#82)
 - Replace hardcoded download toasts with event-driven callbacks (#83)
 - Update Example App UI for testing and downloads (#84)
+
 ### Fixed
+
 - Update delete event signature and prevent duplicate notifications
+
 ### Changed
+
 - Centralize media configuration and asset metadata handling (#81)
 
 ## [1.1.8] - 2026-02-10
+
 ### Fixed
+
 - Fix player release crash and background playback issue (#80)
 
 ## [1.1.7] - 2026-01-28
+
 ### Added
+
 - Add automatic retry mechanism for network failures (#79)
 
 ## [1.1.6] - 2026-01-13
+
 ### Fixed
+
 - Fix bottom sheets scrollable to prevent content cut-off (#78)
+
 ### Changed
+
 - Refactor to `BaseBottomSheet` class and modernize bottom sheet styling (#75)
 
 ## [1.1.5] - 2026-01-08
+
 ### Fixed
+
 - Fix playlist navigation buttons for standalone playback (#74)
 - Fix jarring loading UI flickering during stable playback (#73)
 
 ## [1.1.4] - 2025-12-31
+
 ### Added
+
 - Add support for launching player in fullscreen mode (#72)
 
 ## [1.1.3] - 2025-12-16
+
 ### Fixed
+
 - Fix download option restriction for live streams
 - Fix live badge visibility issue
 
 ## [1.1.2] - 2025-12-16
+
 ### Added
+
 - Add live stream playback support (#71)
 
 ## [1.1.1] - 2025-12-04
+
 ### Fixed
+
 - Fix external listener preservation to restore token refresh
 
 ## [1.1.0] - 2025-11-19
+
 ### Fixed
+
 - Fix error overlay display across all view contexts
 
 ## [1.0.19] - 2025-11-19
+
 ### Fixed
+
 - Fix player error overlay initialization
 
 ## [1.0.18] - 2025-11-19
+
 ### Added
+
 - Add error overlay and loading states to player view (#70)
 - Integrate Sentry for error tracking and enhance error handling (#69)
 
 ## [1.0.17] - 2025-09-12
+
 ### Added
+
 - Add download state change callback to DownloadClient (#68)
 
 ## [1.0.0] - 2025-06-20
+
 ### Added
+
 - Initial release with core playback and DRM support
 
+[1.2.8]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.7...1.2.8
+[1.2.7]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.6...1.2.7
 [1.2.6]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.5...1.2.6
 [1.2.5]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.4...1.2.5
 [1.2.4]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.3...1.2.4
