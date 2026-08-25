@@ -1,5 +1,7 @@
 package com.tpstreams.player
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.util.Log
 import android.view.View
@@ -7,6 +9,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
+import kotlin.random.Random
 
 @androidx.media3.common.util.UnstableApi
 internal class WatermarkController(private val parent: TPStreamsPlayerView) {
@@ -17,7 +20,9 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
 
     private var currentIsPlaying = false
 
-    private var pingPongAnimator: ValueAnimator? = null
+    private var animator: ValueAnimator? = null
+    private var randomXFrac: Float = 0f
+    private var randomYFrac: Float = 0f
     private var applyCounter: Int = 0
 
     // ── Public API ───────────────────────────────────────────────────────
@@ -43,20 +48,22 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         container?.post {
             if (!parent.isAttachedToWindow) return@post
             if (applyGeneration != applyCounter) return@post
-            reposition()
 
             val anim = config.animation
-            if (anim?.type == WatermarkAnimationType.PING_PONG) {
-                startPingPongAnimation(anim)
+            when (anim?.type) {
+                WatermarkAnimationType.PING_PONG -> startPingPongAnimation(anim)
+                WatermarkAnimationType.RANDOM -> startRandomAnimation(anim)
+                null -> {}
             }
 
+            reposition()
             updateVisibilityForState(currentIsPlaying)
         }
     }
 
     fun remove() {
-        pingPongAnimator?.cancel()
-        pingPongAnimator = null
+        animator?.cancel()
+        animator = null
         container?.let { contentFrame?.removeView(it) }
         container = null
         config = null
@@ -78,7 +85,7 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     }
 
     fun onViewDetached() {
-        pingPongAnimator?.pause()
+        animator?.pause()
     }
 
     fun onViewAttached() {
@@ -138,12 +145,20 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     }
 
     private fun getAnimationCurrentPosition(): Pair<Float, Float>? {
-        val animator = pingPongAnimator ?: return null
-        if (!animator.isRunning && !animator.isPaused) return null
-        val fraction = animator.animatedValue as? Float ?: return null
+        val anim = config?.animation ?: return null
+        val activeAnimator = animator ?: return null
+        if (!activeAnimator.isRunning && !activeAnimator.isPaused) return null
         val cfg = config ?: return null
-        val yFrac = cfg.y / 100f
-        return fraction to yFrac
+
+        return when (anim.type) {
+            WatermarkAnimationType.PING_PONG -> {
+                val fraction = activeAnimator.animatedValue as? Float ?: return null
+                fraction to (cfg.y / 100f)
+            }
+            WatermarkAnimationType.RANDOM -> {
+                randomXFrac to randomYFrac
+            }
+        }
     }
 
     private fun placeAt(xFrac: Float, yFrac: Float) {
@@ -156,8 +171,6 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
         val viewWidth = c.width
         val viewHeight = c.height
         if (viewWidth == 0 || viewHeight == 0) return
-
-        val density = parent.context.resources.displayMetrics.density
 
         val maxX = (parentWidth - viewWidth).coerceAtLeast(0)
         val maxY = (parentHeight - viewHeight).coerceAtLeast(0)
@@ -176,12 +189,12 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     private fun updateVisibilityForState(isPlaying: Boolean, hasEnded: Boolean = false) {
         container?.visibility = View.VISIBLE
 
-        pingPongAnimator?.let { animator ->
+        animator?.let { anim ->
             val shouldAnimate = isPlaying && !hasEnded
-            if (shouldAnimate && animator.isPaused) {
-                animator.resume()
-            } else if (!shouldAnimate && animator.isRunning) {
-                animator.pause()
+            if (shouldAnimate && anim.isPaused) {
+                anim.resume()
+            } else if (!shouldAnimate && anim.isRunning) {
+                anim.pause()
             }
         }
     }
@@ -189,15 +202,37 @@ internal class WatermarkController(private val parent: TPStreamsPlayerView) {
     // ── Animation ────────────────────────────────────────────────────────
 
     private fun startPingPongAnimation(animation: WatermarkAnimation) {
-        pingPongAnimator?.cancel()
+        animator?.cancel()
 
         val durationMs = animation.duration.coerceAtLeast(WatermarkAnimation.MIN_DURATION_MS)
 
-        pingPongAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+        animator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = durationMs
             repeatMode = ValueAnimator.REVERSE
             repeatCount = ValueAnimator.INFINITE
             addUpdateListener { reposition() }
+            start()
+        }
+    }
+
+    private fun startRandomAnimation(animation: WatermarkAnimation) {
+        animator?.cancel()
+
+        val durationMs = animation.duration.coerceAtLeast(WatermarkAnimation.MIN_DURATION_MS)
+        randomXFrac = Random.nextFloat()
+        randomYFrac = Random.nextFloat()
+
+        animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = durationMs
+            repeatMode = ValueAnimator.RESTART
+            repeatCount = ValueAnimator.INFINITE
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationRepeat(animation: Animator) {
+                    randomXFrac = Random.nextFloat()
+                    randomYFrac = Random.nextFloat()
+                    reposition()
+                }
+            })
             start()
         }
     }
