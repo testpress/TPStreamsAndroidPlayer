@@ -29,4 +29,5 @@ data class WatermarkAnimation(
 
 enum class WatermarkAnimationType {
     PING_PONG,
+    RANDOM,
 }

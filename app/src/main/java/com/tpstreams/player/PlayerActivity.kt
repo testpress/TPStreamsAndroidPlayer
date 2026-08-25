@@ -51,11 +51,15 @@ class PlayerActivity : AppCompatActivity() {
                     opacity = 0.2f,
                 ),
                 WatermarkConfig(
-                    text = "Test 2",
+                    text = "Random Watermark",
                     x = 0,
                     y = 0,
-                    opacity = 1f,
-                    animation = WatermarkAnimation(type = WatermarkAnimationType.PING_PONG,duration = 10000L)
+                    textSize = 18f,
+                    opacity = 0.8f,
+                    animation = WatermarkAnimation(
+                        type = WatermarkAnimationType.RANDOM,
+                        duration = 3_000L
+                    )
                 ),
             )
         )
