@@ -1,70 +1,53 @@
 package com.tpstreams.player
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaItem.DrmConfiguration
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import com.tpstreams.player.constants.NetworkDiagnostics
+import com.tpstreams.player.constants.PlaybackError
+import com.tpstreams.player.constants.getErrorMessage
+import com.tpstreams.player.constants.toError
+import com.tpstreams.player.data.PlayerDecoderState
+import com.tpstreams.player.download.DownloadConstants
+import com.tpstreams.player.download.DownloadController
+import com.tpstreams.player.download.DownloadPlaybackHandler
+import com.tpstreams.player.drm.DrmHandler
+import com.tpstreams.player.media.MediaLoader
+import com.tpstreams.player.token.TokenManager
+import com.tpstreams.player.tracks.ResolutionManager
+import com.tpstreams.player.tracks.TextTrackManager
+import com.tpstreams.player.util.CodecManager
+import com.tpstreams.player.util.DecoderInfoProvider
+import com.tpstreams.player.util.NetworkDiagnosticsManager
+import com.tpstreams.player.util.PlaybackHistoryManager
+import com.tpstreams.player.util.SentryLogger
+import com.tpstreams.player.util.WidevineDrmSessionManagerProvider
+import com.tpstreams.player.util.WidevinePlaybackLevelResolver
+import com.tpstreams.player.util.isLiveStreamEndHttpError
+import com.tpstreams.player.util.network.NetworkRecoveryHandler
+import com.tpstreams.player.util.network.isNetworkError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.json.JSONObject
-import androidx.media3.common.Format
-import android.net.Uri
-import androidx.media3.common.MimeTypes
-import androidx.media3.common.Tracks
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.PlaybackParameters
-import com.tpstreams.player.download.DownloadController
-import com.tpstreams.player.download.DownloadClient
-import androidx.media3.exoplayer.offline.DownloadRequest
-import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.common.MediaMetadata
-import androidx.media3.exoplayer.trackselection.MappingTrackSelector
-import com.tpstreams.player.download.DownloadConstants
-import com.tpstreams.player.util.SentryLogger
-import com.tpstreams.player.constants.NetworkDiagnostics
-import com.tpstreams.player.constants.PlaybackError
-import com.tpstreams.player.constants.toError
-import com.tpstreams.player.constants.getErrorMessage
-import com.tpstreams.player.constants.LiveStreamNotStartedException
-import com.tpstreams.player.constants.LiveStreamEndedException
-import com.tpstreams.player.constants.toPlaybackError
-import com.tpstreams.player.data.network.model.AssetInfo
-import com.tpstreams.player.data.AssetRepository
-import com.tpstreams.player.util.NetworkDiagnosticsManager
-import com.tpstreams.player.util.MediaItemUtils
-import com.tpstreams.player.util.network.*
-import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.DecoderReuseEvaluation
-import com.tpstreams.player.util.PlaybackHistoryManager
-import com.tpstreams.player.util.CodecManager
-import com.tpstreams.player.util.ServerDateHeaderInterceptor
-import com.tpstreams.player.util.DecoderInfoProvider
-import com.tpstreams.player.util.WidevineDrmSessionManagerProvider
-import com.tpstreams.player.util.WidevinePlaybackLevelResolver
-import com.tpstreams.player.data.PlayerDecoderState
-import com.tpstreams.player.util.*
-import io.sentry.Breadcrumb
-import io.sentry.Sentry
-import io.sentry.SentryLevel
-import com.tpstreams.player.util.findHttpResponseCode
-
-
-
 
 class TPStreamsPlayer @OptIn(UnstableApi::class)
 private constructor(
@@ -107,73 +90,53 @@ private constructor(
     }
 
     private var isPrepared = false
-    private var drmLicenseUrl: String? = null
-
-    /**
-     * The native Widevine security level for this device, cached once for the session.
-     * Used for Sentry enrichment on every DRM error.
-     * Sourced from [WidevinePlaybackLevelResolver] which reads it via MediaDrm at init.
-     */
-    private val drmSecurityLevel: String by lazy {
-        WidevinePlaybackLevelResolver.getNativeWidevineLevel() ?: "unknown"
-    }
-
-    /**
-     * True when the current asset is DRM-protected.
-     *
-     * Covers two cases:
-     * - Online streaming: [drmLicenseUrl] is set during [preparePlayer].
-     * - Offline downloads: [preparePlayer] is bypassed, so [drmLicenseUrl] is never set;
-     *   instead we detect DRM via the media item's DRM configuration.
-     *
-     * Note: [TPStreamsPlayerView] applies FLAG_SECURE for all playback (DRM and non-DRM).
-     * This property is exposed for host-app use cases such as conditional UI or analytics.
-     */
-    val isDrmContent: Boolean
-        get() = drmLicenseUrl != null || currentMediaItem?.localConfiguration?.drmConfiguration != null
-
-    /** DRM license URL for the current asset, or null when content is not DRM-protected / not yet prepared. */
-    fun getDrmLicenseUrl(): String? = drmLicenseUrl
-
-    /** Resolved Widevine playback level actually used for DRM (`L1` or `L3`). */
-    fun getDrmPlaybackLevel(): String =
-        if (WidevinePlaybackLevelResolver.shouldUseL3Drm()) "L3" else "L1"
-
-    /** Device-reported native Widevine security level, or null if unavailable. */
-    fun getNativeWidevineLevel(): String? =
-        WidevinePlaybackLevelResolver.getNativeWidevineLevel()
-
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
-    private var subtitleMetadata = mapOf<String, Boolean>()
-    private var _isLiveStream = false
-    
+
     val isLiveStream: Boolean
-        get() = _isLiveStream
+        get() = mediaLoader.isLiveStream
     
     @Volatile
     private var released = false
-
-    @Volatile
-    private var l3FallbackAttempted = false
 
     internal var onLiveStreamStatusChanged: ((Boolean) -> Unit)? = null
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val networkRecoveryHandler = NetworkRecoveryHandler(context)
-    @Volatile
-    private var cdnHostname: String? = null
 
-    // The media URL the player is currently trying to load (with tp_token for AES
-    // streams). Used by the network probes to verify the actual CDN endpoint rather
-    // than just the hostname.
-    @Volatile
-    private var mediaUrl: String? = null
+    private val textTrackManager: TextTrackManager by lazy {
+        TextTrackManager(exoPlayer, trackSelector)
+    }
+    private val resolutionManager: ResolutionManager by lazy {
+        ResolutionManager(exoPlayer, trackSelector)
+    }
+    private val tokenManager: TokenManager by lazy {
+        TokenManager(assetId, accessToken, offlineLicenseExpireTime) { _listener }
+    }
 
-    // Per-player decoder state (not global — avoids cross-player corruption)
-    @Volatile
-    private var decoderState = PlayerDecoderState()
-    internal fun getDecoderState(): PlayerDecoderState = decoderState
+    /**
+     * Handles Widevine DRM playback, L1/L3 level resolution, and L3 fallback retries.
+     */
+    private val drmHandler = DrmHandler(
+        exoPlayer = exoPlayer,
+        playerScope = playerScope,
+        context = context,
+        assetId = assetId,
+        isLiveStream = { isLiveStream },
+        onRenewOfflineLicense = {
+            DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)
+        }
+    )
+
+    private val downloadPlaybackHandler = DownloadPlaybackHandler(
+        context = context,
+        exoPlayer = exoPlayer,
+        playerScope = playerScope,
+        drmHandler = drmHandler,
+        onMediaPrepared = { isPrepared = true },
+        shouldPlayOnPrepared = { shouldAutoPlay || requestedPlay },
+        logDebug = { debugLog(it) }
+    )
 
     private val networkDiagnosticsManager = NetworkDiagnosticsManager(
         playerScope = playerScope,
@@ -191,6 +154,51 @@ private constructor(
         diagnosticHostProvider = ::resolveDiagnosticHost,
         serverProbePathProvider = ::resolveServerProbePath
     )
+
+    private val mediaLoader = MediaLoader(
+        context = context,
+        exoPlayer = exoPlayer,
+        playerScope = playerScope,
+        assetId = assetId,
+        accessToken = accessToken,
+        drmHandler = drmHandler,
+        textTrackManager = textTrackManager,
+        downloadPlaybackHandler = downloadPlaybackHandler,
+        networkDiagnosticsManager = networkDiagnosticsManager,
+        getDecoderState = { decoderState },
+        onMediaPrepared = { isPrepared = true },
+        shouldPlayOnPrepared = { shouldAutoPlay || requestedPlay },
+        onLiveStreamStatusChanged = { onLiveStreamStatusChanged?.invoke(it) },
+        onError = { error, message -> _listener?.onError(error, message) },
+        logDebug = { debugLog(it) }
+    )
+
+    /**
+     * True when the current asset is DRM-protected.
+     *
+     * Covers two cases:
+     * - Online streaming: license URL is set during [preparePlayer].
+     * - Offline downloads: [preparePlayer] is bypassed, DRM is detected via the media item.
+     *
+     * Note: [TPStreamsPlayerView] applies FLAG_SECURE for all playback.
+     * This property is exposed for host-app analytics or conditional UI.
+     */
+    val isDrmContent: Boolean
+        get() = drmHandler.isProtected
+
+    /** DRM license URL for the current asset, or null when not DRM-protected / not yet prepared. */
+    fun getDrmLicenseUrl(): String? = drmHandler.licenseUrl
+
+    /** Resolved Widevine playback level in use: `"L1"` or `"L3"`. */
+    fun getDrmPlaybackLevel(): String = drmHandler.getPlaybackLevel()
+
+    /** Device-reported native Widevine security level, or null if unavailable. */
+    fun getNativeWidevineLevel(): String? = drmHandler.getNativeLevel()
+
+    // Per-player decoder state (not global — avoids cross-player corruption)
+    @Volatile
+    private var decoderState = PlayerDecoderState()
+    internal fun getDecoderState(): PlayerDecoderState = decoderState
 
     private fun resolveDiagnosticHost(): String {
         return try {
@@ -236,8 +244,8 @@ private constructor(
                 if (!isPrepared) {
                     val org = TPStreamsSDK.orgId
                     if (org != null) {
-                        Log.d("TPStreamsPlayer", "Retrying initial fetchAndPrepare")
-                        fetchAndPrepare(assetId, accessToken)
+                        Log.d("TPStreamsPlayer", "Retrying initial media load")
+                        mediaLoader.load()
                     }
                 } else {
                     debugLog("Player PREPARE (Retry)")
@@ -416,7 +424,7 @@ private constructor(
                 Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
                 seekToStartAt()
                 if (playbackState == Player.STATE_READY) {
-                    if (startAt <= 0 && !_isLiveStream) {
+                    if (startAt <= 0 && !isLiveStream) {
                         resumePlaybackManager?.onPlayerReady()
                     }
                 } else if (playbackState == Player.STATE_ENDED) {
@@ -438,70 +446,25 @@ private constructor(
             }
             
             override fun onPlayerError(error: PlaybackException) {
-                if (error.errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED && isDownloadedAsset(assetId)) {
-                    Log.d("TPStreamsPlayer", "DRM license expired for downloaded asset: $assetId")
-                    DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)
+                // Suppress HLS playlist-stuck errors — raised when a live stream pauses.
+                // The player naturally shows a buffering spinner; playback resumes when the
+                // stream advances again or the user seeks back.
+                if (isPlaylistStuckException(error)) return
+
+                // --- DRM error handling ---
+                // Covers expired offline licenses, L1→L3 fallback, and license acquisition
+                // failures. Returns true when the error has been handled and playback will
+                // resume (either via renewal or retry), so we stop further processing.
+                if (drmHandler.handleError(error)) return
+
+                if (isLiveStream && error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && error.isLiveStreamEndHttpError()) {
+                    debugLog("Live stream source returned bad HTTP status — stream likely ended")
+                    _listener?.onError(PlaybackError.LIVE_STREAM_ENDED, "Live stream has ended")
                     return
-                }
-
-                if (isPlaylistStuckException(error)) {
-                    // This error is raised when the HLS playlist stops advancing (e.g., the live stream is paused).
-                    // We safely suppress this error so the player naturally shows the buffering spinner instead of crashing.
-                    // Playback can resume once the stream starts advancing again or the user seeks to a previous duration.
-                    return
-                }
-
-                // --- DRM fallback to L3 ---
-                // Covers all DRM errors worth retrying at L3:
-                //   PROVISIONING_FAILED, LICENSE_ACQUISITION_FAILED, SYSTEM_ERROR,
-                //   DISALLOWED_OPERATION, DECODER_INIT_FAILED, MediaCodec.CryptoException
-                // DRM_LICENSE_EXPIRED is excluded — it has its own renewal path above.
-                if (WidevinePlaybackLevelResolver.isFallbackAllowed() &&
-                    isDrmContent &&
-                    WidevinePlaybackLevelResolver.isDrmFallbackError(error) &&
-                    !l3FallbackAttempted
-                ) {
-                    if (!WidevinePlaybackLevelResolver.isAlreadyOnL3PlaybackLevel()) {
-                        if (WidevinePlaybackLevelResolver.isDrmPermanentFailure(error)) {
-                            // e.g. PROVISIONING_FAILED: device certificate rejected by Google.
-                            // Persist L3 across all future sessions.
-                            Log.w("TPStreamsPlayer", "Permanent DRM failure — persisting L3 for all sessions: $assetId")
-                            WidevinePlaybackLevelResolver.persistForceL3(context)
-                        } else {
-                            // Transient failure (license acquisition, system error, hardware fault).
-                            // Fall back to L3 for this session only — device may recover next launch.
-                            Log.w("TPStreamsPlayer", "Transient DRM failure — session L3 fallback for asset: $assetId")
-                            WidevinePlaybackLevelResolver.forceL3ForSession()
-                        }
-                        if (retryPlaybackAfterL3Persist()) {
-                            Sentry.addBreadcrumb(Breadcrumb().apply {
-                                setMessage("L3 fallback triggered after DRM failure")
-                                setData("asset_id", assetId)
-                                setData("error_code", error.errorCodeName)
-                                setData("is_permanent", WidevinePlaybackLevelResolver.isDrmPermanentFailure(error).toString())
-                                setData("native_level", drmSecurityLevel)
-                            })
-                            return
-                        }
-                    }
-                }
-
-                if (_isLiveStream && error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS) {
-                    val httpResponseCode = error.findHttpResponseCode()
-                    val isAppropriateForLiveStreamEnd = httpResponseCode != null &&
-                        httpResponseCode != HTTP_STATUS_UNAUTHORIZED &&
-                        httpResponseCode != HTTP_STATUS_FORBIDDEN &&
-                        httpResponseCode != HTTP_STATUS_NOT_FOUND &&
-                        httpResponseCode !in HTTP_STATUS_SERVER_ERROR_MIN..HTTP_STATUS_SERVER_ERROR_MAX
-                    if (isAppropriateForLiveStreamEnd) {
-                        debugLog("Live stream source returned bad HTTP status — stream likely ended")
-                        _listener?.onError(PlaybackError.LIVE_STREAM_ENDED, "Live stream has ended")
-                        return
-                    }
                 }
 
                 if (isNetworkError(error)) {
-                    networkDiagnosticsManager.handleError(error.toError(), error, cdnHostname, decoderState, mediaUrl)
+                    networkDiagnosticsManager.handleError(error.toError(), error, mediaLoader.cdnHostname, decoderState, mediaLoader.mediaUrl)
                     return
                 }
 
@@ -513,11 +476,11 @@ private constructor(
                     error,
                     assetId,
                     errorPlayerId,
-                    drmLicenseUrl = drmLicenseUrl,
+                    drmLicenseUrl = drmHandler.licenseUrl,
                     context = context,
                     player = exoPlayer,
                     decoderState = decoderState,
-                    drmSecurityLevel = drmSecurityLevel
+                    drmSecurityLevel = drmHandler.nativeSecurityLevel
                 )
                 
                 val errorType = error.toError()
@@ -547,159 +510,19 @@ private constructor(
         })
 
         TPStreamsSDK.requireOrgId()
-        fetchAndPrepare(assetId, accessToken)
+        mediaLoader.load()
     }
 
-    private fun enableDefaultCaptions() {
-        val textTracks = getAvailableTextTracks()
-        val defaultTrack = textTracks.firstOrNull()
-        defaultTrack?.let {
-            setTextTrackByLanguage(it.first)
-        }
-    }
-
-    private fun retryPlaybackAfterL3Persist(): Boolean {
-        if (l3FallbackAttempted) {
-            Log.w("TPStreamsPlayer", "L3 fallback retry skipped: already attempted for asset $assetId")
-            return false
-        }
-
-        val mediaItem = exoPlayer.currentMediaItem ?: return false
-        val retryMediaItem = buildMediaItemForL3Retry(mediaItem) ?: run {
-            Log.w("TPStreamsPlayer", "L3 fallback retry aborted: could not preserve DRM configuration for asset $assetId")
-            return false
-        }
-
-        l3FallbackAttempted = true
-        val currentPosition = exoPlayer.currentPosition
-        val playWhenReady = exoPlayer.playWhenReady
-
-        playerScope.launch(Dispatchers.Main) {
-            exoPlayer.stop()
-            exoPlayer.clearMediaItems()
-            val startPositionMs = if (!_isLiveStream && currentPosition > 0) {
-                currentPosition
-            } else {
-                C.TIME_UNSET
-            }
-            exoPlayer.setMediaItem(retryMediaItem, startPositionMs)
-            exoPlayer.prepare()
-            exoPlayer.playWhenReady = playWhenReady
-        }
-        return true
-    }
-
-    private fun buildMediaItemForL3Retry(mediaItem: MediaItem): MediaItem? {
-        val localConfiguration = mediaItem.localConfiguration ?: return mediaItem
-        val drmConfiguration = localConfiguration.drmConfiguration
-        if (isDrmContent && drmConfiguration == null) {
-            return null
-        }
-        val builder = mediaItem.buildUpon()
-        drmConfiguration?.let { builder.setDrmConfiguration(it) }
-        return builder.build()
-    }
-
-    private fun isDownloadedAsset(assetId: String): Boolean {
-        return try {
-            DownloadClient.getInstance(context).getDownload(assetId) != null
-        } catch (_: Exception) {
-            false
-        }
-    }
+    private fun enableDefaultCaptions() = textTrackManager.enableDefaultCaptions()
 
     @OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun isPlaylistStuckException(error: PlaybackException): Boolean {
         var cause: Throwable? = error.cause
         while (cause != null) {
-            if (cause is androidx.media3.exoplayer.hls.playlist.HlsPlaylistTracker.PlaylistStuckException) {
-                return true
-            }
+            if (cause is androidx.media3.exoplayer.hls.playlist.HlsPlaylistTracker.PlaylistStuckException) return true
             cause = cause.cause
         }
         return false
-    }
-
-    private fun fetchAndPrepare(assetId: String, accessToken: String) {
-        CoroutineScope(Dispatchers.IO).launch {
-            if (playFromDownload(assetId)) return@launch
-
-            AssetRepository.fetchAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
-                override fun onSuccess(assetInfo: AssetInfo) {
-                    val safeHost = try { Uri.parse(assetInfo.mediaUrl).host } catch (_: Exception) { "unknown" }
-                    debugLog("fetchAndPrepare SUCCESS — cdnHost=$safeHost")
-                    preparePlayer(assetInfo, assetId, accessToken)
-                }
-
-                override fun onError(error: PlaybackError, message: String) {
-                    debugLog("fetchAndPrepare onError — error=$error, message=$message")
-                    if (error == PlaybackError.NETWORK_CONNECTION_FAILED || 
-                        error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
-                        playerScope.launch {
-                            networkDiagnosticsManager.handleError(
-                                error,
-                                cdnHostname = cdnHostname,
-                                decoderState = decoderState,
-                                mediaUrl = mediaUrl
-                            )
-                        }
-                    } else {
-                        SentryLogger.logMessageWithEnrichment(
-                            message = "Non-network error from asset fetch: $error",
-                            level = SentryLevel.WARNING,
-                            context = context,
-                            player = exoPlayer,
-                            decoderState = decoderState,
-                            tags = mapOf("assetId" to assetId, "errorType" to error.name)
-                        )
-                        Sentry.addBreadcrumb(Breadcrumb().apply {
-                            setMessage("Non-network error from asset fetch")
-                            setData("error_type", error.name)
-                            setData("error_message", message)
-                            setData("player_id", SentryLogger.generatePlayerIdString())
-                            setData("asset_id", assetId)
-                        })
-                        playerScope.launch {
-                            _listener?.onError(error, message)
-                        }
-                    }
-                }
-            }, context = context)
-        }
-    }
-
-    @OptIn(UnstableApi::class)
-    private fun preparePlayer(assetInfo: AssetInfo, assetId: String, accessToken: String) {
-        val orgId = TPStreamsSDK.requireOrgId()
-        cdnHostname = try {
-            Uri.parse(assetInfo.mediaUrl).host?.takeIf { it.isNotBlank() }
-        } catch (_: Exception) { null }
-        debugLog("CDN hostname extracted: $cdnHostname")
-
-        val result = MediaItemUtils.buildMediaItem(assetInfo, assetInfo.title, orgId, assetId, accessToken)
-        drmLicenseUrl = result.drmLicenseUrl
-        setSubtitleMetadata(result.subtitleMetadata)
-        mediaUrl = result.mediaItem.localConfiguration?.uri?.toString()
-
-        playerScope.launch(Dispatchers.Main) {
-            _isLiveStream = assetInfo.isLiveStream
-            onLiveStreamStatusChanged?.invoke(_isLiveStream)
-
-            networkDiagnosticsManager.onMediaLoaded()
-
-            val audioAttributes = buildAudioAttributes(assetInfo.enableDrm)
-            exoPlayer.setAudioAttributes(audioAttributes, true)
-            l3FallbackAttempted = false
-            debugLog("MediaItem SET - ${result.mediaItem.mediaId}")
-            exoPlayer.setMediaItem(result.mediaItem)
-            debugLog("Player PREPARE")
-            exoPlayer.prepare()
-            isPrepared = true
-
-            if (shouldAutoPlay || requestedPlay) {
-                exoPlayer.play()
-            }
-        }
     }
 
     private fun seekToStartAt() {
@@ -714,78 +537,8 @@ private constructor(
     }
 
     @OptIn(UnstableApi::class)
-    private fun playFromDownload(assetId: String): Boolean {
-        try {
-            val downloadClient = DownloadClient.getInstance(context)
-            val download = downloadClient.getDownload(assetId)
-            
-            if (download != null) {
-                Log.d("TPStreamsPlayer", "Found downloaded content for $assetId, using local version")
-
-                val downloadedMediaItem = DownloadController.buildMediaItemFromDownload(download)
-                if (downloadedMediaItem == null) {
-                    Log.e("TPStreamsPlayer", "Failed to build media item from download for $assetId")
-                    return false
-                }
-
-                playerScope.launch {
-                    val isDrm = download.request.keySetId != null
-                    val audioAttributes = buildAudioAttributes(isDrm)
-
-                    exoPlayer.setAudioAttributes(audioAttributes, true)
-                    l3FallbackAttempted = false
-                    exoPlayer.setMediaItem(downloadedMediaItem)
-                    exoPlayer.prepare()
-                    isPrepared = true
-                    if (shouldAutoPlay || requestedPlay) {
-                        exoPlayer.play()
-                    }
-                }
-                return true
-            }
-        } catch (e: Exception) {
-            Log.e("TPStreamsPlayer", "Error checking for downloads: ${e.message}", e)
-        }
-        
-        return false
-    }
-
-    private fun buildAudioAttributes(isDrm: Boolean): AudioAttributes {
-        val capturePolicy = if (isDrm) {
-            C.ALLOW_CAPTURE_BY_NONE
-        } else {
-            C.ALLOW_CAPTURE_BY_ALL
-        }
-
-        return AudioAttributes.Builder()
-            .setUsage(C.USAGE_MEDIA)
-            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-            .setAllowedCapturePolicy(capturePolicy)
-            .build()
-    }
-
-    @OptIn(UnstableApi::class)
     fun refreshPlaybackWithDownloadMediaItem(mediaItem: MediaItem) {
-        playerScope.launch {
-            val isDrm = mediaItem.localConfiguration?.drmConfiguration != null
-            val audioAttributes = buildAudioAttributes(isDrm)
-
-            val currentPosition = exoPlayer.currentPosition
-            exoPlayer.stop()
-            exoPlayer.setAudioAttributes(audioAttributes, true)
-            exoPlayer.clearMediaItems()
-            
-            debugLog("MediaItem SET (Download) - ${mediaItem.mediaId}")
-            l3FallbackAttempted = false
-            exoPlayer.setMediaItem(mediaItem)
-            debugLog("Player PREPARE")
-            exoPlayer.prepare()
-            val duration = exoPlayer.duration
-            if ((currentPosition > 0) && (duration == C.TIME_UNSET || currentPosition < duration)) {
-                exoPlayer.seekTo(currentPosition)
-            }
-            exoPlayer.play()
-        }
+        downloadPlaybackHandler.refreshPlaybackWithDownloadMediaItem(mediaItem)
     }
 
     override fun play() {
@@ -891,235 +644,41 @@ private constructor(
     fun getTrackSelector(): DefaultTrackSelector = trackSelector
 
     @OptIn(UnstableApi::class)
-    fun getAvailableVideoResolutions(): List<Int> {
-        val resolutions = mutableSetOf<Int>()
-
-        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return emptyList()
-        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
-            if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_VIDEO) {
-                val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
-                for (groupIndex in 0 until trackGroups.length) {
-                    val group = trackGroups.get(groupIndex)
-                    for (trackIndex in 0 until group.length) {
-                        val format = group.getFormat(trackIndex)
-                        if (format.height != Format.NO_VALUE && format.height <= maxAllowedResolution) {
-                            resolutions.add(format.height)
-                        }
-                    }
-                }
-            }
-        }
-
-        return resolutions.sortedDescending()
-    }
+    fun getAvailableVideoResolutions(): List<Int> = resolutionManager.getAvailableVideoResolutions()
 
     @OptIn(UnstableApi::class)
-    fun getResolutionBitrates(): Map<String, Int> {
-        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return emptyMap()
-        
-        val resolutionBitrateMap = mutableMapOf<Int, Int>()
-        
-        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
-            if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_VIDEO) {
-                val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
-                for (groupIndex in 0 until trackGroups.length) {
-                    val group = trackGroups.get(groupIndex)
-                    for (trackIndex in 0 until group.length) {
-                        val format = group.getFormat(trackIndex)
-                        if (format.height != Format.NO_VALUE && format.bitrate != Format.NO_VALUE && format.height <= maxAllowedResolution) {
-                            // Store the resolution and its corresponding bitrate
-                            resolutionBitrateMap[format.height] = format.bitrate
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Convert to final map format with string keys
-        val combinedBitrates = mutableMapOf<String, Int>()
-        for ((resolution, bitrate) in resolutionBitrateMap) {
-            combinedBitrates["${resolution}p"] = bitrate
-        }
-        
-        Log.d("TPStreamsPlayer", "Resolution-bitrate map: $combinedBitrates")
-        return combinedBitrates
-    }
+    fun getResolutionBitrates(): Map<String, Int> = resolutionManager.getResolutionBitrates()
 
     @OptIn(UnstableApi::class)
-    fun getAvailableTextTracks(): List<Pair<String, String>> {
-        val tracks = mutableListOf<Pair<String, String>>()
-        
-        // Get text tracks directly from the player's current tracks
-        val currentTracks = exoPlayer.currentTracks
-        
-        for (group in currentTracks.groups) {
-            if (group.type == C.TRACK_TYPE_TEXT) {
-                for (i in 0 until group.length) {
-                    if (group.isTrackSupported(i)) {
-                        val format = group.getTrackFormat(i)
-                        if (format.sampleMimeType == MimeTypes.APPLICATION_CEA608) {
-                            continue
-                        }
-                        val language = format.language ?: "unknown"
-                        val label = format.label ?: language
-                        tracks.add(Pair(language, label))
-                    }
-                }
-            }
-        }
-        
-        return tracks
-    }
+    fun getAvailableTextTracks(): List<Pair<String, String>> = textTrackManager.getAvailableTextTracks()
     
     @OptIn(UnstableApi::class)
-    fun setTextTrackByLanguage(language: String?) {
-        val parametersBuilder = trackSelector.buildUponParameters()
-        
-        if (language == null) {
-            parametersBuilder.setPreferredTextLanguage(null)
-            parametersBuilder.setSelectUndeterminedTextLanguage(false)
-            Log.d("TPStreamsPlayer", "Disabling text tracks")
-        } else {
-            parametersBuilder.setPreferredTextLanguage(language)
-            parametersBuilder.setSelectUndeterminedTextLanguage(true)
-            parametersBuilder.setDisabledTextTrackSelectionFlags(0)
-            Log.d("TPStreamsPlayer", "Setting preferred text language to: $language")
-        }
-        
-        trackSelector.parameters = parametersBuilder.build()
-        
-        val currentPosition = exoPlayer.currentPosition
-        if (exoPlayer.isPlaying) {
-            exoPlayer.seekTo(currentPosition)
-        }
-    }
-
-    private var maxAllowedResolution: Int = Int.MAX_VALUE
-    private var userPreferredResolution: Int = Int.MAX_VALUE
+    fun setTextTrackByLanguage(language: String?) = textTrackManager.setTextTrackByLanguage(language)
 
     @OptIn(UnstableApi::class)
-    fun setMaxResolution(height: Int) {
-        Log.d("TPStreamsPlayer", "Setting hard max video height to $height")
-        maxAllowedResolution = height
-        applyResolutionConstraints()
-    }
+    fun setMaxResolution(height: Int) = resolutionManager.setMaxResolution(height)
 
     @OptIn(UnstableApi::class)
-    internal fun setUserResolutionPreference(height: Int) {
-        Log.d("TPStreamsPlayer", "User preferred max video height set to $height")
-        userPreferredResolution = height
-        applyResolutionConstraints()
-    }
-
-    @OptIn(UnstableApi::class)
-    private fun applyResolutionConstraints() {
-        val effectiveMax = minOf(maxAllowedResolution, userPreferredResolution)
-        val parametersBuilder = trackSelector.buildUponParameters()
-        
-        if (effectiveMax == Int.MAX_VALUE) {
-            parametersBuilder.clearVideoSizeConstraints()
-        } else {
-            parametersBuilder.setMaxVideoSize(Int.MAX_VALUE, effectiveMax) // Unlimited width, constrained height
-        }
-        
-        trackSelector.parameters = parametersBuilder.build()
-    }
+    internal fun setUserResolutionPreference(height: Int) = resolutionManager.setUserResolutionPreference(height)
 
     /**
-     * Get the currently active text track, if any
-     * @return Pair of (language, label) for the active track, or null if no track is active
+     * Get the currently active text track, if any.
+     * @return Pair of (language, label) for the active track, or null if no track is active.
      */
     @OptIn(UnstableApi::class)
-    fun getActiveTextTrack(): Pair<String, String>? {
-        val currentTracks = exoPlayer.currentTracks
-        
-        for (group in currentTracks.groups) {
-            if (group.type == C.TRACK_TYPE_TEXT) {
-                for (i in 0 until group.length) {
-                    if (group.isTrackSelected(i)) {
-                        val format = group.getTrackFormat(i)
-                        val language = format.language ?: "unknown"
-                        val label = format.label ?: language
-                        return Pair(language, label)
-                    }
-                }
-            }
-        }
-        
-        return null
-    }
-
-    private fun setSubtitleMetadata(metadata: Map<String, Boolean>) {
-        subtitleMetadata = metadata
-    }
+    fun getActiveTextTrack(): Pair<String, String>? = textTrackManager.getActiveTextTrack()
     
     /**
      * Check if a subtitle track is auto-generated
      */
-    fun isSubtitleAutoGenerated(language: String): Boolean {
-        return subtitleMetadata[language] ?: false
-    }
+    fun isSubtitleAutoGenerated(language: String): Boolean = textTrackManager.isSubtitleAutoGenerated(language)
 
     fun isTokenValid(assetId: String, callback: (Boolean) -> Unit) {
-        Log.d("TPStreamsPlayer", "Checking if token is valid for asset: $assetId")
-        
-        CoroutineScope(Dispatchers.Main).launch {
-            if (accessToken.isEmpty() && TPStreamsSDK.getAuthHeaders().isEmpty()) {
-                Log.d("TPStreamsPlayer", "No current token available")
-                callback(false)
-                return@launch
-            }
-            
-            val orgId = TPStreamsSDK.orgId ?: run {
-                callback(false)
-                return@launch
-            }
-            
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val assetApiUrl = TPStreamsSDK.apiService.tokenValidationUrl(orgId, assetId, accessToken)
-                    val requestBuilder = Request.Builder()
-                        .url(assetApiUrl)
-                        .head()
-
-                    TPStreamsSDK.getAuthHeaders().forEach { (name, value) ->
-                        requestBuilder.addHeader(name, value)
-                    }
-
-                    val request = requestBuilder.build()
-                    
-                    val response = client.newCall(request).execute()
-                    val isValid = response.isSuccessful
-                    Log.d("TPStreamsPlayer", "Token validation result: ${if (isValid) "valid" else "invalid"}")
-                    
-                    CoroutineScope(Dispatchers.Main).launch {
-                        callback(isValid)
-                    }
-                } catch (e: Exception) {
-                    Log.e("TPStreamsPlayer", "Error checking token validity: ${e.message}")
-                    CoroutineScope(Dispatchers.Main).launch {
-                        callback(false)
-                    }
-                }
-            }
-        }
+        tokenManager.isTokenValid(assetId, playerScope, callback)
     }
 
     fun getNewToken(assetId: String, callback: (String) -> Unit) {
-        CoroutineScope(Dispatchers.Main).launch {
-                listener?.onAccessTokenExpired(assetId) { newToken ->
-                    if (newToken.isNotEmpty()) {
-                        Log.d("TPStreamsPlayer", "Received fresh token for download")
-                        callback(newToken)
-                    } else {
-                        Log.e("TPStreamsPlayer", "Failed to get fresh token for download")
-                        callback("")
-                    }
-                } ?: run {
-                    Log.e("TPStreamsPlayer", "No token listener available")
-                callback("")
-            }
-        }
+        tokenManager.getNewToken(assetId, playerScope, callback)
     }
 
     companion object {
@@ -1128,9 +687,6 @@ private constructor(
         private const val DEFAULT_SEEK_INCREMENT_MS = 10000L
         private const val DIAGNOSTIC_DUMMY_ASSET_ID = "00000000000"
         private val SERVER_PROBE_PATH_REGEX = Regex("^/api/[^/]+/")
-        private val client = OkHttpClient.Builder()
-            .addInterceptor(ServerDateHeaderInterceptor())
-            .build()
 
 
 
@@ -1219,53 +775,6 @@ private constructor(
 
     
     fun getDownloadDrmLicenseUrl(callback: (String) -> Unit) {
-        CoroutineScope(Dispatchers.IO).launch {
-            isTokenValid(assetId) { isValid ->
-                if (!isValid) {
-                    Log.d("TPStreamsPlayer", "Token expired, getting fresh token")
-                    listener?.onAccessTokenExpired(assetId) { newToken ->
-                        if (newToken.isNotEmpty()) {
-                            Log.d("TPStreamsPlayer", "Received fresh token")
-                            TPStreamsSDK.orgId?.let {
-                                val licenseUrl = TPStreamsSDK.apiService.drmLicenseUrl(
-                                    orgId = it,
-                                    assetId = assetId,
-                                    accessToken = newToken,
-                                    download = true,
-                                    licenseDurationSeconds = offlineLicenseExpireTime
-                                )
-                                Log.d("TPStreamsPlayer", "Built license URL with fresh token: $licenseUrl")
-                                callback(licenseUrl)
-                            } ?: run {
-                                Log.e("TPStreamsPlayer", "organizationId is null, cannot build license URL")
-                                callback("")
-                            }
-                        } else {
-                            Log.e("TPStreamsPlayer", "Failed to get fresh token")
-                            callback("")
-                        }
-                    } ?: run {
-                        Log.e("TPStreamsPlayer", "No token listener available")
-                        callback("")
-                    }
-                } else {
-                    Log.d("TPStreamsPlayer", "Token is valid, using current token")
-                    TPStreamsSDK.orgId?.let {
-                        val licenseUrl = TPStreamsSDK.apiService.drmLicenseUrl(
-                            orgId = it,
-                            assetId = assetId,
-                            accessToken = accessToken,
-                            download = true,
-                            licenseDurationSeconds = offlineLicenseExpireTime
-                        )
-                        Log.d("TPStreamsPlayer", "Built license URL with current token: $licenseUrl")
-                        callback(licenseUrl)
-                    } ?: run {
-                        Log.e("TPStreamsPlayer", "organizationId is null, cannot build license URL")
-                        callback("")
-                    }
-                }
-            }
-        }
+        tokenManager.getDownloadDrmLicenseUrl(playerScope, callback)
     }
 }
