@@ -5,11 +5,11 @@ import androidx.media3.common.util.UnstableApi
 import java.util.Locale
 
 @UnstableApi
-class Captions(private val view: TPStreamsPlayerView) {
+open class Captions(protected val view: TPStreamsPlayerView) {
     private var currentCaptionLanguage: String? = null
     private var availableCaptions: List<Pair<String, String>> = emptyList()
 
-    fun showCaptionsBottomSheet() {
+    open fun showCaptionsBottomSheet() {
         val activity = view.getActivity() ?: return
         view.captionsBottomSheet.show(activity.supportFragmentManager)
     }
@@ -51,19 +51,19 @@ class Captions(private val view: TPStreamsPlayerView) {
         }
     }
 
-    fun onCaptionsDisabled() {
+    open fun onCaptionsDisabled() {
         setCurrentCaptionLanguage(null)
     }
     
-    fun onCaptionLanguageSelected(language: String) {
+    open fun onCaptionLanguageSelected(language: String) {
         setCurrentCaptionLanguage(language)
     }
     
-    fun getCurrentCaptionLanguage(): String? {
+    open fun getCurrentCaptionLanguage(): String? {
         return currentCaptionLanguage
     }
     
-    fun getCurrentCaptionStatus(): String {
+    open fun getCurrentCaptionStatus(): String {
         val tpsPlayer = view.getPlayer()
         val activeTrack = tpsPlayer?.getActiveTextTrack()
         
@@ -93,4 +93,4 @@ class Captions(private val view: TPStreamsPlayerView) {
             return languageCode.replaceFirstChar { it.uppercase() }
         }
     }
-} 
+}

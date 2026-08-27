@@ -14,12 +14,12 @@ import com.tpstreams.player.download.DownloadConstants
 import com.tpstreams.player.util.DownloadUtils
 
 @UnstableApi
-class DownloadActions(private val view: TPStreamsPlayerView) : DownloadOptionsBottomSheet.DownloadSelectionListener {
+open class DownloadActions(protected val view: TPStreamsPlayerView) : DownloadOptionsBottomSheet.DownloadSelectionListener {
     companion object {
         private const val TAG = "DownloadActions"
     }
 
-    fun onDownloadSelected() {
+    open fun onDownloadSelected() {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
         val assetId = mediaItem.mediaId
@@ -44,8 +44,6 @@ class DownloadActions(private val view: TPStreamsPlayerView) : DownloadOptionsBo
                 view.downloadActionBottomSheet.show(activity.supportFragmentManager)
             }
             else -> {
-                view.downloadOptionsBottomSheet.setDownloadSelectionListener(this)
-                
                 // Get available resolutions
                 val availableHeights = tpsPlayer.getAvailableVideoResolutions()
                 val resolutionStrings = availableHeights.map { "${it}p" }
@@ -152,7 +150,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) : DownloadOptionsBo
         DownloadClient.getInstance(view.context).resumeDownload(assetId)
     }
 
-    fun getCurrentDownloadStatus(): String {
+    open fun getCurrentDownloadStatus(): String {
         val tpsPlayer = view.getPlayer() ?: return "Download"
         val mediaItem = tpsPlayer.currentMediaItem ?: return "Download"
         val assetId = mediaItem.mediaId
@@ -166,7 +164,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) : DownloadOptionsBo
         }
     }
     
-    fun getDownloadIcon(): Int {
+    open fun getDownloadIcon(): Int {
         val tpsPlayer = view.getPlayer() ?: return R.drawable.ic_download
         val mediaItem = tpsPlayer.currentMediaItem ?: return R.drawable.ic_download
         val assetId = mediaItem.mediaId

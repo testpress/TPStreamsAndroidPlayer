@@ -26,8 +26,7 @@ internal class PlayerSheetManager(
     QualityOptionsBottomSheet.QualityOptionsListener,
     AdvancedResolutionBottomSheet.ResolutionSelectionListener,
     PlaybackSpeedBottomSheet.PlaybackSpeedListener,
-    CaptionsBottomSheet.CaptionsOptionsListener,
-    DownloadOptionsBottomSheet.DownloadSelectionListener {
+    CaptionsBottomSheet.CaptionsOptionsListener {
 
     val settingsBottomSheet: PlayerSettingsBottomSheet by lazy {
         PlayerSettingsBottomSheet().apply {
@@ -65,7 +64,7 @@ internal class PlayerSheetManager(
 
     val downloadOptionsBottomSheet: DownloadOptionsBottomSheet by lazy {
         DownloadOptionsBottomSheet().apply {
-            setDownloadSelectionListener(this@PlayerSheetManager)
+            setDownloadSelectionListener(downloadActions)
         }
     }
 
@@ -120,7 +119,4 @@ internal class PlayerSheetManager(
     override fun onCaptionLanguageSelected(language: String) = captions.onCaptionLanguageSelected(language)
     override fun getCurrentCaptionLanguage(): String? = captions.getCurrentCaptionLanguage()
     override fun getPlayer(): TPStreamsPlayer? = playerProvider()
-
-    // ── DownloadOptionsBottomSheet.DownloadSelectionListener ─────────────
-    override fun onDownloadResolutionSelected(resolution: String) = downloadActions.onDownloadResolutionSelected(resolution)
 }
