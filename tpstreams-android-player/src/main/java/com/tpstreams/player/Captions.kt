@@ -2,14 +2,15 @@ package com.tpstreams.player
 
 import android.util.Log
 import androidx.media3.common.util.UnstableApi
+import com.tpstreams.player.ui.CaptionsActions
 import java.util.Locale
 
 @UnstableApi
-open class Captions(protected val view: TPStreamsPlayerView) {
+class Captions(private val view: TPStreamsPlayerView) : CaptionsActions {
     private var currentCaptionLanguage: String? = null
     private var availableCaptions: List<Pair<String, String>> = emptyList()
 
-    open fun showCaptionsBottomSheet() {
+    override fun showCaptionsBottomSheet() {
         val activity = view.getActivity() ?: return
         view.captionsBottomSheet.show(activity.supportFragmentManager)
     }
@@ -51,19 +52,19 @@ open class Captions(protected val view: TPStreamsPlayerView) {
         }
     }
 
-    open fun onCaptionsDisabled() {
+    override fun onCaptionsDisabled() {
         setCurrentCaptionLanguage(null)
     }
     
-    open fun onCaptionLanguageSelected(language: String) {
+    override fun onCaptionLanguageSelected(language: String) {
         setCurrentCaptionLanguage(language)
     }
     
-    open fun getCurrentCaptionLanguage(): String? {
+    override fun getCurrentCaptionLanguage(): String? {
         return currentCaptionLanguage
     }
     
-    open fun getCurrentCaptionStatus(): String {
+    override fun getCurrentCaptionStatus(): String {
         val tpsPlayer = view.getPlayer()
         val activeTrack = tpsPlayer?.getActiveTextTrack()
         

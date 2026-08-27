@@ -1,10 +1,6 @@
 package com.tpstreams.player.ui
 
 import androidx.media3.common.util.UnstableApi
-import com.tpstreams.player.Captions
-import com.tpstreams.player.DownloadActions
-import com.tpstreams.player.SettingsPanel
-import com.tpstreams.player.TPStreamsPlayerView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -13,17 +9,7 @@ import org.junit.Test
 @OptIn(UnstableApi::class)
 class PlayerSheetManagerTest {
 
-    companion object {
-        private fun createMockView(): TPStreamsPlayerView {
-            val unsafeClass = Class.forName("sun.misc.Unsafe")
-            val theUnsafeField = unsafeClass.getDeclaredField("theUnsafe").apply { isAccessible = true }
-            val unsafe = theUnsafeField.get(null)
-            val allocateMethod = unsafeClass.getMethod("allocateInstance", Class::class.java)
-            return allocateMethod.invoke(unsafe, TPStreamsPlayerView::class.java) as TPStreamsPlayerView
-        }
-    }
-
-    private class FakeSettingsPanel : SettingsPanel(createMockView()) {
+    private class FakeSettingsActions : SettingsActions {
         var showQualityCalled = false
         var showSpeedCalled = false
         var showAdvancedCalled = false
@@ -50,7 +36,7 @@ class PlayerSheetManagerTest {
         override fun isDownloadEnabled(): Boolean = downloadEnabledValue
     }
 
-    private class FakeCaptions : Captions(createMockView()) {
+    private class FakeCaptionsActions : CaptionsActions {
         var showCaptionsCalled = false
         var captionsDisabledCalled = false
         var selectedLanguage: String? = null
@@ -65,9 +51,12 @@ class PlayerSheetManagerTest {
         override fun getCurrentCaptionStatus(): String = captionStatusValue
     }
 
-    private class FakeDownloadActions : DownloadActions(createMockView()) {
+    private class FakeDownloadUiActions : DownloadUiActions {
         var downloadSelectedCalled = false
         var selectedDownloadResolution: String? = null
+        var deleteCalled = false
+        var pauseCalled = false
+        var resumeCalled = false
 
         var downloadStatusValue = "Downloading"
         var downloadIconValue = 12345
@@ -76,14 +65,17 @@ class PlayerSheetManagerTest {
         override fun onDownloadResolutionSelected(resolution: String) { selectedDownloadResolution = resolution }
         override fun getCurrentDownloadStatus(): String = downloadStatusValue
         override fun getDownloadIcon(): Int = downloadIconValue
+        override fun deleteCurrentDownload() { deleteCalled = true }
+        override fun pauseCurrentDownload() { pauseCalled = true }
+        override fun resumeCurrentDownload() { resumeCalled = true }
     }
 
     @Test
     fun `getPlayer returns null when provider returns null`() {
         val sheetManager = PlayerSheetManager(
-            settingsPanel = FakeSettingsPanel(),
-            captions = FakeCaptions(),
-            downloadActions = FakeDownloadActions(),
+            settingsActions = FakeSettingsActions(),
+            captionsActions = FakeCaptionsActions(),
+            downloadActions = FakeDownloadUiActions(),
             playerProvider = { null }
         )
 
@@ -92,13 +84,13 @@ class PlayerSheetManagerTest {
 
     @Test
     fun `SettingsListener methods delegate accurately to respective controllers`() {
-        val fakeSettings = FakeSettingsPanel()
-        val fakeCaptions = FakeCaptions()
-        val fakeDownloads = FakeDownloadActions()
+        val fakeSettings = FakeSettingsActions()
+        val fakeCaptions = FakeCaptionsActions()
+        val fakeDownloads = FakeDownloadUiActions()
 
         val sheetManager = PlayerSheetManager(
-            settingsPanel = fakeSettings,
-            captions = fakeCaptions,
+            settingsActions = fakeSettings,
+            captionsActions = fakeCaptions,
             downloadActions = fakeDownloads,
             playerProvider = { null }
         )
@@ -124,12 +116,12 @@ class PlayerSheetManagerTest {
     }
 
     @Test
-    fun `Quality and Resolution listener methods delegate accurately to settingsPanel`() {
-        val fakeSettings = FakeSettingsPanel()
+    fun `Quality and Resolution listener methods delegate accurately to settingsActions`() {
+        val fakeSettings = FakeSettingsActions()
         val sheetManager = PlayerSheetManager(
-            settingsPanel = fakeSettings,
-            captions = FakeCaptions(),
-            downloadActions = FakeDownloadActions(),
+            settingsActions = fakeSettings,
+            captionsActions = FakeCaptionsActions(),
+            downloadActions = FakeDownloadUiActions(),
             playerProvider = { null }
         )
 
@@ -153,12 +145,12 @@ class PlayerSheetManagerTest {
     }
 
     @Test
-    fun `CaptionsOptionsListener methods delegate accurately to captions`() {
-        val fakeCaptions = FakeCaptions()
+    fun `CaptionsOptionsListener methods delegate accurately to captionsActions`() {
+        val fakeCaptions = FakeCaptionsActions()
         val sheetManager = PlayerSheetManager(
-            settingsPanel = FakeSettingsPanel(),
-            captions = fakeCaptions,
-            downloadActions = FakeDownloadActions(),
+            settingsActions = FakeSettingsActions(),
+            captionsActions = fakeCaptions,
+            downloadActions = FakeDownloadUiActions(),
             playerProvider = { null }
         )
 

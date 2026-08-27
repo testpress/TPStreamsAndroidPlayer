@@ -11,15 +11,16 @@ import com.tpstreams.player.download.DownloadPermissionHandler
 import com.tpstreams.player.download.DownloadClient
 import androidx.media3.common.C
 import com.tpstreams.player.download.DownloadConstants
+import com.tpstreams.player.ui.DownloadUiActions
 import com.tpstreams.player.util.DownloadUtils
 
 @UnstableApi
-open class DownloadActions(protected val view: TPStreamsPlayerView) : DownloadOptionsBottomSheet.DownloadSelectionListener {
+class DownloadActions(private val view: TPStreamsPlayerView) : DownloadUiActions {
     companion object {
         private const val TAG = "DownloadActions"
     }
 
-    open fun onDownloadSelected() {
+    override fun onDownloadSelected() {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
         val assetId = mediaItem.mediaId
@@ -126,7 +127,7 @@ open class DownloadActions(protected val view: TPStreamsPlayerView) : DownloadOp
         return buildUpon().setDrmConfiguration(drmBuilder.build()).build()
     }
 
-    fun deleteCurrentDownload() {
+    override fun deleteCurrentDownload() {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
         val assetId = mediaItem.mediaId
@@ -134,7 +135,7 @@ open class DownloadActions(protected val view: TPStreamsPlayerView) : DownloadOp
         DownloadClient.getInstance(view.context).removeDownload(assetId)
     }
     
-    fun pauseCurrentDownload() {
+    override fun pauseCurrentDownload() {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
         val assetId = mediaItem.mediaId
@@ -142,7 +143,7 @@ open class DownloadActions(protected val view: TPStreamsPlayerView) : DownloadOp
         DownloadClient.getInstance(view.context).pauseDownload(assetId)
     }
     
-    fun resumeCurrentDownload() {
+    override fun resumeCurrentDownload() {
         val tpsPlayer = view.getPlayer() ?: return
         val mediaItem = tpsPlayer.currentMediaItem ?: return
         val assetId = mediaItem.mediaId
@@ -150,7 +151,7 @@ open class DownloadActions(protected val view: TPStreamsPlayerView) : DownloadOp
         DownloadClient.getInstance(view.context).resumeDownload(assetId)
     }
 
-    open fun getCurrentDownloadStatus(): String {
+    override fun getCurrentDownloadStatus(): String {
         val tpsPlayer = view.getPlayer() ?: return "Download"
         val mediaItem = tpsPlayer.currentMediaItem ?: return "Download"
         val assetId = mediaItem.mediaId
@@ -164,7 +165,7 @@ open class DownloadActions(protected val view: TPStreamsPlayerView) : DownloadOp
         }
     }
     
-    open fun getDownloadIcon(): Int {
+    override fun getDownloadIcon(): Int {
         val tpsPlayer = view.getPlayer() ?: return R.drawable.ic_download
         val mediaItem = tpsPlayer.currentMediaItem ?: return R.drawable.ic_download
         val assetId = mediaItem.mediaId

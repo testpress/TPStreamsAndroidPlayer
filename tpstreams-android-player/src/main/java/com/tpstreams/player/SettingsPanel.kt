@@ -1,9 +1,10 @@
 package com.tpstreams.player
 
 import androidx.media3.common.util.UnstableApi
+import com.tpstreams.player.ui.SettingsActions
 
 @UnstableApi
-open class SettingsPanel(protected val view: TPStreamsPlayerView) {
+class SettingsPanel(private val view: TPStreamsPlayerView) : SettingsActions {
     private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
     private var availableResolutions: List<String> = emptyList()
     private var currentPlaybackSpeed: Float = 1.0f
@@ -48,7 +49,7 @@ open class SettingsPanel(protected val view: TPStreamsPlayerView) {
         view.getPlayer()?.setPlaybackSpeed(speed)
     }
     
-    open fun getPlaybackSpeed(): Float {
+    override fun getPlaybackSpeed(): Float {
         // Get the actual current speed from the player
         val player = view.getPlayer()
         return if (player != null) {
@@ -58,17 +59,17 @@ open class SettingsPanel(protected val view: TPStreamsPlayerView) {
         }
     }
     
-    open fun getCurrentQuality(): String {
+    override fun getCurrentQuality(): String {
         return currentQuality
     }
 
-    open fun onAutoQualitySelected() {
+    override fun onAutoQualitySelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_AUTO)
         preferredResolutionHeight = null
         view.getPlayer()?.setUserResolutionPreference(Int.MAX_VALUE)
     }
     
-    open fun onHigherQualitySelected() {
+    override fun onHigherQualitySelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_HIGHER)
         preferredResolutionHeight = null
         
@@ -81,7 +82,7 @@ open class SettingsPanel(protected val view: TPStreamsPlayerView) {
         }
     }
     
-    open fun onDataSaverSelected() {
+    override fun onDataSaverSelected() {
         setCurrentQuality(QualityOptionsBottomSheet.QUALITY_DATA_SAVER)
         preferredResolutionHeight = null
         
@@ -94,17 +95,17 @@ open class SettingsPanel(protected val view: TPStreamsPlayerView) {
         }
     }
 
-    open fun showQualityOptionsBottomSheet() {
+    override fun showQualityOptionsBottomSheet() {
         val activity = view.getActivity() ?: return
         view.qualityOptionsBottomSheet.show(activity.supportFragmentManager)
     }
 
-    open fun showAdvancedResolutionBottomSheet() {
+    override fun showAdvancedResolutionBottomSheet() {
         val activity = view.getActivity() ?: return
         view.advancedResolutionBottomSheet.show(activity.supportFragmentManager)
     }
 
-    open fun showPlaybackSpeedBottomSheet() {
+    override fun showPlaybackSpeedBottomSheet() {
         val activity = view.getActivity() ?: return
         view.playbackSpeedBottomSheet.show(activity.supportFragmentManager)
     }
@@ -115,7 +116,7 @@ open class SettingsPanel(protected val view: TPStreamsPlayerView) {
         view.getPlayer()?.setUserResolutionPreference(height)
     }
 
-    open fun onResolutionSelected(resolution: String) {
+    override fun onResolutionSelected(resolution: String) {
         val height = resolution.removeSuffix("p").toIntOrNull() ?: return
         setPreferredResolutionHeight(height)
     }
@@ -126,11 +127,11 @@ open class SettingsPanel(protected val view: TPStreamsPlayerView) {
         }
     }
     
-    open fun onSpeedSelected(speed: Float) {
+    override fun onSpeedSelected(speed: Float) {
         setPlaybackSpeed(speed)
     }
 
-    open fun isDownloadEnabled(): Boolean {
+    override fun isDownloadEnabled(): Boolean {
         val player = view.getPlayer()
         return player?.enableDownload == true && player?.isLiveStream == false ?: false
     }
