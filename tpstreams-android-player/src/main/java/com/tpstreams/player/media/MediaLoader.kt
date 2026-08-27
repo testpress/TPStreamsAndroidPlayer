@@ -6,7 +6,6 @@ import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import com.tpstreams.player.TPStreamsPlayer
 import com.tpstreams.player.TPStreamsSDK
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.data.AssetRepository

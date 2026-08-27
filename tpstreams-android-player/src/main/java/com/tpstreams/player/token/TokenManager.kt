@@ -21,13 +21,10 @@ internal class TokenManager(
     private val assetId: String,
     private val accessToken: String,
     private val offlineLicenseExpireTime: Long,
+    private val httpClient: OkHttpClient = sharedHttpClient,
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val listenerProvider: () -> TPStreamsPlayer.Listener?,
 ) {
-
-    private val httpClient = OkHttpClient.Builder()
-        .addInterceptor(ServerDateHeaderInterceptor())
-        .build()
 
     suspend fun isTokenValid(targetAssetId: String = assetId): Boolean = withContext(Dispatchers.IO) {
         if (accessToken.isEmpty() && TPStreamsSDK.getAuthHeaders().isEmpty()) {
@@ -136,7 +133,13 @@ internal class TokenManager(
         }
     }
 
-    private companion object {
+    companion object {
         private const val TAG = "TokenManager"
+
+        private val sharedHttpClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .addInterceptor(ServerDateHeaderInterceptor())
+                .build()
+        }
     }
 }
