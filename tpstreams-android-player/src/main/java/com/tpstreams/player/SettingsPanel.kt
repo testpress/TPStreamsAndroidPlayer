@@ -4,7 +4,7 @@ import androidx.media3.common.util.UnstableApi
 import com.tpstreams.player.ui.SettingsActions
 
 @UnstableApi
-class SettingsPanel(private val view: TPStreamsPlayerView) : SettingsActions {
+internal class SettingsPanel(private val view: TPStreamsPlayerView) : SettingsActions {
     private var currentQuality: String = QualityOptionsBottomSheet.QUALITY_AUTO
     private var availableResolutions: List<String> = emptyList()
     private var currentPlaybackSpeed: Float = 1.0f

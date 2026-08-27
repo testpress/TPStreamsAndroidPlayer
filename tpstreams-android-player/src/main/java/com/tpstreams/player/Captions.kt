@@ -6,7 +6,7 @@ import com.tpstreams.player.ui.CaptionsActions
 import java.util.Locale
 
 @UnstableApi
-class Captions(private val view: TPStreamsPlayerView) : CaptionsActions {
+internal class Captions(private val view: TPStreamsPlayerView) : CaptionsActions {
     private var currentCaptionLanguage: String? = null
     private var availableCaptions: List<Pair<String, String>> = emptyList()
 

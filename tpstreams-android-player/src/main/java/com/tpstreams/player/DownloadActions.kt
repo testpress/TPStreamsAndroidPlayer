@@ -15,7 +15,7 @@ import com.tpstreams.player.ui.DownloadUiActions
 import com.tpstreams.player.util.DownloadUtils
 
 @UnstableApi
-class DownloadActions(private val view: TPStreamsPlayerView) : DownloadUiActions {
+internal class DownloadActions(private val view: TPStreamsPlayerView) : DownloadUiActions {
     companion object {
         private const val TAG = "DownloadActions"
     }
