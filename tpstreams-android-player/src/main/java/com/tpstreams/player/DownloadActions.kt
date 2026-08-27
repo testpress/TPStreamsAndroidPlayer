@@ -14,7 +14,7 @@ import com.tpstreams.player.download.DownloadConstants
 import com.tpstreams.player.util.DownloadUtils
 
 @UnstableApi
-class DownloadActions(private val view: TPStreamsPlayerView) {
+class DownloadActions(private val view: TPStreamsPlayerView) : DownloadOptionsBottomSheet.DownloadSelectionListener {
     companion object {
         private const val TAG = "DownloadActions"
     }
@@ -44,7 +44,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
                 view.downloadActionBottomSheet.show(activity.supportFragmentManager)
             }
             else -> {
-                view.downloadOptionsBottomSheet.setDownloadSelectionListener(view)
+                view.downloadOptionsBottomSheet.setDownloadSelectionListener(this)
                 
                 // Get available resolutions
                 val availableHeights = tpsPlayer.getAvailableVideoResolutions()
@@ -59,7 +59,7 @@ class DownloadActions(private val view: TPStreamsPlayerView) {
         }
     }
 
-    fun onDownloadResolutionSelected(resolution: String) {
+    override fun onDownloadResolutionSelected(resolution: String) {
         Log.d(TAG, "Download requested for resolution: $resolution")
         
         val tpsPlayer = view.getPlayer() ?: return
