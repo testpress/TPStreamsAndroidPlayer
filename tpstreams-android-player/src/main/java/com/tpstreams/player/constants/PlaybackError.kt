@@ -81,6 +81,8 @@ internal fun Exception.getErrorMessage(playerId: String, responseCode: Int?): St
     return when {
         responseCode != null -> responseCode.httpStatusUserMessage(playerId)
             ?: "Oops! Something went wrong. Please contact support for assistance and provide details about the issue.\n Error code: 5100. Player Id: $playerId"
+        this is java.net.SocketTimeoutException ->
+            "The request took too long to process due to a slow or unstable network connection. Please try again.\n Error code: 5005. Player Id: $playerId"
         this is java.io.IOException -> 
             "Oops! It seems like you're not connected to the internet. Please check your connection and try again.\n Error code: 5004. Player Id: $playerId"
         this is LiveStreamNotStartedException ->

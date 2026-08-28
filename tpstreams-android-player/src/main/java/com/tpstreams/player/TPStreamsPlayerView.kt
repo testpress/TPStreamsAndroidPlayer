@@ -271,7 +271,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             val message = "[${previousPlayer.playbackSessionId}] Surface DETACH"
             Log.d(TPStreamsPlayer.DEBUG_TAG, message)
             PlaybackHistoryManager.recordLog(message)
-            previousPlayer.listener = null
+            val current = previousPlayer.listener
+            previousPlayer.listener = if (current is ViewPlayerListener) current.userListener else null
             previousPlayer.onLiveStreamStatusChanged = null
             previousPlayer.removeListener(tracksStateListener)
         }
@@ -315,32 +316,30 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
             if (player is TPStreamsPlayer) {
                 player.addListener(tracksStateListener)
-                val existingListener = player.listener
-                player.listener = object : TPStreamsPlayer.Listener {
-                    override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {
-                        existingListener?.onAccessTokenExpired(videoId, callback)
-                            ?: callback("")
-                    }
-
-                    override fun onError(error: PlaybackError, message: String) {
+                val current = player.listener
+                val existingListener = if (current is ViewPlayerListener) current.userListener else current
+                player.listener = ViewPlayerListener(
+                    userListener = existingListener,
+                    onAccessTokenExpiredAction = { videoId, callback ->
+                        existingListener?.onAccessTokenExpired(videoId, callback) ?: callback("")
+                    },
+                    onErrorAction = { error, message ->
                         hideLoading()
                         post { showErrorMessage(message) }
                         existingListener?.onError(error, message)
-                    }
-
-                    override fun onNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
+                    },
+                    onNetworkErrorAction = { error, message, diagnostics ->
                         post {
                             hideLoading()
                             showNetworkDiagnostics(error, diagnostics)
                         }
                         existingListener?.onNetworkError(error, message, diagnostics)
-                    }
-
-                    override fun onNetworkDiagnosticsStarted() {
+                    },
+                    onNetworkDiagnosticsStartedAction = {
                         post { showDiagnosingState() }
                         existingListener?.onNetworkDiagnosticsStarted()
                     }
-                }
+                )
                 captions.updateAvailableCaptions()
 
                 player.onLiveStreamStatusChanged = { isLiveStream ->
@@ -526,4 +525,24 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         secureFlagActivity = null
         releaseSecureFlag(activity)
     }
+}
+
+internal class ViewPlayerListener(
+    val userListener: TPStreamsPlayer.Listener?,
+    private val onAccessTokenExpiredAction: (String, (String) -> Unit) -> Unit,
+    private val onErrorAction: (PlaybackError, String) -> Unit,
+    private val onNetworkErrorAction: (PlaybackError, String, NetworkDiagnostics) -> Unit,
+    private val onNetworkDiagnosticsStartedAction: () -> Unit,
+) : TPStreamsPlayer.Listener {
+    override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) =
+        onAccessTokenExpiredAction(videoId, callback)
+
+    override fun onError(error: PlaybackError, message: String) =
+        onErrorAction(error, message)
+
+    override fun onNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) =
+        onNetworkErrorAction(error, message, diagnostics)
+
+    override fun onNetworkDiagnosticsStarted() =
+        onNetworkDiagnosticsStartedAction()
 }
