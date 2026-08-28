@@ -142,7 +142,7 @@ internal class NetworkDiagnosticsManager(
                 finalError, message,
                 diagnostics.copy(
                     retryAttempt = if (isFinal) 0 else displayAttempt,
-                    playerId = if (isFinal) playerId else null
+                    playerId = if (isFinal && diagnostics.internetReachable) playerId else null
                 )
             )
 
@@ -214,6 +214,7 @@ internal class NetworkDiagnosticsManager(
         player: Player? = null, decoderState: PlayerDecoderState? = null
     ): String? {
         if (canAutoRetry) return null
+        if (!diagnostics.internetReachable) return null
         return if (exoError != null) {
             SentryLogger.logPlaybackException(exoError, assetId, playerId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)
         } else {
