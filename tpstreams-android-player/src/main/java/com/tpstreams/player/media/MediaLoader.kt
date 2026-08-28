@@ -82,14 +82,16 @@ internal class MediaLoader(
                             )
                         }
                     } else {
-                        SentryLogger.logMessageWithEnrichment(
-                            message = "Non-network error from asset fetch: $error",
-                            level = SentryLevel.WARNING,
-                            context = context,
-                            player = exoPlayer,
-                            decoderState = getDecoderState(),
-                            tags = mapOf("assetId" to assetId, "errorType" to error.name)
-                        )
+                        if (error != PlaybackError.LIVE_STREAM_NOT_STARTED && error != PlaybackError.LIVE_STREAM_ENDED) {
+                            SentryLogger.logMessageWithEnrichment(
+                                message = "Non-network error from asset fetch: $error",
+                                level = SentryLevel.WARNING,
+                                context = context,
+                                player = exoPlayer,
+                                decoderState = getDecoderState(),
+                                tags = mapOf("assetId" to assetId, "errorType" to error.name)
+                            )
+                        }
                         Sentry.addBreadcrumb(Breadcrumb().apply {
                             setMessage("Non-network error from asset fetch")
                             setData("error_type", error.name)
