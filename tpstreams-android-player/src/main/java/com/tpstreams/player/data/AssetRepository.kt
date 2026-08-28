@@ -2,6 +2,8 @@ package com.tpstreams.player.data
 
 import android.content.Context
 import com.tpstreams.player.TPStreamsSDK
+import com.tpstreams.player.constants.LiveStreamEndedException
+import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.constants.getErrorMessage
 import com.tpstreams.player.constants.toPlaybackError
@@ -96,7 +98,9 @@ object AssetRepository {
 
     private fun handleException(assetId: String, e: Exception, url: String, callback: AssetCallback, context: Context? = null) {
         val errorPlayerId = SentryLogger.generatePlayerIdString()
-        SentryLogger.logAPIException(e, assetId, null, errorPlayerId, url, context = context)
+        if (e !is LiveStreamNotStartedException && e !is LiveStreamEndedException) {
+            SentryLogger.logAPIException(e, assetId, null, errorPlayerId, url, context = context)
+        }
 
         val errorType = e.toPlaybackError()
         val errorMessage = e.getErrorMessage(errorPlayerId, null)
