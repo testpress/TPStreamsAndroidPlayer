@@ -29,6 +29,14 @@ internal fun Throwable.isAuthOrContentHttpFailure(): Boolean {
     }
 }
 
+internal fun Throwable.isLiveStreamEndHttpError(): Boolean {
+    val code = findHttpResponseCode() ?: return false
+    return code != HTTP_STATUS_UNAUTHORIZED &&
+            code != HTTP_STATUS_FORBIDDEN &&
+            code != HTTP_STATUS_NOT_FOUND &&
+            code !in HTTP_STATUS_SERVER_ERROR_MIN..HTTP_STATUS_SERVER_ERROR_MAX
+}
+
 internal fun Int.toPlaybackErrorFromHttpStatus(): PlaybackError = when (this) {
     HTTP_STATUS_NOT_FOUND -> PlaybackError.INVALID_ASSETS_ID
     HTTP_STATUS_UNAUTHORIZED, HTTP_STATUS_FORBIDDEN -> PlaybackError.INVALID_ACCESS_TOKEN_FOR_ASSETS
