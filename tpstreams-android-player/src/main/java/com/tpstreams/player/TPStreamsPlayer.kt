@@ -169,7 +169,7 @@ private constructor(
         onMediaPrepared = { isPrepared = true },
         shouldPlayOnPrepared = { shouldAutoPlay || requestedPlay },
         onLiveStreamStatusChanged = { onLiveStreamStatusChanged?.invoke(it) },
-        onError = { error, message -> _listener?.onError(error, message) },
+        onPlaybackError = { error, message -> _listener?.onError(error, message) },
         logDebug = { debugLog(it) }
     )
 

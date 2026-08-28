@@ -51,7 +51,7 @@ internal class NetworkDiagnosticsManager(
         internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
         private const val NETWORK_ERROR_DEBOUNCE_MS = 500L
         private const val MAX_AUTO_RETRIES = 3
-        private const val AUTO_RETRY_DELAY_MS = 2000L
+        private const val INITIAL_RETRY_DELAY_MS = 2000L
         internal const val DIAGNOSTIC_HOST_DEFAULT = "app.tpstreams.com"
         internal const val DEFAULT_SERVER_PROBE_PATH = "/api/v1/"
     }
@@ -62,6 +62,7 @@ internal class NetworkDiagnosticsManager(
         // Also reset the auto‑retry budget so a manual retry starts fresh.
         autoRetryJob?.cancel()
         networkErrorJob?.cancel()
+        networkRecoveryHandler.stopMonitoring()
         probeGeneration++
         autoRetryCount = 0
         hasPendingError = false
@@ -78,6 +79,7 @@ internal class NetworkDiagnosticsManager(
     fun onMediaLoaded() {
         autoRetryJob?.cancel()
         networkErrorJob?.cancel()
+        networkRecoveryHandler.stopMonitoring()
         autoRetryCount = 0
         probeGeneration++
         hasPendingError = false
@@ -87,6 +89,7 @@ internal class NetworkDiagnosticsManager(
     fun onRelease() {
         autoRetryJob?.cancel()
         networkErrorJob?.cancel()
+        networkRecoveryHandler.stopMonitoring()
     }
 
     fun handleError(
@@ -113,49 +116,50 @@ internal class NetworkDiagnosticsManager(
             yield()
             if (attempt != probeGeneration) return@launch
 
-            val isExhausted = autoRetryCount >= MAX_AUTO_RETRIES
             val hasInternet = diagnostics.internetReachable
-            val canAutoRetry = !isExhausted && hasInternet
+            val isExhausted = autoRetryCount >= MAX_AUTO_RETRIES
+            val isRetrying = hasInternet && !isExhausted
 
             val (finalError, message, rootCause) = classifyError(errorType, diagnostics)
 
             if (!hasInternet) {
+                // Offline: wait for OS to signal network is restored, then retry once.
+                // No timer polling — the OS event fires immediately on reconnect.
                 logDebug("NETWORK_PROBE: no internet — starting recovery monitoring")
                 autoRetryJob?.cancel()
                 networkRecoveryHandler.startMonitoring {
-                    playerScope.launch {
-                        autoRetryJob?.cancel()
-                        retryPlayback()
-                    }
+                    playerScope.launch { retryPlayback() }
                 }
             }
 
             val displayAttempt = autoRetryCount + 1
             val playerId = SentryLogger.generatePlayerIdString()
 
-            addSentryBreadcrumb(rootCause, displayAttempt, canAutoRetry, diagnostics, finalError, exoPlayer, playerId)
-            val sentryEventId = sendSentryEvent(exoError, rootCause, finalError, diagnostics, playerId, canAutoRetry, exoPlayer, decoderState)
+            addSentryBreadcrumb(rootCause, displayAttempt, isRetrying, diagnostics, finalError, exoPlayer, playerId)
+            val sentryEventId = sendSentryEvent(exoError, rootCause, finalError, diagnostics, playerId, isRetrying, exoPlayer, decoderState)
             Log.e(DEBUG_TAG, "Network error: $message (sentry: ${sentryEventId ?: "null"})", exoError)
 
-            val isFinal = !canAutoRetry
             listener(
                 finalError, message,
                 diagnostics.copy(
-                    retryAttempt = if (isFinal) 0 else displayAttempt,
-                    playerId = if (isFinal && diagnostics.internetReachable) playerId else null
+                    retryAttempt = if (isRetrying) displayAttempt else 0,
+                    playerId = if (!isRetrying && hasInternet) playerId else null
                 )
             )
 
-            if (canAutoRetry) {
+            if (hasInternet && !isExhausted) {
+                // Internet is reachable but playback still failed.
+                // Use exponential backoff: 2s → 4s → 8s, then stop.
+                val delayMs = INITIAL_RETRY_DELAY_MS * (1L shl autoRetryCount)
                 autoRetryCount++
-                logDebug("NETWORK_PROBE: auto-retry scheduled — attempt $displayAttempt/$MAX_AUTO_RETRIES")
+                logDebug("NETWORK_PROBE: exponential backoff retry — attempt $displayAttempt/$MAX_AUTO_RETRIES, delay=${delayMs}ms")
                 autoRetryJob?.cancel()
                 autoRetryJob = playerScope.launch {
-                    delay(AUTO_RETRY_DELAY_MS)
+                    delay(delayMs)
                     retryPlayback()
                 }
-            } else {
-                logDebug("NETWORK_PROBE: auto-retry exhausted after $displayAttempt attempts")
+            } else if (hasInternet) {
+                logDebug("NETWORK_PROBE: all retries exhausted after $displayAttempt attempts")
             }
         }
     }
@@ -183,7 +187,7 @@ internal class NetworkDiagnosticsManager(
     }
 
     private fun addSentryBreadcrumb(
-        rootCause: String, displayAttempt: Int, canAutoRetry: Boolean,
+        rootCause: String, displayAttempt: Int, isRetrying: Boolean,
         diagnostics: NetworkDiagnostics, finalError: PlaybackError, exoPlayer: Player, playerId: String
     ) {
         val stateName = when (exoPlayer.playbackState) {
@@ -194,9 +198,9 @@ internal class NetworkDiagnosticsManager(
             else -> "unknown"
         }
         Sentry.addBreadcrumb(Breadcrumb().apply {
-            setMessage(if (canAutoRetry) "Auto-retry scheduled" else "Network error shown to user")
+            setMessage(if (isRetrying) "Exponential backoff retry scheduled" else "Network error shown to user")
             setData("root_cause", rootCause)
-            setData("auto_retry_attempt", displayAttempt.toString())
+            setData("retry_attempt", displayAttempt.toString())
             setData("internet_reachable", diagnostics.internetReachable.toString())
             setData("dns_resolves", diagnostics.dnsResolves.toString())
             setData("server_reachable", diagnostics.serverReachable.toString())
@@ -210,10 +214,10 @@ internal class NetworkDiagnosticsManager(
 
     private fun sendSentryEvent(
         exoError: PlaybackException?, rootCause: String, finalError: PlaybackError,
-        diagnostics: NetworkDiagnostics, playerId: String, canAutoRetry: Boolean,
+        diagnostics: NetworkDiagnostics, playerId: String, isRetrying: Boolean,
         player: Player? = null, decoderState: PlayerDecoderState? = null
     ): String? {
-        if (canAutoRetry) return null
+        if (isRetrying) return null  // Don't spam Sentry during backoff attempts; log on final failure only
         if (!diagnostics.internetReachable) return null
         return if (exoError != null) {
             SentryLogger.logPlaybackException(exoError, assetId, playerId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)

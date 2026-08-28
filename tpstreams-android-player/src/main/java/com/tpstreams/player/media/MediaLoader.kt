@@ -42,7 +42,7 @@ internal class MediaLoader(
     private val onMediaPrepared: () -> Unit,
     private val shouldPlayOnPrepared: () -> Boolean,
     private val onLiveStreamStatusChanged: (Boolean) -> Unit,
-    private val onError: (PlaybackError, String) -> Unit,
+    private val onPlaybackError: (PlaybackError, String) -> Unit,
     private val logDebug: (String) -> Unit,
 ) {
 
@@ -100,7 +100,7 @@ internal class MediaLoader(
                             setData("asset_id", assetId)
                         })
                         playerScope.launch {
-                            onError(error, message)
+                            onPlaybackError(error, message)
                         }
                     }
                 }

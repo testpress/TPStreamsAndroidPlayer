@@ -69,6 +69,10 @@ internal fun Exception.toPlaybackError(): PlaybackError {
     return when (this) {
         is LiveStreamNotStartedException -> PlaybackError.LIVE_STREAM_NOT_STARTED
         is LiveStreamEndedException -> PlaybackError.LIVE_STREAM_ENDED
+        // Distinguish timeout from general connection failure so they are correctly
+        // reported in diagnostics and to Sentry. SocketTimeoutException extends IOException,
+        // so it must be checked first before the broader IOException branch.
+        is java.net.SocketTimeoutException -> PlaybackError.NETWORK_CONNECTION_TIMEOUT
         is java.io.IOException -> PlaybackError.NETWORK_CONNECTION_FAILED
         else -> PlaybackError.UNSPECIFIED
     }
@@ -77,6 +81,8 @@ internal fun Exception.getErrorMessage(playerId: String, responseCode: Int?): St
     return when {
         responseCode != null -> responseCode.httpStatusUserMessage(playerId)
             ?: "Oops! Something went wrong. Please contact support for assistance and provide details about the issue.\n Error code: 5100. Player Id: $playerId"
+        this is java.net.SocketTimeoutException ->
+            "The request took too long to process due to a slow or unstable network connection. Please try again.\n Error code: 5005. Player Id: $playerId"
         this is java.io.IOException -> 
             "Oops! It seems like you're not connected to the internet. Please check your connection and try again.\n Error code: 5004. Player Id: $playerId"
         this is LiveStreamNotStartedException ->
