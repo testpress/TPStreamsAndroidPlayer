@@ -69,6 +69,10 @@ internal fun Exception.toPlaybackError(): PlaybackError {
     return when (this) {
         is LiveStreamNotStartedException -> PlaybackError.LIVE_STREAM_NOT_STARTED
         is LiveStreamEndedException -> PlaybackError.LIVE_STREAM_ENDED
+        // Distinguish timeout from general connection failure so they are correctly
+        // reported in diagnostics and to Sentry. SocketTimeoutException extends IOException,
+        // so it must be checked first before the broader IOException branch.
+        is java.net.SocketTimeoutException -> PlaybackError.NETWORK_CONNECTION_TIMEOUT
         is java.io.IOException -> PlaybackError.NETWORK_CONNECTION_FAILED
         else -> PlaybackError.UNSPECIFIED
     }
