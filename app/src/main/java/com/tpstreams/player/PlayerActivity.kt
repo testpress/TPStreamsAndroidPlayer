@@ -32,7 +32,7 @@ class PlayerActivity : AppCompatActivity() {
 
         binding.playerView.setWatermarks(
             listOf(
-                WatermarkConfig(
+                TextWatermarkConfig(
                     text = "This is a watermark",
                     x = 0,
                     y = 50,
@@ -44,7 +44,7 @@ class PlayerActivity : AppCompatActivity() {
                         duration = 5_000L,
                     ),
                 ),
-                WatermarkConfig(
+                TextWatermarkConfig(
                     text = "Random Watermark",
                     x = 0,
                     y = 0,
@@ -55,19 +55,14 @@ class PlayerActivity : AppCompatActivity() {
                         duration = 3_000L
                     )
                 ),
-            )
-        )
-
-        binding.playerView.setImageWatermarks(
-            listOf(
                 ImageWatermarkConfig(
-                    imageUrl = "https://cdn.tpstreams.com/wp-content/uploads/2025/09/cropped-cropped-Logo-1.png",
+                    imageUrl = "https://avatars.githubusercontent.com/u/10137",
                     width = 50,
                     height = 50,
                     x = 100,
                     y = 100,
                     opacity = 0.9f,
-                )
+                ),
             )
         )
     }

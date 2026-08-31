@@ -28,8 +28,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val settingsPanel = SettingsPanel(this)
     private val captions = Captions(this)
     private val contextAccess = ContextAccess(this)
-    private val watermarkControllers = mutableListOf<TextWatermarkController>()
-    private val imageWatermarkControllers = mutableListOf<ImageWatermarkController>()
+    private val watermarkControllers = mutableListOf<BaseWatermarkController<*>>()
     private val errorViewController = PlayerErrorViewController(this)
     private val sheetManager = PlayerSheetManager(settingsPanel, captions, downloadActions) { getPlayer() }
 
@@ -115,7 +114,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             }
             registerWithLifecycle()
             watermarkControllers.forEach { it.onViewAttached() }
-            imageWatermarkControllers.forEach { it.onViewAttached() }
         }
     }
 
@@ -382,7 +380,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
         // Reposition watermark on layout changes (fullscreen, rotation, resize)
         watermarkControllers.forEach { it.onParentLayout() }
-        imageWatermarkControllers.forEach { it.onParentLayout() }
 
         // Ensure error overlay is properly laid out when view is measured
         errorViewController.onParentLayout(left, top, right, bottom)
@@ -394,7 +391,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
         watermarkControllers.forEach { it.onViewDetached() }
-        imageWatermarkControllers.forEach { it.onViewDetached() }
 
         // Always remove FLAG_SECURE on detach. In a Single-Activity architecture the Activity
         // is rarely finishing during normal navigation, so guarding on isFinishing would leak
@@ -444,38 +440,21 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     // ── Watermark ────────────────────────────────────────────────────────
 
-    fun setWatermarks(configs: List<WatermarkConfig>) {
-        watermarkControllers.forEach { it.destroy() }
-        watermarkControllers.clear()
+    fun setWatermarks(configs: List<BaseWatermarkConfig>) {
+        clearWatermarks()
 
         configs.forEach { config ->
-            val controller = TextWatermarkController(this)
+            val controller: BaseWatermarkController<*> = when (config) {
+                is TextWatermarkConfig -> TextWatermarkController(this).also { it.apply(config) }
+                is ImageWatermarkConfig -> ImageWatermarkController(this).also { it.apply(config) }
+            }
             watermarkControllers.add(controller)
-            controller.apply(config)
         }
     }
 
     fun clearWatermarks() {
         watermarkControllers.forEach { it.destroy() }
         watermarkControllers.clear()
-    }
-
-    // ── Image Watermark ───────────────────────────────────────────────────
-
-    fun setImageWatermarks(configs: List<ImageWatermarkConfig>) {
-        imageWatermarkControllers.forEach { it.destroy() }
-        imageWatermarkControllers.clear()
-
-        configs.forEach { config ->
-            val controller = ImageWatermarkController(this)
-            imageWatermarkControllers.add(controller)
-            controller.apply(config)
-        }
-    }
-
-    fun clearImageWatermarks() {
-        imageWatermarkControllers.forEach { it.destroy() }
-        imageWatermarkControllers.clear()
     }
 
     private var externalControllerVisibilityListener: PlayerView.ControllerVisibilityListener? = null
@@ -487,7 +466,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private fun setupControllerVisibilityListener() {
         super.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
             val isVisible = visibility == View.VISIBLE
-            imageWatermarkControllers.forEach { it.onControlsVisibilityChanged(isVisible) }
+            watermarkControllers.forEach { it.onControlsVisibilityChanged(isVisible) }
             externalControllerVisibilityListener?.onVisibilityChanged(visibility)
         })
     }
@@ -495,12 +474,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private fun notifyWatermarkPlayerState() {
         val player = getPlayer() ?: return
         watermarkControllers.forEach {
-            it.onPlayerStateChanged(
-                isPlaying = player.isPlaying,
-                playbackState = player.playbackState
-            )
-        }
-        imageWatermarkControllers.forEach {
             it.onPlayerStateChanged(
                 isPlaying = player.isPlaying,
                 playbackState = player.playbackState

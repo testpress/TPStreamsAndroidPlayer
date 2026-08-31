@@ -80,4 +80,28 @@ class ImageWatermarkConfigTest {
     fun `test zero height throws exception`() {
         ImageWatermarkConfig(imageUrl = "https://example.com/avatar.png", height = 0)
     }
+
+    @Test
+    fun `test TextWatermarkConfig default values`() {
+        val config = TextWatermarkConfig(text = "sample text")
+        assertEquals("sample text", config.text)
+        assertEquals(0, config.x)
+        assertEquals(0, config.y)
+        assertEquals(0.3f, config.opacity, 0.001f)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `test blank text in TextWatermarkConfig throws exception`() {
+        TextWatermarkConfig(text = "   ")
+    }
+
+    @Test
+    fun `test polymorphism under BaseWatermarkConfig`() {
+        val list: List<BaseWatermarkConfig> = listOf(
+            TextWatermarkConfig(text = "watermark"),
+            ImageWatermarkConfig(imageUrl = "https://example.com/avatar.png"),
+        )
+        assertEquals(2, list.size)
+    }
 }
+

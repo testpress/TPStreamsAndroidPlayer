@@ -8,7 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 
 @UnstableApi
-internal abstract class BaseWatermarkController<T>(protected val parent: TPStreamsPlayerView) {
+internal abstract class BaseWatermarkController<T : BaseWatermarkConfig>(protected val parent: TPStreamsPlayerView) {
 
     protected var container: FrameLayout? = null
     protected var config: T? = null
