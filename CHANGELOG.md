@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.10] - 2026-08-31
+
+### Added
+
+- Add image watermark overlay support: display custom image watermarks (such as instructor avatars or brand logos) over video playback with custom positioning and auto-hide support when player controls are visible
+- Add player error troubleshooting guide: comprehensive documentation covering all player error codes and step-by-step resolution steps
+
+### Fixed
+
+- Improve error handling and network recovery: resolve retry loops on asset loading errors, introduce exponential backoff for network retries, and improve timeout reporting
+- Prevent SDK error tracking from capturing host application crashes and ANRs, ensuring only player-specific errors are monitored
+- Hide player ID on offline error screens to avoid end-user confusion during routine network disconnects
+- Suppress error tracking noise for expected live stream states (not started / ended)
+
 ## [1.2.9] - 2026-08-25
 
 ### Added
@@ -297,6 +311,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release with core playback and DRM support
 
+[1.2.10]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.9...1.2.10
 [1.2.9]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.8...1.2.9
 [1.2.8]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.7...1.2.8
 [1.2.7]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.6...1.2.7
