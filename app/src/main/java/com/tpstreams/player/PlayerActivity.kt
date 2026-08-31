@@ -45,12 +45,6 @@ class PlayerActivity : AppCompatActivity() {
                     ),
                 ),
                 WatermarkConfig(
-                    text = "Test 1",
-                    x = 100,
-                    y = 100,
-                    opacity = 0.2f,
-                ),
-                WatermarkConfig(
                     text = "Random Watermark",
                     x = 0,
                     y = 0,
@@ -68,10 +62,10 @@ class PlayerActivity : AppCompatActivity() {
             listOf(
                 ImageWatermarkConfig(
                     imageUrl = "https://cdn.tpstreams.com/wp-content/uploads/2025/09/cropped-cropped-Logo-1.png",
-                    width = 48,
-                    height = 48,
-                    x = 92,
-                    y = 88,
+                    width = 50,
+                    height = 50,
+                    x = 100,
+                    y = 100,
                     opacity = 0.9f,
                 )
             )

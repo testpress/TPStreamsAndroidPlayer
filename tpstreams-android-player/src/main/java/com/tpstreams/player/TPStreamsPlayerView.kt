@@ -478,10 +478,17 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         imageWatermarkControllers.clear()
     }
 
+    private var externalControllerVisibilityListener: PlayerView.ControllerVisibilityListener? = null
+
+    override fun setControllerVisibilityListener(listener: PlayerView.ControllerVisibilityListener?) {
+        this.externalControllerVisibilityListener = listener
+    }
+
     private fun setupControllerVisibilityListener() {
-        setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+        super.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
             val isVisible = visibility == View.VISIBLE
             imageWatermarkControllers.forEach { it.onControlsVisibilityChanged(isVisible) }
+            externalControllerVisibilityListener?.onVisibilityChanged(visibility)
         })
     }
 
