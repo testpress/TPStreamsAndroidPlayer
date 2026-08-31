@@ -44,13 +44,7 @@ class PlayerActivity : AppCompatActivity() {
                         duration = 5_000L,
                     ),
                 ),
-                WatermarkConfig(
-                    text = "Test 1",
-                    x = 100,
-                    y = 100,
-                    opacity = 0.2f,
-                ),
-                WatermarkConfig(
+                TextWatermarkConfig(
                     text = "Random Watermark",
                     x = 0,
                     y = 0,
@@ -61,8 +55,15 @@ class PlayerActivity : AppCompatActivity() {
                         duration = 3_000L
                     )
                 ),
+                ImageWatermarkConfig(
+                    imageUrl = "https://avatars.githubusercontent.com/u/10137",
+                    width = 50,
+                    height = 50,
+                    x = 100,
+                    y = 100,
+                    opacity = 0.9f,
+                ),
             )
         )
-
     }
 }

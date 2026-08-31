@@ -28,7 +28,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val settingsPanel = SettingsPanel(this)
     private val captions = Captions(this)
     private val contextAccess = ContextAccess(this)
-    private val watermarkControllers = mutableListOf<WatermarkController>()
+    private val watermarkControllers = mutableListOf<BaseWatermarkController<*>>()
     private val errorViewController = PlayerErrorViewController(this)
     private val sheetManager = PlayerSheetManager(settingsPanel, captions, downloadActions) { getPlayer() }
 
@@ -136,6 +136,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         setupSettingsButton()
         setupFullscreenButton()
         showFullscreenButton()
+        setupControllerVisibilityListener()
     }
 
     private fun cacheBufferingView() {
@@ -439,20 +440,35 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     // ── Watermark ────────────────────────────────────────────────────────
 
-    fun setWatermarks(configs: List<WatermarkConfig>) {
-        watermarkControllers.forEach { it.destroy() }
-        watermarkControllers.clear()
+    fun setWatermarks(configs: List<BaseWatermarkConfig>) {
+        clearWatermarks()
 
         configs.forEach { config ->
-            val controller = WatermarkController(this)
+            val controller: BaseWatermarkController<*> = when (config) {
+                is TextWatermarkConfig -> TextWatermarkController(this).also { it.apply(config) }
+                is ImageWatermarkConfig -> ImageWatermarkController(this).also { it.apply(config) }
+            }
             watermarkControllers.add(controller)
-            controller.apply(config)
         }
     }
 
     fun clearWatermarks() {
         watermarkControllers.forEach { it.destroy() }
         watermarkControllers.clear()
+    }
+
+    private var externalControllerVisibilityListener: PlayerView.ControllerVisibilityListener? = null
+
+    override fun setControllerVisibilityListener(listener: PlayerView.ControllerVisibilityListener?) {
+        this.externalControllerVisibilityListener = listener
+    }
+
+    private fun setupControllerVisibilityListener() {
+        super.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+            val isVisible = visibility == View.VISIBLE
+            watermarkControllers.forEach { it.onControlsVisibilityChanged(isVisible) }
+            externalControllerVisibilityListener?.onVisibilityChanged(visibility)
+        })
     }
 
     private fun notifyWatermarkPlayerState() {
