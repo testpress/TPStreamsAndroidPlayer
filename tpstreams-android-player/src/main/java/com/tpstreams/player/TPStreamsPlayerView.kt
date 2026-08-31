@@ -28,7 +28,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val settingsPanel = SettingsPanel(this)
     private val captions = Captions(this)
     private val contextAccess = ContextAccess(this)
-    private val watermarkControllers = mutableListOf<WatermarkController>()
+    private val watermarkControllers = mutableListOf<TextWatermarkController>()
     private val errorViewController = PlayerErrorViewController(this)
     private val sheetManager = PlayerSheetManager(settingsPanel, captions, downloadActions) { getPlayer() }
 
@@ -444,7 +444,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         watermarkControllers.clear()
 
         configs.forEach { config ->
-            val controller = WatermarkController(this)
+            val controller = TextWatermarkController(this)
             watermarkControllers.add(controller)
             controller.apply(config)
         }

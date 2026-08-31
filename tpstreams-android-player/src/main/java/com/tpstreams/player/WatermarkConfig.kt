@@ -57,3 +57,32 @@ enum class WatermarkAnimationType {
      */
     RANDOM,
 }
+
+/**
+ * Configuration for displaying an image watermark overlay on the video player.
+ *
+ * @property imageUrl The HTTPS URL of the image to display (PNG recommended for transparency).
+ * @property width The width in dp (default: 48).
+ * @property height The height in dp (default: 48).
+ * @property x The horizontal position percentage (0-100, default: 92).
+ * @property y The vertical position percentage (0-100, default: 88).
+ * @property opacity The opacity from 0.0 (transparent) to 1.0 (opaque) (default: 1.0f).
+ */
+data class ImageWatermarkConfig @JvmOverloads constructor(
+    val imageUrl: String,
+    val width: Int = 48,
+    val height: Int = 48,
+    val x: Int = 92,
+    val y: Int = 88,
+    val opacity: Float = 1.0f,
+) {
+    init {
+        require(imageUrl.isNotBlank()) { "imageUrl must not be blank" }
+        require(width > 0) { "width must be positive, was $width" }
+        require(height > 0) { "height must be positive, was $height" }
+        require(x in 0..100) { "x must be 0-100, was $x" }
+        require(y in 0..100) { "y must be 0-100, was $y" }
+        require(opacity in 0f..1f) { "opacity must be 0.0-1.0, was $opacity" }
+    }
+}
+
