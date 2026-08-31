@@ -32,7 +32,7 @@ class PlayerActivity : AppCompatActivity() {
 
         binding.playerView.setWatermarks(
             listOf(
-                TextWatermarkConfig(
+                WatermarkConfig(
                     text = "This is a watermark",
                     x = 0,
                     y = 50,
