@@ -21,8 +21,6 @@ import java.net.URL
 internal class ImageWatermarkController(parent: TPStreamsPlayerView) : BaseWatermarkController<ImageWatermarkConfig>(parent) {
 
     private var imageView: ImageView? = null
-    private var loadedBitmap: Bitmap? = null
-    private var currentUrl: String? = null
     private var isControlsVisible = false
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -41,9 +39,6 @@ internal class ImageWatermarkController(parent: TPStreamsPlayerView) : BaseWater
         container?.post {
             if (!parent.isAttachedToWindow) return@post
             reposition()
-            if (loadedBitmap != null) {
-                container?.visibility = if (isControlsVisible) View.INVISIBLE else View.VISIBLE
-            }
         }
     }
 
@@ -72,24 +67,18 @@ internal class ImageWatermarkController(parent: TPStreamsPlayerView) : BaseWater
         imageView = iv
         c.addView(iv)
 
-        if (loadedBitmap != null && currentUrl == config.imageUrl) {
-            iv.setImageBitmap(loadedBitmap)
-        } else {
-            loadImage(config.imageUrl)
-        }
+        loadImage(config.imageUrl, widthPx, heightPx)
     }
 
-    private fun loadImage(imageUrl: String) {
+    private fun loadImage(imageUrl: String, targetWidthPx: Int, targetHeightPx: Int) {
         fetchJob?.cancel()
-        currentUrl = imageUrl
 
         fetchJob = scope.launch {
             val bitmap = withContext(Dispatchers.IO) {
-                downloadBitmap(imageUrl)
+                downloadBitmap(imageUrl, targetWidthPx, targetHeightPx)
             }
 
-            if (bitmap != null && currentUrl == imageUrl) {
-                loadedBitmap = bitmap
+            if (bitmap != null) {
                 imageView?.setImageBitmap(bitmap)
                 container?.let {
                     reposition()
@@ -99,7 +88,7 @@ internal class ImageWatermarkController(parent: TPStreamsPlayerView) : BaseWater
         }
     }
 
-    private fun downloadBitmap(urlString: String): Bitmap? {
+    private fun downloadBitmap(urlString: String, targetWidthPx: Int, targetHeightPx: Int): Bitmap? {
         var connection: HttpURLConnection? = null
         return try {
             val url = URL(urlString)
@@ -110,9 +99,19 @@ internal class ImageWatermarkController(parent: TPStreamsPlayerView) : BaseWater
             connection.connect()
 
             if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                connection.inputStream.use { stream ->
-                    BitmapFactory.decodeStream(stream)
+                val bytes = connection.inputStream.use { it.readBytes() }
+
+                val options = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
                 }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+
+                val reqWidth = (targetWidthPx * 2).coerceAtLeast(1)
+                val reqHeight = (targetHeightPx * 2).coerceAtLeast(1)
+                options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+                options.inJustDecodeBounds = false
+
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
             } else {
                 Log.w(TAG, "Failed to download watermark image. HTTP response code: ${connection.responseCode}")
                 null
@@ -123,6 +122,21 @@ internal class ImageWatermarkController(parent: TPStreamsPlayerView) : BaseWater
         } finally {
             connection?.disconnect()
         }
+    }
+
+    private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        val height = options.outHeight
+        val width = options.outWidth
+        var inSampleSize = 1
+
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight = height / 2
+            val halfWidth = width / 2
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
     }
 
     override fun onControlsVisibilityChanged(visible: Boolean) {
@@ -152,8 +166,6 @@ internal class ImageWatermarkController(parent: TPStreamsPlayerView) : BaseWater
         fetchJob = null
         imageView?.setImageDrawable(null)
         imageView = null
-        loadedBitmap = null
-        currentUrl = null
         super.remove()
     }
 

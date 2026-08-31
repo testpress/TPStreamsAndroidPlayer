@@ -64,5 +64,17 @@ class PlayerActivity : AppCompatActivity() {
             )
         )
 
+        binding.playerView.setImageWatermarks(
+            listOf(
+                ImageWatermarkConfig(
+                    imageUrl = "https://cdn.tpstreams.com/wp-content/uploads/2025/09/cropped-cropped-Logo-1.png",
+                    width = 48,
+                    height = 48,
+                    x = 92,
+                    y = 88,
+                    opacity = 0.9f,
+                )
+            )
+        )
     }
 }
