@@ -25,6 +25,13 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : PlayerView(context, attrs, defStyleAttr) {
 
+    /**
+     * True when this view was constructed with [attributeSetForTextureView] attrs (TextureView mode).
+     * Used to emit a defensive warning when L1 DRM content is played in TextureView mode,
+     * which would result in a silent black screen.
+     */
+    private val isTextureViewMode: Boolean = attrs != null
+
     // Controllers
     private val fullscreenMode = FullscreenMode(this)
     private val downloadActions = DownloadActions(this)
@@ -73,6 +80,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     private val tracksStateListener = object : Player.Listener {
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+            if (checkAndHandleTextureViewL1Drm()) return
             settingsPanel.updateAvailableResolutions()
             captions.updateAvailableCaptions()
         }
@@ -118,6 +126,31 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             registerWithLifecycle()
             watermarkControllers.forEach { it.onViewAttached() }
         }
+    }
+
+    /**
+     * Checks if TextureView mode is active on an L1-capable device with a DRM-protected stream.
+     * When detected, halts playback permanently and displays an error message to prevent
+     * a silent black screen and UI shuddering.
+     *
+     * @return true if incompatible DRM+TextureView combination is detected and handled.
+     */
+    private fun checkAndHandleTextureViewL1Drm(): Boolean {
+        if (!isTextureViewMode) return false
+        val player = getPlayer() ?: return false
+        val isL1Device = com.tpstreams.player.util.WidevinePlaybackLevelResolver
+            .getNativeWidevineLevel() == "L1"
+        if (isL1Device && player.isDrmContent) {
+            Log.w(
+                TAG,
+                "TPStreamsPlayerView is in TextureView mode on a Widevine L1 device " +
+                "with DRM-protected content. Playback halted to prevent black screen and UI shuddering."
+            )
+            player.stop()
+            showErrorMessage("DRM protected content cannot be played in Performance mode on this device.")
+            return true
+        }
+        return false
     }
 
     fun setAutoFullscreenOnRotateEnabled(enabled: Boolean) {
@@ -491,7 +524,15 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
         /**
          * Returns an [AttributeSet] that configures [PlayerView] to render video using [TextureView].
-         * Pass this as the [attrs] parameter when instantiating [TPStreamsPlayerView] in Flutter Texture mode.
+         * Pass this as the [attrs] parameter when instantiating [TPStreamsPlayerView] in Flutter
+         * Texture Layer Hybrid Composition mode ([PlatformViewsService.initSurfaceAndroidView]).
+         *
+         * **WARNING:** [TextureView] is only safe for non-DRM or Widevine L3 (software) content.
+         * Widevine L1 (hardware-secure) DRM requires a protected native surface, which only
+         * [android.view.SurfaceView] provides. Playing L1 DRM content in TextureView mode will
+         * result in a **silent black screen** (audio plays, video does not render).
+         *
+         * For L1 DRM playback, use the default constructor with `attrs = null` (SurfaceView).
          */
         fun attributeSetForTextureView(context: Context): AttributeSet? {
             return try {
@@ -502,6 +543,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 }
                 Xml.asAttributeSet(parser)
             } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse TextureView AttributeSet; falling back to SurfaceView", e)
                 null
             }
         }
