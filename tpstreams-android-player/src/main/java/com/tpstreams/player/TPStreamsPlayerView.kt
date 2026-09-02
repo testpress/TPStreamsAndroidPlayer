@@ -15,6 +15,9 @@ import com.tpstreams.player.ui.PlayerErrorViewController
 import com.tpstreams.player.ui.PlayerSheetManager
 import com.tpstreams.player.util.PlaybackHistoryManager
 
+import android.util.Xml
+import org.xmlpull.v1.XmlPullParser
+
 @UnstableApi
 class TPStreamsPlayerView @JvmOverloads constructor(
     context: Context,
@@ -466,6 +469,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private fun setupControllerVisibilityListener() {
         super.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
             val isVisible = visibility == View.VISIBLE
+            playerControlView?.postInvalidate()
+            postInvalidate()
             watermarkControllers.forEach { it.onControlsVisibilityChanged(isVisible) }
             externalControllerVisibilityListener?.onVisibilityChanged(visibility)
         })
@@ -483,6 +488,23 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "TPStreamsPlayerView"
+
+        /**
+         * Returns an [AttributeSet] that configures [PlayerView] to render video using [TextureView].
+         * Pass this as the [attrs] parameter when instantiating [TPStreamsPlayerView] in Flutter Texture mode.
+         */
+        fun attributeSetForTextureView(context: Context): AttributeSet? {
+            return try {
+                val parser = context.resources.getLayout(R.layout.tpstreams_player_view_attrs)
+                var state = 0
+                while (state != XmlPullParser.START_TAG && state != XmlPullParser.END_DOCUMENT) {
+                    state = parser.next()
+                }
+                Xml.asAttributeSet(parser)
+            } catch (e: Exception) {
+                null
+            }
+        }
 
         /**
          * Tracks how many player views are active per Activity.
