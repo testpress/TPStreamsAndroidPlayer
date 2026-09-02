@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.util.AttributeSet
 import android.util.Log
+import android.view.TextureView
 import android.view.View
 import android.view.WindowManager
 import androidx.media3.common.Player
@@ -26,11 +27,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 ) : PlayerView(context, attrs, defStyleAttr) {
 
     /**
-     * True when this view was constructed with [attributeSetForTextureView] attrs (TextureView mode).
-     * Used to emit a defensive warning when L1 DRM content is played in TextureView mode,
-     * which would result in a silent black screen.
+     * True when this view is actively using [TextureView] as its video rendering surface.
+     * Used to guard against Widevine L1 DRM playback on TextureView, which would result
+     * in a silent black screen.
      */
-    private val isTextureViewMode: Boolean = attrs != null
+    private val isTextureViewMode: Boolean
+        get() = videoSurfaceView is TextureView
 
     // Controllers
     private val fullscreenMode = FullscreenMode(this)
