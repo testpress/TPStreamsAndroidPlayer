@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.github.testpress"
-version = "1.2.10"
+version = "1.2.11"
 
 android {
     namespace = "com.tpstreams.player"

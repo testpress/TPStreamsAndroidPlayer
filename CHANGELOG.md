@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.11] - 2026-09-03
+
+### Added
+
+- Add TextureView rendering support for cross-platform frameworks: allows embedding frameworks like Flutter to render videos with significantly lower CPU usage and smooth scrolling performance.
+- Add clear error messaging when DRM-protected content is loaded on an unsupported rendering surface, preventing silent black screens.
+
+### Fixed
+
+- Improve player controls visibility transitions and UI responsiveness across rendering modes (#138).
+
 ## [1.2.10] - 2026-08-31
 
 ### Added
@@ -311,6 +322,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release with core playback and DRM support
 
+[1.2.11]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.10...1.2.11
 [1.2.10]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.9...1.2.10
 [1.2.9]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.8...1.2.9
 [1.2.8]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.7...1.2.8
