@@ -39,12 +39,25 @@ internal class WidevineDrmSessionManagerProvider(
     private var l3Manager: DrmSessionManager? = null
 
     override fun get(mediaItem: MediaItem): DrmSessionManager {
-        if (!WidevinePlaybackLevelResolver.shouldUseL3Drm()) {
-            return defaultProvider.get(mediaItem)
-        }
-
         val drmConfiguration = mediaItem.localConfiguration?.drmConfiguration
             ?: return DrmSessionManager.DRM_UNSUPPORTED
+
+        val explicitLevel = drmConfiguration.licenseRequestHeaders["X-TPStreams-Security-Level"]
+        val shouldUseL3 = when (explicitLevel) {
+            "L3" -> true
+            "L1" -> false
+            else -> {
+                if (drmConfiguration.keySetId != null) {
+                    false
+                } else {
+                    WidevinePlaybackLevelResolver.shouldUseL3Drm()
+                }
+            }
+        }
+
+        if (!shouldUseL3) {
+            return defaultProvider.get(mediaItem)
+        }
 
         synchronized(lock) {
             if (!Objects.equals(drmConfiguration, l3DrmConfiguration)) {
@@ -96,9 +109,10 @@ internal class WidevineDrmSessionManagerProvider(
         fun createOfflineLicenseHelper(
             licenseUri: String,
             dataSourceFactory: DataSource.Factory,
-            eventDispatcher: androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher = androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher()
+            eventDispatcher: androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher = androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher(),
+            securityLevel: String? = null
         ): androidx.media3.exoplayer.drm.OfflineLicenseHelper {
-            if (!WidevinePlaybackLevelResolver.shouldUseL3Drm()) {
+            if (securityLevel != "L3") {
                 return androidx.media3.exoplayer.drm.OfflineLicenseHelper.newWidevineInstance(
                     licenseUri,
                     false,

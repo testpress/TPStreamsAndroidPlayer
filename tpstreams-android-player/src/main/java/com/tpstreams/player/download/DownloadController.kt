@@ -386,7 +386,11 @@ object DownloadController {
                     Log.d(TAG, "Download prepared for: ${mediaItem.mediaId}")
                     val baseRequest = helper.getDownloadRequest(mediaItem.mediaId.toByteArray())
                     
-                    val metadataJson = createDownloadMetadata(title, thumbnailUrl, totalSize, metadata)
+                    val drmSecurityLevel = if (isMediaItemContainsDrm(mediaItem)) {
+                        if (WidevinePlaybackLevelResolver.shouldUseL3Drm()) "L3" else "L1"
+                    } else null
+
+                    val metadataJson = createDownloadMetadata(title, thumbnailUrl, totalSize, metadata, drmSecurityLevel)
                     val request = createDownloadRequest(mediaItem.mediaId, baseRequest, metadataJson)
                         
                     Log.d(TAG, "Created download request with ID: ${request.id} for URL: ${request.uri}")
@@ -436,11 +440,18 @@ object DownloadController {
         }
     }
 
-    private fun createDownloadMetadata(title: String, thumbnailUrl: String, totalSize: Long, metadata: Map<String, String>): String {
+    private fun createDownloadMetadata(
+        title: String,
+        thumbnailUrl: String,
+        totalSize: Long,
+        metadata: Map<String, String>,
+        drmSecurityLevel: String? = null
+    ): String {
         return JSONObject().apply {
             put(DownloadConstants.KEY_TITLE, title)
             put(DownloadConstants.KEY_THUMBNAIL_URL, thumbnailUrl)
             put(DownloadConstants.KEY_CALCULATED_SIZE_BYTES, totalSize)
+            drmSecurityLevel?.let { put(DownloadConstants.KEY_DRM_SECURITY_LEVEL, it) }
 
             if (metadata.isNotEmpty()) {
                 put(DownloadConstants.KEY_CUSTOM_METADATA, JSONObject(metadata as Map<*, *>))
@@ -566,17 +577,23 @@ object DownloadController {
                 try {
                     val drmFormat = findDrmFormat(helper)
                     if (drmFormat != null) {
+                        val storedLevel = getStoredDrmSecurityLevel(download.request.data)
                         val licenseHelper = WidevineDrmSessionManagerProvider.createOfflineLicenseHelper(
                             licenseUri,
                             getDataSourceFactory(context),
-                            DrmSessionEventListener.EventDispatcher()
+                            DrmSessionEventListener.EventDispatcher(),
+                            securityLevel = storedLevel
                         )
                         
                         try {
                             val keySetId = licenseHelper.downloadLicense(drmFormat)
                             Log.d(TAG, "Successfully downloaded fresh license with KeySetId: $keySetId")
 
-                            val newDownloadRequest = cloneDownloadRequestWithNewKeys(download.request, keySetId)
+                            val newDownloadRequest = cloneDownloadRequestWithNewKeys(
+                                download.request,
+                                keySetId,
+                                securityLevel = storedLevel ?: "L1"
+                            )
                             val newDownload = cloneDownloadWithNewDownloadRequest(download, newDownloadRequest)
 
                             val downloadIndex = downloadManager.downloadIndex as? DefaultDownloadIndex
@@ -625,8 +642,13 @@ object DownloadController {
 
     private fun cloneDownloadRequestWithNewKeys(
         downloadRequest: DownloadRequest,
-        keySetId: ByteArray
+        keySetId: ByteArray,
+        securityLevel: String
     ): DownloadRequest {
+        val updatedData = updateDrmSecurityLevelInData(
+            downloadRequest.data,
+            securityLevel
+        )
         return DownloadRequest.Builder(
             downloadRequest.id,
             downloadRequest.uri
@@ -634,9 +656,20 @@ object DownloadController {
             .setStreamKeys(downloadRequest.streamKeys)
             .setCustomCacheKey(downloadRequest.customCacheKey)
             .setKeySetId(keySetId)
-            .setData(downloadRequest.data)
+            .setData(updatedData)
             .setMimeType(downloadRequest.mimeType)
             .build()
+    }
+
+    private fun updateDrmSecurityLevelInData(data: ByteArray?, level: String): ByteArray {
+        return try {
+            val json = if (data != null) JSONObject(String(data, Charsets.UTF_8)) else JSONObject()
+            json.put(DownloadConstants.KEY_DRM_SECURITY_LEVEL, level)
+            json.toString().toByteArray(Charsets.UTF_8)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to update DRM security level in download metadata", e)
+            data ?: ByteArray(0)
+        }
     }
 
     private fun cloneDownloadWithNewDownloadRequest(
@@ -696,10 +729,12 @@ object DownloadController {
         baseRequest: DownloadRequest,
         dataSourceFactory: DataSource.Factory
     ): DownloadRequest? {
+        val actualLevel = if (WidevinePlaybackLevelResolver.shouldUseL3Drm()) "L3" else "L1"
         val licenseHelper = WidevineDrmSessionManagerProvider.createOfflineLicenseHelper(
             licenseUri,
             dataSourceFactory,
-            DrmSessionEventListener.EventDispatcher()
+            DrmSessionEventListener.EventDispatcher(),
+            securityLevel = actualLevel
         )
 
         return licenseHelper.run {
@@ -707,11 +742,13 @@ object DownloadController {
                 val keySetId = downloadLicense(drmFormat)
                 Log.d("DRM", "DRM download started with the KeySetId: ${keySetId?.contentToString()}")
 
+                val updatedData = updateDrmSecurityLevelInData(baseRequest.data, actualLevel)
+
                 DownloadRequest.Builder(baseRequest.id, baseRequest.uri)
                     .setMimeType(baseRequest.mimeType)
                     .setStreamKeys(baseRequest.streamKeys)
                     .setKeySetId(keySetId)
-                    .setData(baseRequest.data)
+                    .setData(updatedData)
                     .build()
             } catch (e: Exception) {
                 Log.e("DRM", "Failed to handle DRM content: ${e.message}", e)
@@ -730,8 +767,14 @@ object DownloadController {
         val keySetId = request.keySetId
     
         if (keySetId != null) {
+            val headers = mutableMapOf<String, String>()
+            val storedLevel = getStoredDrmSecurityLevel(request.data)
+            val effectiveLevel = storedLevel ?: WidevinePlaybackLevelResolver.getNativeWidevineLevel()?.let { if (it == "L3") "L3" else "L1" } ?: "L1"
+            headers["X-TPStreams-Security-Level"] = effectiveLevel
+
             val drmConfig = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                 .setKeySetId(keySetId)
+                .setLicenseRequestHeaders(headers)
                 .setMultiSession(false)
                 .build()
     
@@ -741,6 +784,18 @@ object DownloadController {
         Log.d("TPStreamsPlayer", "Building media item from download with ID: ${request.id}")
         return builder.build()
     }
+
+    internal fun getStoredDrmSecurityLevel(data: ByteArray?): String? {
+        if (data == null) return null
+        return try {
+            val json = JSONObject(String(data, Charsets.UTF_8))
+            json.optString(DownloadConstants.KEY_DRM_SECURITY_LEVEL).takeIf { it.isNotEmpty() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read DRM security level from download metadata", e)
+            null
+        }
+    }
+
 
 
     

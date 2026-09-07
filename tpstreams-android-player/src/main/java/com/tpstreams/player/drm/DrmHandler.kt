@@ -75,6 +75,10 @@ internal class DrmHandler(
     private fun handleL3Fallback(error: PlaybackException): Boolean {
         if (!WidevinePlaybackLevelResolver.isFallbackAllowed()) return false
         if (!isProtected) return false
+        if (isDownloadedAsset()) {
+            Log.d(TAG, "L3 fallback disabled for downloaded/offline asset: $assetId")
+            return false
+        }
         if (!WidevinePlaybackLevelResolver.isDrmFallbackError(error)) return false
         if (fallbackAttempted) return false
         if (WidevinePlaybackLevelResolver.isAlreadyOnL3PlaybackLevel()) return false
