@@ -103,4 +103,23 @@ internal object NetworkInfoProvider {
             null
         }
     }
+
+    internal fun isSystemNetworkConnected(context: Context?): Boolean {
+        if (context == null) return true
+        return try {
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val activeNetwork = connectivityManager.activeNetwork ?: return false
+                val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            } else {
+                @Suppress("DEPRECATION")
+                val activeInfo = connectivityManager.activeNetworkInfo
+                activeInfo != null && activeInfo.isConnected
+            }
+        } catch (_: Exception) {
+            true
+        }
+    }
 }
