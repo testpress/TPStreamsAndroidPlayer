@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.13] - 2026-09-08
+
+### Fixed
+
+- Hide diagnostic breakdown checklist and line divider on the error overlay when device is offline (#140).
+- Skip downstream DNS, Server, and CDN network probes when system network connection is offline (#140).
+
 ## [1.2.12] - 2026-09-07
 
 ### Fixed
