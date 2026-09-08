@@ -127,8 +127,13 @@ internal class PlayerErrorViewController(
         retryLoader?.visibility = View.GONE
 
         resolveDiagnosticText(error, diagnostics)
-        buildDiagnosticsList(diagnostics)
-        errorDivider?.visibility = View.VISIBLE
+        if (diagnostics.internetReachable) {
+            buildDiagnosticsList(diagnostics)
+            errorDivider?.visibility = View.VISIBLE
+        } else {
+            diagnosticsContainer?.visibility = View.GONE
+            errorDivider?.visibility = View.GONE
+        }
 
         errorSubtitle?.let {
             val id = diagnostics.playerId

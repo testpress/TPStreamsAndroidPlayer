@@ -103,6 +103,30 @@ internal class NetworkDiagnosticsManager(
         val attempt = ++probeGeneration
         hasPendingError = true
 
+        val isSystemConnected = NetworkInfoProvider.isSystemNetworkConnected(appContext)
+        if (!isSystemConnected) {
+            logDebug("NETWORK_PROBE: System connectivity is offline — skipping probes")
+            autoRetryJob?.cancel()
+            networkRecoveryHandler.startMonitoring {
+                playerScope.launch { retryPlayback() }
+            }
+            listener(
+                PlaybackError.NETWORK_CONNECTION_FAILED,
+                "No internet connection",
+                NetworkDiagnostics(
+                    internetReachable = false,
+                    internetLatencyMs = null,
+                    serverReachable = false,
+                    serverLatencyMs = null,
+                    serverDetail = "unreachable",
+                    cdnReachable = if (cdnHostname == null) null else false,
+                    dnsResolves = false,
+                    dnsLatencyMs = null
+                )
+            )
+            return
+        }
+
         onDiagnosticsStarted?.invoke()
         logDebug("NETWORK_PROBE: handleError CALLED — errorType=$errorType, exoError=${exoError?.errorCodeName}, assetId=$assetId")
 

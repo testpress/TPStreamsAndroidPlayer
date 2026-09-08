@@ -30,19 +30,35 @@ internal class NetworkProbeRunner(
 
     private suspend fun runProbes(cdnHostname: String?, mediaUrl: String?): NetworkDiagnostics = coroutineScope {
         val proxyConfigured = isProxyConfigured()
+        val (internet, internetLatency) = probeInternet(proxyConfigured)
 
-        val internetDef = async { probeInternet(proxyConfigured) }
+        if (!internet) {
+            return@coroutineScope NetworkDiagnostics(
+                internetReachable = false,
+                internetLatencyMs = internetLatency,
+                serverReachable = false,
+                serverLatencyMs = null,
+                serverDetail = "unreachable",
+                cdnReachable = if (cdnHostname == null) null else false,
+                cdnLatencyMs = null,
+                cdnDetail = null,
+                cdnHostname = cdnHostname,
+                dnsResolves = false,
+                dnsLatencyMs = null,
+                proxyConfigured = proxyConfigured
+            )
+        }
+
         val dnsDef = async { probeDns(cdnHostname) }
         val serverDef = async { probeServer() }
         val cdnDef = async { probeCdn(mediaUrl) }
 
-        val (internet, internetLatency) = internetDef.await()
         val (dns, dnsLatency) = dnsDef.await()
         val (serverOk, serverDetail, serverLatency) = serverDef.await()
         val (cdnOk, cdnDetailStr, cdnLatency) = cdnDef.await()
 
         NetworkDiagnostics(
-            internetReachable = internet,
+            internetReachable = true,
             internetLatencyMs = internetLatency,
             serverReachable = serverOk,
             serverLatencyMs = serverLatency,
