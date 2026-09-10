@@ -2,10 +2,12 @@ package com.tpstreams.player
 
 import android.graphics.Color
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.util.UnstableApi
+import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.databinding.ActivityPlayerBinding
 
 @OptIn(UnstableApi::class)
@@ -27,8 +29,17 @@ class PlayerActivity : AppCompatActivity() {
         viewModel.initPlayer(assetId, accessToken, isTestpress)
         viewModel.player?.setMaxResolution(1080)
         binding.playerView.setVideoResolution(720)
-        binding.playerView.player = viewModel.player
+        viewModel.player?.listener = object : TPStreamsPlayer.Listener {
+            override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {}
+            override fun onError(error: PlaybackError, message: String) {}
 
+            override fun onSubtitleStateChanged(enabled: Boolean, language: String?) {
+                val state = if (enabled) "ON: $language" else "OFF"
+                Toast.makeText(this@PlayerActivity, "Subtitles $state and Language: $language", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.playerView.player = viewModel.player
 
         binding.playerView.setWatermarks(
             listOf(

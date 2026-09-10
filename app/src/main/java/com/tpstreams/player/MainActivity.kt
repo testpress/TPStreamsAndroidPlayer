@@ -134,8 +134,8 @@ class MainActivity : AppCompatActivity() {
         // TPStreams Tab Buttons
         findViewById<View>(R.id.btn_drm_video).setOnClickListener {
             val intent = Intent(this, PlayerActivity::class.java).apply {
-                putExtra(EXTRA_ASSET_ID, "42h2tZ5fmNf")
-                putExtra(EXTRA_ACCESS_TOKEN, "9327e2d0-fa13-4288-902d-840f32cd0eed")
+                putExtra(EXTRA_ASSET_ID, "7xbZeQzR36h")
+                putExtra(EXTRA_ACCESS_TOKEN, "3d9838f3-db51-4fc3-8472-075ab5e40b64  ")
             }
             startActivity(intent)
         }

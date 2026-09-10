@@ -627,4 +627,8 @@ internal class ViewPlayerListener(
 
     override fun onNetworkDiagnosticsStarted() =
         onNetworkDiagnosticsStartedAction()
+
+    override fun onSubtitleStateChanged(enabled: Boolean, language: String?) {
+        userListener?.onSubtitleStateChanged(enabled, language)
+    }
 }

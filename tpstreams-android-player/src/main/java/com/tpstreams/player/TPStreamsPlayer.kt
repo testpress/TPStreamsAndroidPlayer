@@ -87,6 +87,8 @@ private constructor(
          * probes complete. The UI can use this to show a "Diagnosing…" state.
          */
         fun onNetworkDiagnosticsStarted() {}
+
+        fun onSubtitleStateChanged(enabled: Boolean, language: String?) {}
     }
 
     private var isPrepared = false
@@ -105,7 +107,11 @@ private constructor(
     private val networkRecoveryHandler = NetworkRecoveryHandler(context)
 
     private val textTrackManager: TextTrackManager by lazy {
-        TextTrackManager(exoPlayer, trackSelector)
+        TextTrackManager(
+            exoPlayer,
+            trackSelector,
+            onSubtitleStateChanged = { enabled, language -> _listener?.onSubtitleStateChanged(enabled, language) },
+        )
     }
     private val resolutionManager: ResolutionManager by lazy {
         ResolutionManager(exoPlayer, trackSelector)
