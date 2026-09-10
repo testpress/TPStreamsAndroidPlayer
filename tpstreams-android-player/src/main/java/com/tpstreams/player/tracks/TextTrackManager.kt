@@ -15,9 +15,11 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 internal class TextTrackManager(
     private val exoPlayer: ExoPlayer,
     private val trackSelector: DefaultTrackSelector,
+    private val onSubtitleStateChanged: ((Boolean, String?) -> Unit)? = null,
 ) {
 
     private var subtitleMetadata: Map<String, Boolean> = emptyMap()
+    private var previousSubtitleLanguage: String? = null
 
     fun updateSubtitleMetadata(metadata: Map<String, Boolean>) {
         subtitleMetadata = metadata
@@ -60,6 +62,12 @@ internal class TextTrackManager(
         val currentPosition = exoPlayer.currentPosition
         if (exoPlayer.isPlaying) {
             exoPlayer.seekTo(currentPosition)
+        }
+
+        val enabled = language != null
+        if (language != previousSubtitleLanguage) {
+            previousSubtitleLanguage = language
+            onSubtitleStateChanged?.invoke(enabled, language)
         }
     }
 
