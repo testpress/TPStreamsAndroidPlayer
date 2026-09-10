@@ -135,7 +135,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btn_drm_video).setOnClickListener {
             val intent = Intent(this, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_ASSET_ID, "7xbZeQzR36h")
-                putExtra(EXTRA_ACCESS_TOKEN, "3d9838f3-db51-4fc3-8472-075ab5e40b64  ")
+                putExtra(EXTRA_ACCESS_TOKEN, "3d9838f3-db51-4fc3-8472-075ab5e40b64")
             }
             startActivity(intent)
         }

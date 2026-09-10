@@ -89,6 +89,7 @@ internal class TextTrackManager(
 
     fun enableDefaultCaptions() {
         val defaultTrack = getAvailableTextTracks().firstOrNull() ?: return
+        previousSubtitleLanguage = defaultTrack.first
         setTextTrackByLanguage(defaultTrack.first)
     }
 
