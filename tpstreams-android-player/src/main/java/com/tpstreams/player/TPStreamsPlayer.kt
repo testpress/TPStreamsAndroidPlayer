@@ -94,6 +94,7 @@ private constructor(
     private var isPrepared = false
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
+    private var defaultCaptionsApplied = false
 
     val isLiveStream: Boolean
         get() = mediaLoader.isLiveStream
@@ -421,8 +422,11 @@ private constructor(
                 val textTracks = getAvailableTextTracks()
                 Log.d("TPStreamsPlayer", "Tracks changed. Text tracks available: ${textTracks.size}")
                 
-                if (showDefaultCaptions && isPrepared && textTracks.isNotEmpty()) {
-                    enableDefaultCaptions()
+                if (showDefaultCaptions && !defaultCaptionsApplied && isPrepared && textTracks.isNotEmpty()) {
+                    if (getActiveTextTrack() == null) {
+                        enableDefaultCaptions()
+                    }
+                    defaultCaptionsApplied = true
                 }
             }
             
