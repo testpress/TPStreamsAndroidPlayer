@@ -21,7 +21,8 @@ class PlayerUIViewModel(application: Application) : AndroidViewModel(application
                     assetId = assetId,
                     accessToken = accessToken,
                     shouldAutoPlay = true,
-                    enableDownload = true
+                    enableDownload = true,
+                    showDefaultCaptions = true
                 )
             } else {
                 TPStreamsPlayer.create(
@@ -30,6 +31,7 @@ class PlayerUIViewModel(application: Application) : AndroidViewModel(application
                     accessToken = accessToken,
                     shouldAutoPlay = true,
                     enableDownload = true,
+                    showDefaultCaptions = true,
                     userId = "test_user"
                 )
             }
