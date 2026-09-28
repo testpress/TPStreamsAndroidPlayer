@@ -231,15 +231,13 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 // Collapsing rapid callbacks into one transition removes the race.
                 removeCallbacks(orientationDebounceRunnable)
                 orientationDebounceRunnable = Runnable {
-                    post {
-                        if (isLandscape) {
-                            if (!fullscreenMode.isInFullscreenMode()) {
-                                fullscreenMode.enterFullscreen()
-                            }
-                        } else {
-                            if (fullscreenMode.isInFullscreenMode()) {
-                                fullscreenMode.exitFullscreen()
-                            }
+                    if (isLandscape) {
+                        if (!fullscreenMode.isInFullscreenMode()) {
+                            fullscreenMode.enterFullscreen()
+                        }
+                    } else {
+                        if (fullscreenMode.isInFullscreenMode()) {
+                            fullscreenMode.exitFullscreen()
                         }
                     }
                 }

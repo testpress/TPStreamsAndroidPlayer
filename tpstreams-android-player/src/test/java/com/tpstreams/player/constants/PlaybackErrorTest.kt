@@ -61,4 +61,45 @@ class PlaybackErrorTest {
         assertTrue(message.contains("1003"))
         assertTrue(message.contains("test_player_id"))
     }
+
+    @Test
+    fun `isSurfaceDetachTimeout correctly identifies surface detach timeouts and ignores other errors`() {
+        // 1. ExoTimeoutException with TIMEOUT_OPERATION_DETACH_SURFACE
+        val detachTimeoutException = androidx.media3.exoplayer.ExoTimeoutException(
+            androidx.media3.exoplayer.ExoTimeoutException.TIMEOUT_OPERATION_DETACH_SURFACE
+        )
+        val playbackExceptionWithDetachCause = androidx.media3.common.PlaybackException(
+            "Unexpected runtime error",
+            detachTimeoutException,
+            androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT
+        )
+        assertTrue(com.tpstreams.player.TPStreamsPlayer.isSurfaceDetachTimeout(playbackExceptionWithDetachCause))
+
+        // 2. PlaybackException with "Detaching surface timed out." message
+        val messageTimeoutException = androidx.media3.common.PlaybackException(
+            "Detaching surface timed out.",
+            null,
+            androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT
+        )
+        assertTrue(com.tpstreams.player.TPStreamsPlayer.isSurfaceDetachTimeout(messageTimeoutException))
+
+        // 3. Other ExoTimeoutException operation (e.g. TIMEOUT_OPERATION_RELEASE) should return false
+        val releaseTimeoutException = androidx.media3.exoplayer.ExoTimeoutException(
+            androidx.media3.exoplayer.ExoTimeoutException.TIMEOUT_OPERATION_RELEASE
+        )
+        val playbackExceptionWithRelease = androidx.media3.common.PlaybackException(
+            "Release timed out",
+            releaseTimeoutException,
+            androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT
+        )
+        org.junit.Assert.assertFalse(com.tpstreams.player.TPStreamsPlayer.isSurfaceDetachTimeout(playbackExceptionWithRelease))
+
+        // 4. Non-timeout error (e.g. DECODER_INIT_FAILED) should return false
+        val decoderException = androidx.media3.common.PlaybackException(
+            "Decoder init failed",
+            null,
+            androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
+        )
+        org.junit.Assert.assertFalse(com.tpstreams.player.TPStreamsPlayer.isSurfaceDetachTimeout(decoderException))
+    }
 }

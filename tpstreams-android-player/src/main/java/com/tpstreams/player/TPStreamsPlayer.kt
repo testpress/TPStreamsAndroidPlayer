@@ -17,6 +17,7 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.ExoTimeoutException
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -472,9 +473,10 @@ private constructor(
                 // --- Surface detach timeout non-fatal handling ---
                 // When surface detachment times out (ERROR_CODE_TIMEOUT 1003) on slow hardware decoders,
                 // log as non-fatal to Sentry and recover playback instead of displaying a fatal error screen.
+                // Scoped specifically to surface detach timeouts; other timeouts follow the standard fatal path.
                 // Cap retries at MAX_TIMEOUT_RECOVERY_ATTEMPTS so persistent hardware faults fall through
                 // to the normal fatal error path instead of looping indefinitely.
-                if (error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT && timeoutRecoveryAttempts < MAX_TIMEOUT_RECOVERY_ATTEMPTS) {
+                if (isSurfaceDetachTimeout(error) && timeoutRecoveryAttempts < MAX_TIMEOUT_RECOVERY_ATTEMPTS) {
                     timeoutRecoveryAttempts++
                     debugLog("Surface detach timeout encountered (attempt $timeoutRecoveryAttempts/$MAX_TIMEOUT_RECOVERY_ATTEMPTS) — recovering non-fatally")
                     val errorPlayerId = SentryLogger.generatePlayerIdString()
@@ -721,6 +723,16 @@ private constructor(
         private const val DIAGNOSTIC_DUMMY_ASSET_ID = "00000000000"
         private const val MAX_TIMEOUT_RECOVERY_ATTEMPTS = 2
         private val SERVER_PROBE_PATH_REGEX = Regex("^/api/[^/]+/")
+
+        @OptIn(UnstableApi::class)
+        internal fun isSurfaceDetachTimeout(error: PlaybackException): Boolean {
+            if (error.errorCode != PlaybackException.ERROR_CODE_TIMEOUT) return false
+            val cause = error.cause
+            return (cause is ExoTimeoutException &&
+                    cause.timeoutOperation == ExoTimeoutException.TIMEOUT_OPERATION_DETACH_SURFACE) ||
+                    error.message?.contains("Detaching surface", ignoreCase = true) == true ||
+                    cause?.message?.contains("Detaching surface", ignoreCase = true) == true
+        }
 
 
 
