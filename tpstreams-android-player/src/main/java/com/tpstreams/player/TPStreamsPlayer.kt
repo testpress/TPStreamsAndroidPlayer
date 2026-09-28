@@ -643,10 +643,10 @@ private constructor(
 
     /**
      * Explicitly releases the video surface from the ExoPlayer's video renderer.
-     * Must be called before setPlayer(null) during fullscreen transitions to prevent
-     * MediaTek secure decoder NO_MEMORY crashes — the codec retains a surface reference
-     * even after setPlayer(null), and rapid detach/reattach creates a new codec before
-     * the old one is fully released.
+     *
+     * Previously invoked during fullscreen transitions prior to direct view reparenting.
+     * Retained as a public SDK method for backwards compatibility and as an escape hatch
+     * for consumers managing custom surface lifecycles.
      */
     fun releaseVideoSurface() {
         if (released) return
@@ -728,6 +728,9 @@ private constructor(
         internal fun isSurfaceDetachTimeout(error: PlaybackException): Boolean {
             if (error.errorCode != PlaybackException.ERROR_CODE_TIMEOUT) return false
             val cause = error.cause
+            // Primary check: typed ExoTimeoutException with TIMEOUT_OPERATION_DETACH_SURFACE.
+            // String matching is a defensive fallback for cases where the exception is wrapped
+            // or shadowed, though it is version-fragile if Media3 changes its internal message format.
             return (cause is ExoTimeoutException &&
                     cause.timeoutOperation == ExoTimeoutException.TIMEOUT_OPERATION_DETACH_SURFACE) ||
                     error.message?.contains("Detaching surface", ignoreCase = true) == true ||

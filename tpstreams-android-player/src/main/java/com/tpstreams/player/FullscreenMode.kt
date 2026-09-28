@@ -24,8 +24,11 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         try {
             view.lifecycleManager?.preservePlaybackStateAcrossTransition {
                 // Reparent directly to decorView without tearing down the player binding.
-                // setPlayer(null)/setPlayer(player) cycles destroy the surface, causing black screen flicker.
-                // With the isTransitioning guard and debounce in place, direct reparenting is safe and seamless.
+                // The previous setPlayer(null)/setPlayer(player) teardown cycle was introduced in PR #111
+                // to work around MediaTek secure decoder dual-allocation crashes, but it introduced
+                // black screen flicker and triggered Qualcomm OMX synchronous detach timeouts.
+                // Direct view reparenting keeps the PlayerView bound to ExoPlayer so Media3 manages
+                // any surface re-attachment naturally through its lifecycle callbacks.
                 moveToDecorView(activity)
                 switchToLandscape(activity)
                 hideSystemUI(activity)
@@ -86,8 +89,8 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         try {
             view.lifecycleManager?.preservePlaybackStateAcrossTransition {
                 // Restore directly to original parent without tearing down the player binding.
-                // setPlayer(null)/setPlayer(player) cycles destroy the surface, causing black screen flicker.
-                // With the isTransitioning guard and debounce in place, direct reparenting is safe and seamless.
+                // Avoids setPlayer(null)/setPlayer(player) teardown cycles, allowing Media3
+                // to handle surface lifecycle callbacks directly.
                 restoreOriginalView(activity)
                 switchToPortrait(activity)
                 showSystemUI(activity)

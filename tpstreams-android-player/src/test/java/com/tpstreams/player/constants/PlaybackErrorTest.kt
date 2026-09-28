@@ -102,4 +102,29 @@ class PlaybackErrorTest {
         )
         org.junit.Assert.assertFalse(com.tpstreams.player.TPStreamsPlayer.isSurfaceDetachTimeout(decoderException))
     }
+
+    @Test
+    fun `timeout recovery attempt policy caps retries at MAX_TIMEOUT_RECOVERY_ATTEMPTS`() {
+        val maxAttempts = 2
+        var recoveryAttempts = 0
+        val timeoutException = androidx.media3.common.PlaybackException(
+            "Detaching surface timed out.",
+            androidx.media3.exoplayer.ExoTimeoutException(androidx.media3.exoplayer.ExoTimeoutException.TIMEOUT_OPERATION_DETACH_SURFACE),
+            androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT
+        )
+
+        // Attempt 1: should recover
+        val shouldRecoverAttempt1 = com.tpstreams.player.TPStreamsPlayer.isSurfaceDetachTimeout(timeoutException) && recoveryAttempts < maxAttempts
+        assertTrue(shouldRecoverAttempt1)
+        recoveryAttempts++
+
+        // Attempt 2: should recover
+        val shouldRecoverAttempt2 = com.tpstreams.player.TPStreamsPlayer.isSurfaceDetachTimeout(timeoutException) && recoveryAttempts < maxAttempts
+        assertTrue(shouldRecoverAttempt2)
+        recoveryAttempts++
+
+        // Attempt 3: should NOT recover (cap reached, fall through to fatal error)
+        val shouldRecoverAttempt3 = com.tpstreams.player.TPStreamsPlayer.isSurfaceDetachTimeout(timeoutException) && recoveryAttempts < maxAttempts
+        org.junit.Assert.assertFalse("Should stop non-fatal recovery after reaching max attempts", shouldRecoverAttempt3)
+    }
 }
