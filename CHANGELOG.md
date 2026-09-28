@@ -10,11 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed "Detaching surface timed out" crash (ERROR_CODE_TIMEOUT 1003) and cascade "The surface has been released" error (ERROR_CODE_DECODER_INIT_FAILED 4001) when rotating into fullscreen during playback on low-end devices (Sentry: ANDROID-PLAYER-SDK-2-38GDMQ2JC).
-- Removed redundant surface teardown and `setPlayer(null)` / `setPlayer(player)` cycles during fullscreen transitions, allowing seamless view reparenting without black screen flicker or blocking the main thread.
+- Removed redundant surface teardown and `setPlayer(null)` / `setPlayer(player)` cycles during fullscreen transitions, allowing direct view reparenting without black screen flicker.
 - Debounced the `OrientationEventListener` callback in `enableAutoFullscreenOnRotate` (250 ms cooldown) to collapse rapid orientation-sensor jitter into a single transition.
-- Added a re-entrancy guard (`isTransitioning`) in `FullscreenMode.enterFullscreen` / `exitFullscreen` so rapid callbacks while a transition is in progress are safely ignored.
-- Raised ExoPlayer's surface-detach timeout to 5 s (`setDetachSurfaceTimeoutMs(5_000)`) as a defence-in-depth safety net.
-- Handled `ERROR_CODE_TIMEOUT` (1003) non-fatally in `onPlayerError`: automatically recovers playback via `exoPlayer.prepare()` and logs a non-fatal warning to Sentry instead of terminating playback with an error overlay.
+- Added a re-entrancy guard (`isTransitioning`) in `FullscreenMode.enterFullscreen` / `exitFullscreen` with exception safety to prevent concurrent transition conflicts.
+- Handled surface-detach timeouts non-fatally in `onPlayerError`: automatically attempts to recover playback via `exoPlayer.prepare()` (capped at 2 attempts) and logs a warning to Sentry instead of terminating playback with a fatal error overlay.
 
 ## [1.2.15] - 2026-09-15
 
