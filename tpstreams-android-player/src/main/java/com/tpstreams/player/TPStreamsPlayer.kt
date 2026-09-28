@@ -784,13 +784,6 @@ private constructor(
                 )
                 .setSeekBackIncrementMs(seekBackIncrementMs)
                 .setSeekForwardIncrementMs(seekForwardIncrementMs)
-                // Raise the surface-detach timeout from the default 2 s to 5 s.
-                // Low-end Qualcomm OMX decoders (e.g. Redmi 8A, Android 10) may take
-                // longer than 2 s to detach when a decoder reconfiguration
-                // (YES_WITH_RECONFIGURATION) is in-flight concurrently — which causes
-                // ERROR_CODE_TIMEOUT 1003. This is a defence-in-depth guard; the primary
-                // fix is avoiding the redundant clearVideoSurface() in FullscreenMode.
-                .setDetachSurfaceTimeoutMs(5_000)
                 .build() to trackSelector
         }
 
