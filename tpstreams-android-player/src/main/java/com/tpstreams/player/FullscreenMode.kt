@@ -11,29 +11,28 @@ import androidx.media3.common.util.UnstableApi
 @UnstableApi
 class FullscreenMode(private val view: TPStreamsPlayerView) {
     private var isFullscreen = false
+    private var isTransitioning = false
     private var originalParent: ViewGroup? = null
     private var originalLayoutParams: ViewGroup.LayoutParams? = null
     private var backCallback: OnBackPressedCallback? = null
 
     fun enterFullscreen() {
         val activity = view.getActivity() as? ComponentActivity ?: return
-        if (isFullscreen) return
-    
-        val player = view.getPlayer()
+        if (isFullscreen || isTransitioning) return
+        isTransitioning = true
+
         view.lifecycleManager?.preservePlaybackStateAcrossTransition {
-            // Release the codec's surface binding before detaching the player.
-            // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
-            (player as? TPStreamsPlayer)?.releaseVideoSurface()
-            view.setPlayer(null)
+            // Reparent directly to decorView without tearing down the player binding.
+            // setPlayer(null)/setPlayer(player) cycles destroy the surface, causing black screen flicker.
+            // With the isTransitioning guard and debounce in place, direct reparenting is safe and seamless.
             moveToDecorView(activity)
-            if (player != null) {
-                view.setPlayer(player)
-            }
             switchToLandscape(activity)
             hideSystemUI(activity)
             updateFullscreenState()
             registerBackPressHandler(activity)
         }
+
+        isTransitioning = false
     }
     
     private fun moveToDecorView(activity: ComponentActivity) {
@@ -79,23 +78,21 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
 
     fun exitFullscreen() {
         val activity = view.getActivity() as? ComponentActivity ?: return
-        if (!isFullscreen) return
+        if (!isFullscreen || isTransitioning) return
+        isTransitioning = true
 
-        val player = view.getPlayer()
         view.lifecycleManager?.preservePlaybackStateAcrossTransition {
-            // Release the codec's surface binding before detaching the player.
-            // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
-            (player as? TPStreamsPlayer)?.releaseVideoSurface()
-            view.setPlayer(null)
+            // Restore directly to original parent without tearing down the player binding.
+            // setPlayer(null)/setPlayer(player) cycles destroy the surface, causing black screen flicker.
+            // With the isTransitioning guard and debounce in place, direct reparenting is safe and seamless.
             restoreOriginalView(activity)
-            if (player != null) {
-                view.setPlayer(player)
-            }
             switchToPortrait(activity)
             showSystemUI(activity)
             clearBackPressHandler()
             updateFullscreenState(exiting = true)
         }
+
+        isTransitioning = false
     }
 
     private fun restoreOriginalView(activity: ComponentActivity) {

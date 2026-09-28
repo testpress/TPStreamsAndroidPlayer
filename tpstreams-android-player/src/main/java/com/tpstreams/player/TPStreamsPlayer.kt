@@ -467,6 +467,24 @@ private constructor(
                 // resume (either via renewal or retry), so we stop further processing.
                 if (drmHandler.handleError(error)) return
 
+                // --- Surface detach timeout non-fatal handling ---
+                // When surface detachment times out (ERROR_CODE_TIMEOUT 1003) on slow hardware decoders,
+                // log as non-fatal to Sentry and recover playback instead of displaying a fatal error screen.
+                if (error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT) {
+                    debugLog("Surface detach timeout encountered — recovering non-fatally")
+                    val errorPlayerId = SentryLogger.generatePlayerIdString()
+                    SentryLogger.logNonFatalException(
+                        error,
+                        assetId,
+                        errorPlayerId,
+                        context = context,
+                        player = exoPlayer,
+                        decoderState = decoderState
+                    )
+                    exoPlayer.prepare()
+                    return
+                }
+
                 if (isLiveStream && error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && error.isLiveStreamEndHttpError()) {
                     debugLog("Live stream source returned bad HTTP status — stream likely ended")
                     _listener?.onError(PlaybackError.LIVE_STREAM_ENDED, "Live stream has ended")
@@ -745,6 +763,13 @@ private constructor(
                 )
                 .setSeekBackIncrementMs(seekBackIncrementMs)
                 .setSeekForwardIncrementMs(seekForwardIncrementMs)
+                // Raise the surface-detach timeout from the default 2 s to 5 s.
+                // Low-end Qualcomm OMX decoders (e.g. Redmi 8A, Android 10) may take
+                // longer than 2 s to detach when a decoder reconfiguration
+                // (YES_WITH_RECONFIGURATION) is in-flight concurrently — which causes
+                // ERROR_CODE_TIMEOUT 1003. This is a defence-in-depth guard; the primary
+                // fix is avoiding the redundant clearVideoSurface() in FullscreenMode.
+                .setDetachSurfaceTimeoutMs(5_000)
                 .build() to trackSelector
         }
 
