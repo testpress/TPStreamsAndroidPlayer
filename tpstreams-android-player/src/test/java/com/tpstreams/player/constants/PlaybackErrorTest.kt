@@ -36,4 +36,29 @@ class PlaybackErrorTest {
         assertTrue(message.contains("5004"))
         assertTrue(message.contains("test_player_id"))
     }
+
+    @Test
+    fun `PlaybackException with ERROR_CODE_DECODER_INIT_FAILED maps to error code 4001 message with troubleshooting link`() {
+        val exception = androidx.media3.common.PlaybackException(
+            "Decoder init failed",
+            null,
+            androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED
+        )
+        val message = exception.getErrorMessage("test_player_id")
+        assertTrue(message.contains("4001"))
+        assertTrue(message.contains("test_player_id"))
+        assertTrue(message.contains("troubleshooting-steps-for-error-code-4001"))
+    }
+
+    @Test
+    fun `PlaybackException with ERROR_CODE_TIMEOUT maps to error code 1003 message`() {
+        val exception = androidx.media3.common.PlaybackException(
+            "Detaching surface timed out",
+            null,
+            androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT
+        )
+        val message = exception.getErrorMessage("test_player_id")
+        assertTrue(message.contains("1003"))
+        assertTrue(message.contains("test_player_id"))
+    }
 }

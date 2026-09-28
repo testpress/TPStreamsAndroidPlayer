@@ -40,9 +40,11 @@ internal class OrientationListener(val context: Context): OrientationEventListen
         }
     }
 
-    private fun isOrientationLandscape(orientation: Int): Boolean {
-        // Consider landscape if orientation is between 60-120 or 240-300 degrees
-        return (orientation in 60..120 || orientation in 240..300)
+    companion object {
+        internal fun isOrientationLandscape(orientation: Int): Boolean {
+            // Consider landscape if orientation is between 60-120 or 240-300 degrees
+            return (orientation in 60..120 || orientation in 240..300)
+        }
     }
 
     fun setOnChangeListener(listener: OnOrientationChangeListener) {
