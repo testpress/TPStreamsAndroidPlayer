@@ -21,18 +21,20 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         if (isFullscreen || isTransitioning) return
         isTransitioning = true
 
-        view.lifecycleManager?.preservePlaybackStateAcrossTransition {
-            // Reparent directly to decorView without tearing down the player binding.
-            // setPlayer(null)/setPlayer(player) cycles destroy the surface, causing black screen flicker.
-            // With the isTransitioning guard and debounce in place, direct reparenting is safe and seamless.
-            moveToDecorView(activity)
-            switchToLandscape(activity)
-            hideSystemUI(activity)
-            updateFullscreenState()
-            registerBackPressHandler(activity)
+        try {
+            view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+                // Reparent directly to decorView without tearing down the player binding.
+                // setPlayer(null)/setPlayer(player) cycles destroy the surface, causing black screen flicker.
+                // With the isTransitioning guard and debounce in place, direct reparenting is safe and seamless.
+                moveToDecorView(activity)
+                switchToLandscape(activity)
+                hideSystemUI(activity)
+                updateFullscreenState()
+                registerBackPressHandler(activity)
+            }
+        } finally {
+            isTransitioning = false
         }
-
-        isTransitioning = false
     }
     
     private fun moveToDecorView(activity: ComponentActivity) {
@@ -81,18 +83,20 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         if (!isFullscreen || isTransitioning) return
         isTransitioning = true
 
-        view.lifecycleManager?.preservePlaybackStateAcrossTransition {
-            // Restore directly to original parent without tearing down the player binding.
-            // setPlayer(null)/setPlayer(player) cycles destroy the surface, causing black screen flicker.
-            // With the isTransitioning guard and debounce in place, direct reparenting is safe and seamless.
-            restoreOriginalView(activity)
-            switchToPortrait(activity)
-            showSystemUI(activity)
-            clearBackPressHandler()
-            updateFullscreenState(exiting = true)
+        try {
+            view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+                // Restore directly to original parent without tearing down the player binding.
+                // setPlayer(null)/setPlayer(player) cycles destroy the surface, causing black screen flicker.
+                // With the isTransitioning guard and debounce in place, direct reparenting is safe and seamless.
+                restoreOriginalView(activity)
+                switchToPortrait(activity)
+                showSystemUI(activity)
+                clearBackPressHandler()
+                updateFullscreenState(exiting = true)
+            }
+        } finally {
+            isTransitioning = false
         }
-
-        isTransitioning = false
     }
 
     private fun restoreOriginalView(activity: ComponentActivity) {

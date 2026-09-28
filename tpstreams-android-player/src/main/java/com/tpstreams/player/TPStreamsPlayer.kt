@@ -95,6 +95,7 @@ private constructor(
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var defaultCaptionsApplied = false
+    private var timeoutRecoveryAttempts = 0
 
     val isLiveStream: Boolean
         get() = mediaLoader.isLiveStream
@@ -449,6 +450,7 @@ private constructor(
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 Log.d("TPStreamsPlayer", "Is playing changed: $isPlaying")
                 if (isPlaying) {
+                    timeoutRecoveryAttempts = 0
                     networkDiagnosticsManager.onPlaybackRecovered()
                 } else {
                     resumePlaybackManager?.onPaused()
@@ -470,8 +472,11 @@ private constructor(
                 // --- Surface detach timeout non-fatal handling ---
                 // When surface detachment times out (ERROR_CODE_TIMEOUT 1003) on slow hardware decoders,
                 // log as non-fatal to Sentry and recover playback instead of displaying a fatal error screen.
-                if (error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT) {
-                    debugLog("Surface detach timeout encountered — recovering non-fatally")
+                // Cap retries at MAX_TIMEOUT_RECOVERY_ATTEMPTS so persistent hardware faults fall through
+                // to the normal fatal error path instead of looping indefinitely.
+                if (error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT && timeoutRecoveryAttempts < MAX_TIMEOUT_RECOVERY_ATTEMPTS) {
+                    timeoutRecoveryAttempts++
+                    debugLog("Surface detach timeout encountered (attempt $timeoutRecoveryAttempts/$MAX_TIMEOUT_RECOVERY_ATTEMPTS) — recovering non-fatally")
                     val errorPlayerId = SentryLogger.generatePlayerIdString()
                     SentryLogger.logNonFatalException(
                         error,
@@ -714,6 +719,7 @@ private constructor(
         internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
         private const val DEFAULT_SEEK_INCREMENT_MS = 10000L
         private const val DIAGNOSTIC_DUMMY_ASSET_ID = "00000000000"
+        private const val MAX_TIMEOUT_RECOVERY_ATTEMPTS = 2
         private val SERVER_PROBE_PATH_REGEX = Regex("^/api/[^/]+/")
 
 
