@@ -1,9 +1,12 @@
 package com.tpstreams.player.constants
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(UnstableApi::class)
 class PlaybackErrorTest {
 
     @Test
