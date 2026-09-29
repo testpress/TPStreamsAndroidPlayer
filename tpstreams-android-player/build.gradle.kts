@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.github.testpress"
-version = "1.2.15"
+version = providers.gradleProperty("VERSION_NAME").get()
 
 android {
     namespace = "com.tpstreams.player"
