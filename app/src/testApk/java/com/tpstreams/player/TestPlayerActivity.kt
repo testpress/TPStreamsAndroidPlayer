@@ -9,7 +9,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.tpstreams.player.app.databinding.ActivityTestPlayerBinding
-import io.sentry.Sentry
 
 class TestPlayerActivity : AppCompatActivity() {
 
@@ -19,10 +18,6 @@ class TestPlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityTestPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
-        Sentry.configureScope { scope ->
-            scope.setTag("is_test_apk", "true")
-        }
 
         TPStreamsSDK.init("9q94nm", TPStreamsSDK.Provider.TPStreams, allowFallbackToL3 = true)
 

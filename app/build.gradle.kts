@@ -75,7 +75,6 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.media3.ui)
     implementation(project(":tpstreams-android-player"))
-    implementation(libs.sentry.android)
     implementation(libs.material)
     
     testImplementation(libs.junit)

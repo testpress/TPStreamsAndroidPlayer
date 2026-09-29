@@ -45,6 +45,11 @@ internal object SentryLogger {
             scope.setContexts("Device Info", DeviceInfoProvider.getContext(context))
         } catch (_: Exception) { /* best-effort */ }
 
+        // App info (needs context)
+        if (context != null) try {
+            AppInfoProvider.getHostAppVersion(context)?.let { scope.setTag("client_app", it) }
+        } catch (_: Exception) { /* best-effort */ }
+
         // Storage & memory (needs context) — single pass
         if (context != null) try {
             val info = StorageMemoryProvider.getStorageMemoryInfo(context)
