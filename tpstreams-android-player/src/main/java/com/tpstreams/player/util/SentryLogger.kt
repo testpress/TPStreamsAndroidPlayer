@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import com.tpstreams.player.BuildConfig
+import com.tpstreams.player.TPStreamsSDK
 import com.tpstreams.player.data.PlayerDecoderState
 import io.sentry.Breadcrumb
 import io.sentry.IScope
@@ -101,6 +102,9 @@ internal class SentryLogger private constructor() {
 
         // SDK version — included on every event for searchability
         scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
+
+        // Org code / subdomain
+        TPStreamsSDK.orgId?.let { scope.setTag("orgCode", it) }
 
         // Device info (cached fields always work, screen resolution needs context)
         try {

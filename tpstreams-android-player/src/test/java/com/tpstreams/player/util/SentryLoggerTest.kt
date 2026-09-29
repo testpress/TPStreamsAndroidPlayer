@@ -1,5 +1,6 @@
 package com.tpstreams.player.util
 
+import com.tpstreams.player.TPStreamsSDK
 import io.sentry.Breadcrumb
 import io.sentry.Scopes
 import io.sentry.SentryLevel
@@ -77,6 +78,31 @@ class SentryLoggerTest {
             assertEquals("breadcrumb", scopes.isolationScope.breadcrumbs.last().message)
             assertTrue(beforeSendCalled.await(5, TimeUnit.SECONDS))
             assertEquals(setOf("message_value", "exception_value"), capturedTags)
+        } finally {
+            sentryLogger.close()
+        }
+    }
+
+    @Test
+    fun `enrichScope adds orgCode tag when initialized`() {
+        TPStreamsSDK.init("my_org_code")
+        val sentryLogger = SentryLogger.create()
+        try {
+            val scopes = requireNotNull(currentScopes(sentryLogger))
+            val beforeSendCalled = CountDownLatch(1)
+            var capturedOrgCode: String? = null
+            scopes.options.setBeforeSend { event, _ ->
+                capturedOrgCode = event.getTag("orgCode")
+                beforeSendCalled.countDown()
+                null
+            }
+
+            sentryLogger.captureMessage("test message", SentryLevel.INFO) { scope ->
+                sentryLogger.enrichScope(scope = scope)
+            }
+
+            assertTrue(beforeSendCalled.await(5, TimeUnit.SECONDS))
+            assertEquals("my_org_code", capturedOrgCode)
         } finally {
             sentryLogger.close()
         }
