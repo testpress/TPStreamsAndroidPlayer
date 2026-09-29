@@ -20,6 +20,7 @@ internal class NetworkDiagnosticsManager(
     private val assetId: String,
     private val exoPlayer: Player,
     context: Context? = null,
+    private val sentryLogger: SentryLogger,
     private val networkRecoveryHandler: NetworkRecoveryHandler,
     private val listener: (PlaybackError, String, NetworkDiagnostics) -> Unit,
     private val retryPlayback: () -> Unit,
@@ -156,7 +157,7 @@ internal class NetworkDiagnosticsManager(
             }
 
             val displayAttempt = autoRetryCount + 1
-            val playerId = SentryLogger.generatePlayerIdString()
+            val playerId = sentryLogger.generatePlayerIdString()
 
             addSentryBreadcrumb(rootCause, displayAttempt, isRetrying, diagnostics, finalError, exoPlayer, playerId)
             val sentryEventId = sendSentryEvent(exoError, rootCause, finalError, diagnostics, playerId, isRetrying, exoPlayer, decoderState)
@@ -220,7 +221,7 @@ internal class NetworkDiagnosticsManager(
             Player.STATE_ENDED -> "ended"
             else -> "unknown"
         }
-        SentryLogger.addBreadcrumb(Breadcrumb().apply {
+        sentryLogger.addBreadcrumb(Breadcrumb().apply {
             setMessage(if (isRetrying) "Exponential backoff retry scheduled" else "Network error shown to user")
             setData("root_cause", rootCause)
             setData("retry_attempt", displayAttempt.toString())
@@ -243,9 +244,9 @@ internal class NetworkDiagnosticsManager(
         if (isRetrying) return null  // Don't spam Sentry during backoff attempts; log on final failure only
         if (!diagnostics.internetReachable) return null
         return if (exoError != null) {
-            SentryLogger.logPlaybackException(exoError, assetId, playerId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)
+            sentryLogger.logPlaybackException(exoError, assetId, playerId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)
         } else {
-            SentryLogger.logMessageWithEnrichment(
+            sentryLogger.logMessageWithEnrichment(
                 message = "Network error: $rootCause",
                 level = io.sentry.SentryLevel.WARNING,
                 context = appContext,

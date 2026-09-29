@@ -33,6 +33,7 @@ internal class MediaLoader(
     private val playerScope: CoroutineScope,
     private val assetId: String,
     private val accessToken: String,
+    private val sentryLogger: SentryLogger,
     private val drmHandler: DrmHandler,
     private val textTrackManager: TextTrackManager,
     private val downloadPlaybackHandler: DownloadPlaybackHandler,
@@ -82,7 +83,7 @@ internal class MediaLoader(
                         }
                     } else {
                         if (error != PlaybackError.LIVE_STREAM_NOT_STARTED && error != PlaybackError.LIVE_STREAM_ENDED) {
-                            SentryLogger.logMessageWithEnrichment(
+                            sentryLogger.logMessageWithEnrichment(
                                 message = "Non-network error from asset fetch: $error",
                                 level = SentryLevel.WARNING,
                                 context = context,
@@ -91,11 +92,11 @@ internal class MediaLoader(
                                 tags = mapOf("assetId" to assetId, "errorType" to error.name)
                             )
                         }
-                        SentryLogger.addBreadcrumb(Breadcrumb().apply {
+                        sentryLogger.addBreadcrumb(Breadcrumb().apply {
                             setMessage("Non-network error from asset fetch")
                             setData("error_type", error.name)
                             setData("error_message", message)
-                            setData("player_id", SentryLogger.generatePlayerIdString())
+                            setData("player_id", sentryLogger.generatePlayerIdString())
                             setData("asset_id", assetId)
                         })
                         playerScope.launch {
@@ -103,7 +104,7 @@ internal class MediaLoader(
                         }
                     }
                 }
-            }, context = context)
+            }, context = context, sentryLogger = sentryLogger)
         }
     }
 

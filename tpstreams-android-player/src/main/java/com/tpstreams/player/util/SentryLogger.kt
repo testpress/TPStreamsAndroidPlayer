@@ -20,20 +20,8 @@ import io.sentry.protocol.SentryId
  *
  * See https://docs.sentry.io/platforms/android/configuration/shared-environments/
  */
-internal object SentryLogger {
-    private const val DSN = "https://1a888cef4d504918b5b506f9b1decef7@sentry.testpress.in/23"
-    private const val CREATOR = "TPStreamsPlayer.init"
-
-    private var scopes: Scopes? = null
-    private var referenceCount = 0
-
-    @Synchronized
-    fun init() {
-        if (referenceCount == 0) {
-            scopes = createScopes()
-        }
-        referenceCount++
-    }
+internal class SentryLogger private constructor() {
+    private var scopes: Scopes? = createScopes()
 
     @Synchronized
     fun captureException(
@@ -60,13 +48,8 @@ internal object SentryLogger {
 
     @Synchronized
     fun close() {
-        if (referenceCount == 0) return
-
-        referenceCount--
-        if (referenceCount == 0) {
-            scopes?.close()
-            scopes = null
-        }
+        scopes?.close()
+        scopes = null
     }
 
     private fun createScopes(): Scopes {
@@ -82,6 +65,13 @@ internal object SentryLogger {
             globalScope,
             CREATOR,
         )
+    }
+
+    companion object {
+        private const val DSN = "https://1a888cef4d504918b5b506f9b1decef7@sentry.testpress.in/23"
+        private const val CREATOR = "TPStreamsPlayer.init"
+
+        fun create(): SentryLogger = SentryLogger()
     }
 
     fun generatePlayerIdString(): String {

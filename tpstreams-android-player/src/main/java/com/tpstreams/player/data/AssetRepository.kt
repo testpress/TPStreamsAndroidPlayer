@@ -25,6 +25,7 @@ object AssetRepository {
     private val client = OkHttpClient.Builder()
         .addInterceptor(ServerDateHeaderInterceptor())
         .build()
+    private val standaloneSentryLogger by lazy(SentryLogger::create)
 
     interface AssetCallback {
         fun onSuccess(assetInfo: AssetInfo)
@@ -37,6 +38,17 @@ object AssetRepository {
         accessToken: String,
         callback: AssetCallback,
         context: Context? = null
+    ) {
+        fetchAssetInfoInternal(orgId, assetId, accessToken, callback, context, standaloneSentryLogger)
+    }
+
+    private fun fetchAssetInfoInternal(
+        orgId: String,
+        assetId: String,
+        accessToken: String,
+        callback: AssetCallback,
+        context: Context?,
+        sentryLogger: SentryLogger,
     ) {
         TPStreamsSDK.requireOrgId()
         val apiService = TPStreamsSDK.apiService
@@ -51,7 +63,7 @@ object AssetRepository {
                 val response = client.newCall(request).execute()
 
                 if (!response.isSuccessful) {
-                    handleApiError(assetId, response.code, assetApiUrl, callback, context)
+                    handleApiError(assetId, response.code, assetApiUrl, callback, context, sentryLogger)
                     return@launch
                 }
 
@@ -70,7 +82,7 @@ object AssetRepository {
                 }
             } catch (e: Exception) {
                 val url = runCatching { apiService.assetInfoUrl(orgId, assetId, accessToken) }.getOrNull() ?: ""
-                handleException(assetId, e, url, callback, context)
+                handleException(assetId, e, url, callback, context, sentryLogger)
             }
         }
     }
@@ -84,9 +96,19 @@ object AssetRepository {
         fetchAssetInfo(TPStreamsSDK.requireOrgId(), assetId, accessToken, callback, context)
     }
 
-    private fun handleApiError(assetId: String, code: Int, url: String, callback: AssetCallback, context: Context? = null) {
-        val errorPlayerId = SentryLogger.generatePlayerIdString()
-        SentryLogger.logAPIException(Exception("API request failed with code: $code"), assetId, code, errorPlayerId, url, context = context)
+    internal fun fetchAssetInfo(
+        assetId: String,
+        accessToken: String,
+        callback: AssetCallback,
+        context: Context?,
+        sentryLogger: SentryLogger,
+    ) {
+        fetchAssetInfoInternal(TPStreamsSDK.requireOrgId(), assetId, accessToken, callback, context, sentryLogger)
+    }
+
+    private fun handleApiError(assetId: String, code: Int, url: String, callback: AssetCallback, context: Context?, sentryLogger: SentryLogger) {
+        val errorPlayerId = sentryLogger.generatePlayerIdString()
+        sentryLogger.logAPIException(Exception("API request failed with code: $code"), assetId, code, errorPlayerId, url, context = context)
 
         val errorType = code.toPlaybackErrorFromHttpStatus()
 
@@ -96,10 +118,10 @@ object AssetRepository {
         }
     }
 
-    private fun handleException(assetId: String, e: Exception, url: String, callback: AssetCallback, context: Context? = null) {
-        val errorPlayerId = SentryLogger.generatePlayerIdString()
+    private fun handleException(assetId: String, e: Exception, url: String, callback: AssetCallback, context: Context?, sentryLogger: SentryLogger) {
+        val errorPlayerId = sentryLogger.generatePlayerIdString()
         if (e !is LiveStreamNotStartedException && e !is LiveStreamEndedException) {
-            SentryLogger.logAPIException(e, assetId, null, errorPlayerId, url, context = context)
+            sentryLogger.logAPIException(e, assetId, null, errorPlayerId, url, context = context)
         }
 
         val errorType = e.toPlaybackError()
