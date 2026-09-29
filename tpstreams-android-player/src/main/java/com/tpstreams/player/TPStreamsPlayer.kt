@@ -2,6 +2,8 @@ package com.tpstreams.player
 
 import android.content.Context
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -95,6 +97,13 @@ class TPStreamsPlayer private constructor(
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var defaultCaptionsApplied = false
+
+    /**
+     * Tracks playback intent (play/pause) across app lifecycle events and UI transitions.
+     * Owned by the player so it survives surface-swap round-trips (e.g. fullscreen) without
+     * being recreated — which would lose the transition-protection state.
+     */
+    internal val lifecycleManager = PlayerLifecycleManager(this)
 
     val isLiveStream: Boolean
         get() = mediaLoader.isLiveStream
@@ -449,6 +458,7 @@ class TPStreamsPlayer private constructor(
             
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 Log.d("TPStreamsPlayer", "Play when ready changed: $playWhenReady, reason=$reason")
+                lifecycleManager.onPlaybackStateChanged(playWhenReady)
             }
             
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -532,6 +542,12 @@ class TPStreamsPlayer private constructor(
                 sentryLogger.close()
             }
             throw error
+        }
+
+        Handler(Looper.getMainLooper()).post {
+            if (!released) {
+                lifecycleManager.startObserving()
+            }
         }
     }
 
@@ -644,6 +660,7 @@ class TPStreamsPlayer private constructor(
     override fun release() {
         if (released) return
         released = true
+        lifecycleManager.stopObserving()
         if (sentryLoggerLazy.isInitialized()) {
             sentryLogger.close()
         }

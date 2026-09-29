@@ -2,6 +2,7 @@ package com.tpstreams.player
 
 import android.content.pm.ActivityInfo
 import android.graphics.Color
+import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
@@ -14,40 +15,56 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     private var isTransitioning = false
     private var originalParent: ViewGroup? = null
     private var originalLayoutParams: ViewGroup.LayoutParams? = null
+    private var originalViewIndex: Int = -1
+    private var originalBackground: Drawable? = null
+    private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    private var originalSystemUiVisibility: Int = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
     private var backCallback: OnBackPressedCallback? = null
 
     fun enterFullscreen() {
         val activity = view.getActivity() as? ComponentActivity ?: return
         if (isFullscreen || isTransitioning) return
-    
+
         val player = view.getPlayer()
+        val lifecycleManager = (player as? TPStreamsPlayer)?.lifecycleManager ?: view.lifecycleManager
+        val transitionAction = {
+            // Release the codec's surface binding before detaching the player.
+            // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
+            (player as? TPStreamsPlayer)?.releaseVideoSurface()
+            view.setPlayer(null)
+            moveToDecorView(activity)
+            if (player != null) {
+                view.setPlayer(player)
+            }
+            switchToLandscape(activity)
+            hideSystemUI(activity)
+            isFullscreen = true
+            view.setFullscreenButtonState(true)
+            registerBackPressHandler(activity)
+        }
+
         runTransition {
-            view.lifecycleManager?.preservePlaybackStateAcrossTransition {
-                // Release the codec's surface binding before detaching the player.
-                // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
-                (player as? TPStreamsPlayer)?.releaseVideoSurface()
-                view.setPlayer(null)
-                moveToDecorView(activity)
-                if (player != null) {
-                    view.setPlayer(player)
-                }
-                switchToLandscape(activity)
-                hideSystemUI(activity)
-                updateFullscreenState()
-                registerBackPressHandler(activity)
+            if (lifecycleManager != null) {
+                lifecycleManager.preservePlaybackStateAcrossTransition(transitionAction)
+            } else {
+                transitionAction()
             }
         }
     }
-    
+
     private fun moveToDecorView(activity: ComponentActivity) {
         val decorView = activity.window.decorView as ViewGroup
-    
-        originalParent = view.parent as? ViewGroup
+
+        val parent = view.parent as? ViewGroup
+        originalParent = parent
         originalLayoutParams = view.layoutParams
-    
-        originalParent?.removeView(view)
+        originalViewIndex = parent?.indexOfChild(view) ?: -1
+        originalBackground = view.background
+        originalSystemUiVisibility = decorView.systemUiVisibility
+
+        parent?.removeView(view)
         view.setBackgroundColor(Color.BLACK)
-    
+
         decorView.addView(
             view,
             ViewGroup.LayoutParams(
@@ -56,16 +73,14 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
             )
         )
     }
-    
+
     private fun switchToLandscape(activity: ComponentActivity) {
+        // Save the host's original orientation policy before overriding it so we can
+        // restore it exactly on exit — not assume it was always SENSOR_PORTRAIT.
+        originalOrientation = activity.requestedOrientation
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
     }
-    
-    private fun updateFullscreenState() {
-        isFullscreen = true
-        view.setFullscreenButtonState(true)
-    }
-    
+
     private fun registerBackPressHandler(activity: ComponentActivity) {
         backCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -85,22 +100,51 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         if (!isFullscreen || isTransitioning) return
 
         val player = view.getPlayer()
-        runTransition {
-            view.lifecycleManager?.preservePlaybackStateAcrossTransition {
-                // Release the codec's surface binding before detaching the player.
-                // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
-                (player as? TPStreamsPlayer)?.releaseVideoSurface()
-                view.setPlayer(null)
-                restoreOriginalView(activity)
-                if (player != null) {
-                    view.setPlayer(player)
-                }
-                switchToPortrait(activity)
-                showSystemUI(activity)
-                clearBackPressHandler()
-                updateFullscreenState(exiting = true)
+        val lifecycleManager = (player as? TPStreamsPlayer)?.lifecycleManager ?: view.lifecycleManager
+        val transitionAction = {
+            // Release the codec's surface binding before detaching the player.
+            // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
+            (player as? TPStreamsPlayer)?.releaseVideoSurface()
+            view.setPlayer(null)
+            restoreUI(activity)
+            if (player != null) {
+                view.setPlayer(player)
             }
         }
+
+        runTransition {
+            if (lifecycleManager != null) {
+                lifecycleManager.preservePlaybackStateAcrossTransition(transitionAction)
+            } else {
+                transitionAction()
+            }
+        }
+    }
+
+    /**
+     * Restores the view hierarchy, original orientation, system UI, and back callback
+     * without touching the player. Called from [exitFullscreen] and when the player is
+     * detached while in fullscreen (via [TPStreamsPlayerView.setPlayer] with null), so
+     * the view is never left stranded in the DecorView after the player is released.
+     */
+    internal fun restoreUI(activity: ComponentActivity) {
+        restoreOriginalView(activity)
+        val targetOrientation = if (
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_USER &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_SENSOR &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+        ) {
+            originalOrientation
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        }
+        activity.requestedOrientation = targetOrientation
+        activity.window.decorView.systemUiVisibility = originalSystemUiVisibility
+        clearBackPressHandler()
+        isFullscreen = false
+        view.setFullscreenButtonState(false)
     }
 
     private fun runTransition(action: () -> Unit) {
@@ -117,11 +161,14 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     private fun restoreOriginalView(activity: ComponentActivity) {
         val decorView = activity.window.decorView as ViewGroup
         decorView.removeView(view)
-        originalParent?.addView(view, originalLayoutParams)
-    }
-
-    private fun switchToPortrait(activity: ComponentActivity) {
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        // Restore original background (clears the black set during enterFullscreen)
+        view.background = originalBackground
+        // Re-insert at the original child index to preserve sibling ordering
+        if (originalViewIndex >= 0) {
+            originalParent?.addView(view, originalViewIndex, originalLayoutParams)
+        } else {
+            originalParent?.addView(view, originalLayoutParams)
+        }
     }
 
     private fun clearBackPressHandler() {
@@ -129,11 +176,6 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         backCallback = null
     }
 
-    private fun updateFullscreenState(exiting: Boolean) {
-        isFullscreen = !exiting
-        view.setFullscreenButtonState(!exiting)
-    }
-    
     private fun hideSystemUI(activity: ComponentActivity) {
         activity.window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
@@ -144,10 +186,6 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
                     View.SYSTEM_UI_FLAG_FULLSCREEN
     }
 
-    private fun showSystemUI(activity: ComponentActivity) {
-        activity.window.decorView.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-    }
-
     fun isInFullscreenMode(): Boolean = isFullscreen
+    fun isInTransition(): Boolean = isTransitioning
 }

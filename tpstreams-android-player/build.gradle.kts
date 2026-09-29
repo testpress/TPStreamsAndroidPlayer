@@ -50,6 +50,7 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.lifecycle.process)
     api(libs.material)
 
     api(libs.androidx.media3.exoplayer)

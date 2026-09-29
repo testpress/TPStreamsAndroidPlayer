@@ -1,5 +1,6 @@
 package com.tpstreams.player
 
+import android.content.pm.ActivityInfo
 import android.view.ViewGroup
 import android.view.Window
 import androidx.activity.OnBackPressedDispatcher
@@ -27,12 +28,15 @@ class FullscreenModeTest {
         `when`(view.getActivity()).thenReturn(activity)
         `when`(activity.window).thenReturn(window)
         `when`(window.decorView).thenReturn(decor)
+        `when`(activity.requestedOrientation).thenReturn(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
+        `when`(decor.systemUiVisibility).thenReturn(123)
         `when`(activity.onBackPressedDispatcher)
             .thenReturn(mock(OnBackPressedDispatcher::class.java))
+        `when`(player.lifecycleManager).thenReturn(PlayerLifecycleManager(null))
         `when`(view.getPlayer()).thenReturn(player)
         `when`(view.parent).thenReturn(originalParent)
         `when`(view.layoutParams).thenReturn(layoutParams)
-        `when`(view.lifecycleManager).thenReturn(PlayerLifecycleManager(null))
+        `when`(originalParent.indexOfChild(view)).thenReturn(0)
         fullscreen = FullscreenMode(view)
     }
 
@@ -57,7 +61,9 @@ class FullscreenModeTest {
 
         fullscreen.exitFullscreen()
         assertFalse(fullscreen.isInFullscreenMode())
-        verify(originalParent).addView(view, layoutParams)
+        verify(originalParent).addView(view, 0, layoutParams)
+        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        verify(decor).systemUiVisibility = 123
     }
 
     @Test
@@ -73,7 +79,7 @@ class FullscreenModeTest {
         fullscreen.exitFullscreen()
 
         assertFalse(fullscreen.isInFullscreenMode())
-        verify(originalParent, times(1)).addView(view, layoutParams)
+        verify(originalParent, times(1)).addView(view, 0, layoutParams)
         verify(view, times(2)).setPlayer(player)
     }
 
@@ -86,17 +92,56 @@ class FullscreenModeTest {
 
         assertFalse(fullscreen.isInFullscreenMode())
         verify(originalParent, times(1)).removeView(view)
-        verify(originalParent, times(1)).addView(view, layoutParams)
+        verify(originalParent, times(1)).addView(view, 0, layoutParams)
     }
 
     @Test
-    fun `entry can be retried when lifecycle manager was initially absent`() {
-        `when`(view.lifecycleManager).thenReturn(null)
-        fullscreen.enterFullscreen()
-        assertFalse(fullscreen.isInFullscreenMode())
+    fun `enterFullscreen and exitFullscreen complete successfully when player has no lifecycle manager`() {
+        `when`(player.lifecycleManager).thenReturn(null)
 
-        `when`(view.lifecycleManager).thenReturn(PlayerLifecycleManager(null))
         fullscreen.enterFullscreen()
         assertTrue(fullscreen.isInFullscreenMode())
+
+        fullscreen.exitFullscreen()
+        assertFalse(fullscreen.isInFullscreenMode())
+    }
+
+    @Test
+    fun `enterFullscreen preserves playback state using lifecycleManager`() {
+        var actionExecuted = false
+        val customManager = object : PlayerLifecycleManager(player) {
+            override fun preservePlaybackStateAcrossTransition(action: () -> Unit) {
+                actionExecuted = true
+                action()
+            }
+        }
+        `when`(player.lifecycleManager).thenReturn(customManager)
+
+        fullscreen.enterFullscreen()
+
+        assertTrue(actionExecuted)
+        assertTrue(fullscreen.isInFullscreenMode())
+    }
+
+    @Test
+    fun `exitFullscreen sets SENSOR_PORTRAIT when original orientation was UNSPECIFIED`() {
+        `when`(activity.requestedOrientation).thenReturn(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
+
+        fullscreen.enterFullscreen()
+        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        fullscreen.exitFullscreen()
+        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    }
+
+    @Test
+    fun `exitFullscreen restores explicit orientation when original was set`() {
+        `when`(activity.requestedOrientation).thenReturn(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+
+        fullscreen.enterFullscreen()
+        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        fullscreen.exitFullscreen()
+        verify(activity, atLeastOnce()).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
     }
 }
