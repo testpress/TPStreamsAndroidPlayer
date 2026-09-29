@@ -25,6 +25,7 @@ internal class DrmHandler(
     private val playerScope: CoroutineScope,
     private val context: Context,
     private val assetId: String,
+    private val sentryLogger: SentryLogger,
     private val isLiveStream: () -> Boolean,
     private val onRenewOfflineLicense: () -> Unit,
 ) {
@@ -120,7 +121,7 @@ internal class DrmHandler(
             exoPlayer.playWhenReady = shouldPlayWhenReady
         }
 
-        SentryLogger.addBreadcrumb(Breadcrumb().apply {
+        sentryLogger.addBreadcrumb(Breadcrumb().apply {
             setMessage("L3 DRM fallback triggered")
             setData("asset_id", assetId)
             setData("error_code", error.errorCodeName ?: "unknown")

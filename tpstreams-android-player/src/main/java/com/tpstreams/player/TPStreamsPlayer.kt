@@ -106,6 +106,8 @@ class TPStreamsPlayer private constructor(
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val networkRecoveryHandler = NetworkRecoveryHandler(context)
+    private val sentryLoggerLazy = lazy { SentryLogger.create() }
+    private val sentryLogger: SentryLogger by sentryLoggerLazy
 
     private val textTrackManager: TextTrackManager by lazy {
         TextTrackManager(
@@ -129,6 +131,7 @@ class TPStreamsPlayer private constructor(
         playerScope = playerScope,
         context = context,
         assetId = assetId,
+        sentryLogger = sentryLogger,
         isLiveStream = { isLiveStream },
         onRenewOfflineLicense = {
             DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)
@@ -150,6 +153,7 @@ class TPStreamsPlayer private constructor(
         assetId = assetId,
         exoPlayer = exoPlayer,
         context = context,
+        sentryLogger = sentryLogger,
         networkRecoveryHandler = networkRecoveryHandler,
         listener = { error, message, diagnostics ->
             _listener?.onNetworkError(error, message, diagnostics)
@@ -168,6 +172,7 @@ class TPStreamsPlayer private constructor(
         playerScope = playerScope,
         assetId = assetId,
         accessToken = accessToken,
+        sentryLogger = sentryLogger,
         drmHandler = drmHandler,
         textTrackManager = textTrackManager,
         downloadPlaybackHandler = downloadPlaybackHandler,
@@ -481,8 +486,8 @@ class TPStreamsPlayer private constructor(
                 // Non-network errors go directly to _listener?.onError() (not onNetworkError).
                 // Network errors route through handleError → manager → _listener?.onNetworkError().
                 debugLog("Player ERROR - ${error.errorCodeName}")
-                val errorPlayerId = SentryLogger.generatePlayerIdString()
-                SentryLogger.logPlaybackException(
+                val errorPlayerId = sentryLogger.generatePlayerIdString()
+                sentryLogger.logPlaybackException(
                     error,
                     assetId,
                     errorPlayerId,
@@ -520,11 +525,12 @@ class TPStreamsPlayer private constructor(
         })
 
         TPStreamsSDK.requireOrgId()
-        SentryLogger.init()
         try {
             mediaLoader.load()
         } catch (error: Throwable) {
-            SentryLogger.close()
+            if (sentryLoggerLazy.isInitialized()) {
+                sentryLogger.close()
+            }
             throw error
         }
     }
@@ -638,7 +644,9 @@ class TPStreamsPlayer private constructor(
     override fun release() {
         if (released) return
         released = true
-        SentryLogger.close()
+        if (sentryLoggerLazy.isInitialized()) {
+            sentryLogger.close()
+        }
         debugLog("Surface DETACH (Player Released)")
         debugLog("Player RELEASE - assetId: $assetId")
         resumePlaybackManager?.onRelease()
