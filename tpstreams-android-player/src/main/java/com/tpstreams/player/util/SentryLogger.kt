@@ -56,6 +56,7 @@ internal class SentryLogger private constructor() {
     private fun createScopes(): Scopes {
         val options = SentryOptions().apply {
             dsn = DSN
+            release = "TPStreamsAndroidPlayer@${BuildConfig.SDK_VERSION}"
         }
         val globalScope = Scope(options).apply {
             bindClient(SentryClient(options))

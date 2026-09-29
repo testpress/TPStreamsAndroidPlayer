@@ -1,0 +1,85 @@
+name: Release library
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-library
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Test, build, and release
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    environment: release
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Read and validate release version
+        id: release
+        shell: bash
+        run: |
+          version="$(sed -n 's/^VERSION_NAME=//p' gradle.properties)"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid VERSION_NAME: $version" >&2
+            exit 1
+          fi
+          if git rev-parse --verify --quiet "refs/tags/$version"; then
+            echo "Tag $version already exists. Increment VERSION_NAME first." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sentry_release=TPStreamsAndroidPlayer@$version" >> "$GITHUB_OUTPUT"
+
+      - name: Run library unit tests
+        run: ./gradlew :tpstreams-android-player:testDebugUnitTest --console=plain
+
+      - name: Build release AAR
+        run: ./gradlew :tpstreams-android-player:bundleReleaseAar --console=plain
+
+      - name: Create Sentry release and associate commits
+        uses: getsentry/action-release@v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_URL: https://sentry.testpress.in/
+        with:
+          release: ${{ steps.release.outputs.sentry_release }}
+          set_commits: auto
+
+      - name: Create release app token
+        id: release-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Create and push Git tag
+        env:
+          RELEASE_APP_TOKEN: ${{ steps.release-app-token.outputs.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          git tag --annotate "$VERSION" --message "Release $VERSION"
+          git remote set-url origin "https://x-access-token:${RELEASE_APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "refs/tags/$VERSION"
