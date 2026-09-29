@@ -9,7 +9,6 @@ import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.data.PlayerDecoderState
 import com.tpstreams.player.util.network.NetworkRecoveryHandler
 import io.sentry.Breadcrumb
-import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -221,7 +220,7 @@ internal class NetworkDiagnosticsManager(
             Player.STATE_ENDED -> "ended"
             else -> "unknown"
         }
-        Sentry.addBreadcrumb(Breadcrumb().apply {
+        SentryLogger.addBreadcrumb(Breadcrumb().apply {
             setMessage(if (isRetrying) "Exponential backoff retry scheduled" else "Network error shown to user")
             setData("root_cause", rootCause)
             setData("retry_attempt", displayAttempt.toString())

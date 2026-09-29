@@ -9,9 +9,9 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.tpstreams.player.download.DownloadClient
+import com.tpstreams.player.util.SentryLogger
 import com.tpstreams.player.util.WidevinePlaybackLevelResolver
 import io.sentry.Breadcrumb
-import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -120,7 +120,7 @@ internal class DrmHandler(
             exoPlayer.playWhenReady = shouldPlayWhenReady
         }
 
-        Sentry.addBreadcrumb(Breadcrumb().apply {
+        SentryLogger.addBreadcrumb(Breadcrumb().apply {
             setMessage("L3 DRM fallback triggered")
             setData("asset_id", assetId)
             setData("error_code", error.errorCodeName ?: "unknown")

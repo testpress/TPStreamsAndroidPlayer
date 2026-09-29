@@ -520,7 +520,13 @@ class TPStreamsPlayer private constructor(
         })
 
         TPStreamsSDK.requireOrgId()
-        mediaLoader.load()
+        SentryLogger.init()
+        try {
+            mediaLoader.load()
+        } catch (error: Throwable) {
+            SentryLogger.close()
+            throw error
+        }
     }
 
     private fun enableDefaultCaptions() = textTrackManager.enableDefaultCaptions()
@@ -630,6 +636,9 @@ class TPStreamsPlayer private constructor(
     }
 
     override fun release() {
+        if (released) return
+        released = true
+        SentryLogger.close()
         debugLog("Surface DETACH (Player Released)")
         debugLog("Player RELEASE - assetId: $assetId")
         resumePlaybackManager?.onRelease()
@@ -637,7 +646,6 @@ class TPStreamsPlayer private constructor(
             activePlayerCount--
             debugLog("Active Player COUNT: $activePlayerCount")
         }
-        released = true
         playerScope.cancel()
         networkDiagnosticsManager.onRelease()
         // Clear surface binding before releasing the player.

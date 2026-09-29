@@ -18,7 +18,6 @@ import com.tpstreams.player.util.MediaItemUtils
 import com.tpstreams.player.util.NetworkDiagnosticsManager
 import com.tpstreams.player.util.SentryLogger
 import io.sentry.Breadcrumb
-import io.sentry.Sentry
 import io.sentry.SentryLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -92,7 +91,7 @@ internal class MediaLoader(
                                 tags = mapOf("assetId" to assetId, "errorType" to error.name)
                             )
                         }
-                        Sentry.addBreadcrumb(Breadcrumb().apply {
+                        SentryLogger.addBreadcrumb(Breadcrumb().apply {
                             setMessage("Non-network error from asset fetch")
                             setData("error_type", error.name)
                             setData("error_message", message)
