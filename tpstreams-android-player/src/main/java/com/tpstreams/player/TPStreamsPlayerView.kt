@@ -7,6 +7,7 @@ import android.util.Log
 import android.view.TextureView
 import android.view.View
 import android.view.WindowManager
+import androidx.activity.ComponentActivity
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
@@ -48,7 +49,13 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private var orientationEventListener: OrientationListener? = null
     private var autoFullscreenOnRotateEnabled = true
     private var autoFullscreenEnabled = false
-    var lifecycleManager: PlayerLifecycleManager? = null
+    /**
+     * The lifecycle manager is owned by [TPStreamsPlayer] and accessed here as a computed
+     * property. This ensures the manager survives [setPlayer] surface-swap round-trips
+     * (e.g. fullscreen transitions) without being recreated and losing its state.
+     */
+    val lifecycleManager: PlayerLifecycleManager?
+        get() = getPlayer()?.lifecycleManager
 
     private var bufferingView: View? = null
 
@@ -59,7 +66,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val playbackStateListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             this@TPStreamsPlayerView.keepScreenOn = isPlaying
-            lifecycleManager?.onPlaybackStateChanged(isPlaying)
             if (isPlaying) hideErrorMessage()
             notifyWatermarkPlayerState()
         }
@@ -77,7 +83,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             notifyWatermarkPlayerState()
         }
 
-        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {}
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            lifecycleManager?.onPlaybackStateChanged(playWhenReady)
+        }
     }
 
     private val tracksStateListener = object : Player.Listener {
@@ -105,9 +113,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     init {
         onFinishInflate()
-        post {
-            registerWithLifecycle()
-        }
     }
 
     override fun onAttachedToWindow() {
@@ -125,7 +130,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             if (autoFullscreenOnRotateEnabled) {
                 enableAutoFullscreenOnRotate()
             }
-            registerWithLifecycle()
             watermarkControllers.forEach { it.onViewAttached() }
         }
     }
@@ -247,27 +251,15 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         autoFullscreenEnabled = false
     }
 
-    private fun registerWithLifecycle() {
-        val lifecycleOwner = contextAccess.getLifecycleOwner()
-        val manager = lifecycleManager
-        if (lifecycleOwner != null && manager != null) {
-            lifecycleOwner.lifecycle.addObserver(manager)
-        }
-    }
-
-    private fun unregisterFromLifecycle() {
-        val lifecycleOwner = contextAccess.getLifecycleOwner()
-        val manager = lifecycleManager
-        if (lifecycleOwner != null && manager != null) {
-            lifecycleOwner.lifecycle.removeObserver(manager)
-        }
-    }
-
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
 
         if (autoFullscreenOnRotateEnabled && !autoFullscreenEnabled) {
-            val wasPlayingBefore = player?.isPlaying ?: false
+            // Use playWhenReady (not isPlaying) to capture the player's intent. isPlaying is
+            // false during STATE_BUFFERING — which happens right after surface reattach inside a
+            // fullscreen transition — causing the inner post to incorrectly pause the player
+            // once it recovers from buffering.
+            val wasPlayingBefore = player?.playWhenReady ?: false
 
             lifecycleManager?.setInTransition(true)
             post {
@@ -300,7 +292,20 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     override fun setPlayer(player: Player?) {
-        if (player == getPlayer()) return
+        // If the player is being removed while in fullscreen (e.g. host app calls setPlayer(null)
+        // in onDestroy), restore the view hierarchy, orientation and system UI first — otherwise
+        // the view stays stranded in the DecorView after the player is released.
+        // Guard against isInTransition: exitFullscreen() calls setPlayer(null) internally as part
+        // of its own transition — without this guard, restoreUI() would be called twice, with the
+        // second call trying to remove a view that is no longer in the DecorView.
+        if (player == null && fullscreenMode.isInFullscreenMode() && !fullscreenMode.isInTransition()) {
+            val activity = getActivity() as? ComponentActivity
+            if (activity != null) fullscreenMode.restoreUI(activity)
+        }
+
+        // Use super.getPlayer() for the identity check so non-TPStreams players are compared
+        // correctly, and so this also runs after fullscreen cleanup for an already-empty view.
+        if (player == super.getPlayer()) return
 
         errorViewController.ensureErrorOverlaySetup()
 
@@ -328,9 +333,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             PlaybackHistoryManager.recordLog(message)
         }
 
-        unregisterFromLifecycle()
-        lifecycleManager = player?.let { PlayerLifecycleManager(it) }
-        registerWithLifecycle()
+
 
         if (player == null) {
             // Explicitly clear FLAG_SECURE when the player is released.
@@ -426,7 +429,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         getPlayer()?.removeListener(playbackStateListener)
-        unregisterFromLifecycle()
         disableAutoFullscreenOnRotate()
         watermarkControllers.forEach { it.onViewDetached() }
 

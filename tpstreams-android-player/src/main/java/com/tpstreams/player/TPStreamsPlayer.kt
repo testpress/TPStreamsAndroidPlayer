@@ -96,6 +96,15 @@ class TPStreamsPlayer private constructor(
     private var hasSeekedToStartAt = false
     private var defaultCaptionsApplied = false
 
+    /**
+     * Tracks playback intent (play/pause) across app lifecycle events and UI transitions.
+     * Owned by the player so it survives surface-swap round-trips (e.g. fullscreen) without
+     * being recreated — which would lose the transition-protection state.
+     */
+    internal val lifecycleManager = PlayerLifecycleManager(this).also {
+        it.startObserving()
+    }
+
     val isLiveStream: Boolean
         get() = mediaLoader.isLiveStream
     
@@ -644,6 +653,7 @@ class TPStreamsPlayer private constructor(
     override fun release() {
         if (released) return
         released = true
+        lifecycleManager.stopObserving()
         if (sentryLoggerLazy.isInitialized()) {
             sentryLogger.close()
         }

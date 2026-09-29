@@ -10,12 +10,17 @@ import android.view.OrientationEventListener
  * Helper class to detect orientation changes and handle auto-rotation
  */
 internal class OrientationListener(val context: Context): OrientationEventListener(context) {
-    private var isLandscape = false
-    private val isAutoRotationIsON: Boolean
-        get() = Settings.System.getInt(
+    private var isLandscape: Boolean? = null
+
+    internal var autoRotationChecker: () -> Boolean = {
+        Settings.System.getInt(
             context.contentResolver,
             Settings.System.ACCELEROMETER_ROTATION, 0
         ) == 1
+    }
+
+    private val isAutoRotationIsON: Boolean
+        get() = autoRotationChecker()
     private var listener: OnOrientationChangeListener? = null
 
     override fun onOrientationChanged(orientation: Int) {
@@ -33,10 +38,14 @@ internal class OrientationListener(val context: Context): OrientationEventListen
         }
 
         val newIsLandscape = isOrientationLandscape(orientation)
-        if (isLandscape != newIsLandscape) {
-            Log.d("OrientationListener", "Orientation changed from ${if(isLandscape) "landscape" else "portrait"} to ${if(newIsLandscape) "landscape" else "portrait"}")
+        if (isLandscape == null) {
             isLandscape = newIsLandscape
-            listener?.onChange(isLandscape)
+            return
+        }
+        if (isLandscape != newIsLandscape) {
+            Log.d("OrientationListener", "Orientation changed from ${if (isLandscape == true) "landscape" else "portrait"} to ${if (newIsLandscape) "landscape" else "portrait"}")
+            isLandscape = newIsLandscape
+            listener?.onChange(newIsLandscape)
         }
     }
 
@@ -61,6 +70,7 @@ internal class OrientationListener(val context: Context): OrientationEventListen
     fun stop() {
         Log.d("OrientationListener", "Stopping orientation detection")
         disable()
+        isLandscape = null
     }
 }
 
