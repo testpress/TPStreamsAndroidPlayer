@@ -106,7 +106,7 @@ class TPStreamsPlayer private constructor(
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val networkRecoveryHandler = NetworkRecoveryHandler(context)
-    private val sentryLogger = SentryLogger.create()
+    private val sentryLogger by lazy { SentryLogger.create() }
 
     private val textTrackManager: TextTrackManager by lazy {
         TextTrackManager(
