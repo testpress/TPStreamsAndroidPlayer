@@ -20,7 +20,7 @@ import io.sentry.protocol.SentryId
  *
  * See https://docs.sentry.io/platforms/android/configuration/shared-environments/
  */
-internal object TPStreamsSentry {
+internal object SentryLogger {
     private const val DSN = "https://1a888cef4d504918b5b506f9b1decef7@sentry.testpress.in/23"
     private const val CREATOR = "TPStreamsPlayer.init"
 

@@ -156,7 +156,7 @@ internal class NetworkDiagnosticsManager(
             }
 
             val displayAttempt = autoRetryCount + 1
-            val playerId = TPStreamsSentry.generatePlayerIdString()
+            val playerId = SentryLogger.generatePlayerIdString()
 
             addSentryBreadcrumb(rootCause, displayAttempt, isRetrying, diagnostics, finalError, exoPlayer, playerId)
             val sentryEventId = sendSentryEvent(exoError, rootCause, finalError, diagnostics, playerId, isRetrying, exoPlayer, decoderState)
@@ -220,7 +220,7 @@ internal class NetworkDiagnosticsManager(
             Player.STATE_ENDED -> "ended"
             else -> "unknown"
         }
-        TPStreamsSentry.addBreadcrumb(Breadcrumb().apply {
+        SentryLogger.addBreadcrumb(Breadcrumb().apply {
             setMessage(if (isRetrying) "Exponential backoff retry scheduled" else "Network error shown to user")
             setData("root_cause", rootCause)
             setData("retry_attempt", displayAttempt.toString())
@@ -243,9 +243,9 @@ internal class NetworkDiagnosticsManager(
         if (isRetrying) return null  // Don't spam Sentry during backoff attempts; log on final failure only
         if (!diagnostics.internetReachable) return null
         return if (exoError != null) {
-            TPStreamsSentry.logPlaybackException(exoError, assetId, playerId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)
+            SentryLogger.logPlaybackException(exoError, assetId, playerId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)
         } else {
-            TPStreamsSentry.logMessageWithEnrichment(
+            SentryLogger.logMessageWithEnrichment(
                 message = "Network error: $rootCause",
                 level = io.sentry.SentryLevel.WARNING,
                 context = appContext,

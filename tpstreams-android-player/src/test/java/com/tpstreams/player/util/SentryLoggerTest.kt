@@ -14,39 +14,39 @@ import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-class TPStreamsSentryTest {
+class SentryLoggerTest {
     @After
     fun tearDown() {
         while (referenceCount() > 0) {
-            TPStreamsSentry.close()
+            SentryLogger.close()
         }
     }
 
     @Test
     fun `scopes remain active until the final owner closes them`() {
-        TPStreamsSentry.init()
+        SentryLogger.init()
         val firstScopes = currentScopes()
 
-        TPStreamsSentry.init()
+        SentryLogger.init()
         assertSame(firstScopes, currentScopes())
         assertEquals(2, referenceCount())
 
-        TPStreamsSentry.close()
+        SentryLogger.close()
         assertSame(firstScopes, currentScopes())
         assertEquals(1, referenceCount())
 
-        TPStreamsSentry.close()
+        SentryLogger.close()
         assertNull(currentScopes())
         assertEquals(0, referenceCount())
     }
 
     @Test
     fun `scopes can be initialized again after final close`() {
-        TPStreamsSentry.init()
+        SentryLogger.init()
         val firstScopes = currentScopes()
-        TPStreamsSentry.close()
+        SentryLogger.close()
 
-        TPStreamsSentry.init()
+        SentryLogger.init()
 
         assertNotNull(currentScopes())
         assertNotSame(firstScopes, currentScopes())
@@ -54,7 +54,7 @@ class TPStreamsSentryTest {
 
     @Test
     fun `helpers forward tags breadcrumbs and capture scope enrichment`() {
-        TPStreamsSentry.init()
+        SentryLogger.init()
         val scopes = requireNotNull(currentScopes())
         val beforeSendCalled = CountDownLatch(2)
         val capturedTags = Collections.synchronizedSet(mutableSetOf<String>())
@@ -64,12 +64,12 @@ class TPStreamsSentryTest {
             null
         }
 
-        TPStreamsSentry.setTag("shared_tag", "shared_value")
-        TPStreamsSentry.addBreadcrumb(Breadcrumb("breadcrumb"))
-        TPStreamsSentry.captureMessage("message", io.sentry.SentryLevel.WARNING) { scope ->
+        SentryLogger.setTag("shared_tag", "shared_value")
+        SentryLogger.addBreadcrumb(Breadcrumb("breadcrumb"))
+        SentryLogger.captureMessage("message", io.sentry.SentryLevel.WARNING) { scope ->
             scope.setTag("event_tag", "message_value")
         }
-        TPStreamsSentry.captureException(IllegalStateException("exception")) { scope ->
+        SentryLogger.captureException(IllegalStateException("exception")) { scope ->
             scope.setTag("event_tag", "exception_value")
         }
 
@@ -80,14 +80,14 @@ class TPStreamsSentryTest {
     }
 
     private fun currentScopes(): Scopes? {
-        val field = TPStreamsSentry::class.java.getDeclaredField("scopes")
+        val field = SentryLogger::class.java.getDeclaredField("scopes")
         field.isAccessible = true
-        return field.get(TPStreamsSentry) as Scopes?
+        return field.get(SentryLogger) as Scopes?
     }
 
     private fun referenceCount(): Int {
-        val field = TPStreamsSentry::class.java.getDeclaredField("referenceCount")
+        val field = SentryLogger::class.java.getDeclaredField("referenceCount")
         field.isAccessible = true
-        return field.getInt(TPStreamsSentry)
+        return field.getInt(SentryLogger)
     }
 }
