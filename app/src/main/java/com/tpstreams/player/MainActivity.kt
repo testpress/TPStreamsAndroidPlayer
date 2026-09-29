@@ -14,6 +14,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.tpstreams.player.download.DownloadClient
 import com.tpstreams.player.download.DownloadItem
 import com.tpstreams.player.TestpressSDK
+import com.tpstreams.player.app.R
 
 @OptIn(UnstableApi::class)
 class MainActivity : AppCompatActivity() {

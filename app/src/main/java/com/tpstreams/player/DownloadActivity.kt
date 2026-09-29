@@ -7,7 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.tpstreams.player.databinding.ActivityDownloadBinding
+import com.tpstreams.player.app.databinding.ActivityDownloadBinding
 import com.tpstreams.player.download.DownloadClient
 import com.tpstreams.player.download.DownloadItem
 

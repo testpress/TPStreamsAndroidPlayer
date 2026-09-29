@@ -8,7 +8,7 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import com.tpstreams.player.databinding.ActivityTestPlayerBinding
+import com.tpstreams.player.app.databinding.ActivityTestPlayerBinding
 import io.sentry.Sentry
 
 class TestPlayerActivity : AppCompatActivity() {

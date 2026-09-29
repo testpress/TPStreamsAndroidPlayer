@@ -25,12 +25,12 @@
         </activity>
 
         <activity
-            android:name=".PlayerActivity"
+            android:name="com.tpstreams.player.PlayerActivity"
             android:exported="false"
             android:theme="@style/Theme.TPStreamsAndroidPlayer" />
 
         <activity
-            android:name=".DownloadActivity"
+            android:name="com.tpstreams.player.DownloadActivity"
             android:exported="false"
             android:theme="@style/Theme.TPStreamsAndroidPlayer" />
     </application>

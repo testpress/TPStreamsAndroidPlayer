@@ -8,7 +8,7 @@ import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.util.UnstableApi
 import com.tpstreams.player.constants.PlaybackError
-import com.tpstreams.player.databinding.ActivityPlayerBinding
+import com.tpstreams.player.app.databinding.ActivityPlayerBinding
 
 @OptIn(UnstableApi::class)
 class PlayerActivity : AppCompatActivity() {

@@ -11,6 +11,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.recyclerview.widget.RecyclerView
 import com.tpstreams.player.download.DownloadItem
+import com.tpstreams.player.app.R
 
 @OptIn(UnstableApi::class)
 class DownloadsAdapter(

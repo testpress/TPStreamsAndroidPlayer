@@ -7,11 +7,11 @@ val isTestApk = project.hasProperty("isTestApk")
 val sdkVersion = providers.gradleProperty("VERSION_NAME").getOrElse("1.0")
 
 android {
-    namespace = "com.tpstreams.player"
+    namespace = "com.tpstreams.player.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.tpstreams.player"
+        applicationId = "com.tpstreams.player.app"
         minSdk = 21
         targetSdk = 35
         versionCode = 1
@@ -20,9 +20,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         manifestPlaceholders["launcherActivity"] = if (isTestApk) {
-            ".TestPlayerActivity"
+            "com.tpstreams.player.TestPlayerActivity"
         } else {
-            ".MainActivity"
+            "com.tpstreams.player.MainActivity"
         }
     }
 
