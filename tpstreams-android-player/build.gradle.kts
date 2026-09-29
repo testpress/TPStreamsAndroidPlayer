@@ -58,7 +58,7 @@ dependencies {
     api(libs.androidx.media3.ui)
     implementation(libs.kotlinx.coroutines.android)
     api(libs.okhttp)
-    api(libs.sentry.android)
+    implementation(libs.sentry.android)
 
     testImplementation(libs.junit)
     testImplementation("org.mockito:mockito-core:5.18.0")
