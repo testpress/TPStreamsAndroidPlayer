@@ -11,28 +11,31 @@ import androidx.media3.common.util.UnstableApi
 @UnstableApi
 class FullscreenMode(private val view: TPStreamsPlayerView) {
     private var isFullscreen = false
+    private var isTransitioning = false
     private var originalParent: ViewGroup? = null
     private var originalLayoutParams: ViewGroup.LayoutParams? = null
     private var backCallback: OnBackPressedCallback? = null
 
     fun enterFullscreen() {
         val activity = view.getActivity() as? ComponentActivity ?: return
-        if (isFullscreen) return
+        if (isFullscreen || isTransitioning) return
     
         val player = view.getPlayer()
-        view.lifecycleManager?.preservePlaybackStateAcrossTransition {
-            // Release the codec's surface binding before detaching the player.
-            // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
-            (player as? TPStreamsPlayer)?.releaseVideoSurface()
-            view.setPlayer(null)
-            moveToDecorView(activity)
-            if (player != null) {
-                view.setPlayer(player)
+        runTransition {
+            view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+                // Release the codec's surface binding before detaching the player.
+                // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
+                (player as? TPStreamsPlayer)?.releaseVideoSurface()
+                view.setPlayer(null)
+                moveToDecorView(activity)
+                if (player != null) {
+                    view.setPlayer(player)
+                }
+                switchToLandscape(activity)
+                hideSystemUI(activity)
+                updateFullscreenState()
+                registerBackPressHandler(activity)
             }
-            switchToLandscape(activity)
-            hideSystemUI(activity)
-            updateFullscreenState()
-            registerBackPressHandler(activity)
         }
     }
     
@@ -79,22 +82,35 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
 
     fun exitFullscreen() {
         val activity = view.getActivity() as? ComponentActivity ?: return
-        if (!isFullscreen) return
+        if (!isFullscreen || isTransitioning) return
 
         val player = view.getPlayer()
-        view.lifecycleManager?.preservePlaybackStateAcrossTransition {
-            // Release the codec's surface binding before detaching the player.
-            // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
-            (player as? TPStreamsPlayer)?.releaseVideoSurface()
-            view.setPlayer(null)
-            restoreOriginalView(activity)
-            if (player != null) {
-                view.setPlayer(player)
+        runTransition {
+            view.lifecycleManager?.preservePlaybackStateAcrossTransition {
+                // Release the codec's surface binding before detaching the player.
+                // Prevents MediaTek secure decoder NO_MEMORY crash on rapid surface cycling.
+                (player as? TPStreamsPlayer)?.releaseVideoSurface()
+                view.setPlayer(null)
+                restoreOriginalView(activity)
+                if (player != null) {
+                    view.setPlayer(player)
+                }
+                switchToPortrait(activity)
+                showSystemUI(activity)
+                clearBackPressHandler()
+                updateFullscreenState(exiting = true)
             }
-            switchToPortrait(activity)
-            showSystemUI(activity)
-            clearBackPressHandler()
-            updateFullscreenState(exiting = true)
+        }
+    }
+
+    private fun runTransition(action: () -> Unit) {
+        // Reattaching the player can synchronously request fullscreen again via
+        // TPStreamsPlayerView.setPlayer(). Block re-entry until either transition ends.
+        isTransitioning = true
+        try {
+            action()
+        } finally {
+            isTransitioning = false
         }
     }
 
@@ -134,4 +150,4 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     }
 
     fun isInFullscreenMode(): Boolean = isFullscreen
-} 
+}
