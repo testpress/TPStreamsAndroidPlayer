@@ -142,6 +142,45 @@ internal object SentryLogger {
         }?.toString()
     }
 
+    fun logNonFatalException(
+        error: PlaybackException,
+        assetId: String?,
+        playerId: String,
+        context: Context? = null,
+        player: Player? = null,
+        decoderState: PlayerDecoderState? = null
+    ): String? {
+        return Sentry.captureException(error) { scope ->
+            scope.level = SentryLevel.WARNING
+            scope.setTag("handled", "true")
+            scope.setTag("non_fatal", "true")
+            val nowEpochMs = System.currentTimeMillis()
+            ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
+                scope.setTag(key, value)
+            }
+            scope.setTag("errorCode", error.errorCode.toString())
+            scope.setTag("errorCodeName", error.errorCodeName)
+            scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
+            scope.setTag("playerId", playerId)
+            assetId?.let { scope.setTag("assetId", it) }
+            scope.setContexts(
+                "TPStreamsPlayer",
+                mapOf(
+                    "Error Code" to error.errorCode,
+                    "Error Code Name" to error.errorCodeName,
+                    "Asset ID" to (assetId ?: "N/A"),
+                    "Player ID" to playerId,
+                    "Recovery" to "Non-fatal auto-recovery"
+                )
+            )
+            scope.setContexts(
+                "Playback History",
+                mapOf("Timeline" to PlaybackHistoryManager.getFullHistory())
+            )
+            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = "TIMEOUT_RECOVERY", scope = scope)
+        }?.toString()
+    }
+
     fun logAPIException(
         exception: Exception,
         assetId: String?,

@@ -46,6 +46,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     private var playerControlView: TPStreamsPlayerControlView? = null
     private var orientationEventListener: OrientationListener? = null
+    /** Pending debounce runnable for auto-fullscreen-on-rotate; cancelled on rapid re-fires. */
+    private var orientationDebounceRunnable: Runnable? = null
     private var autoFullscreenOnRotateEnabled = true
     private var autoFullscreenEnabled = false
     var lifecycleManager: PlayerLifecycleManager? = null
@@ -223,7 +225,12 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
         orientationEventListener = OrientationListener(context).apply {
             setOnChangeListener { isLandscape ->
-                post {
+                // Debounce rapid orientation events (e.g. device wobble during rotation).
+                // The Sentry timeline shows up to 4 surface CLEAR/DETACH/ATTACH cycles in ~10s
+                // from a single rotation, each competing with the decoder reconfiguration.
+                // Collapsing rapid callbacks into one transition removes the race.
+                removeCallbacks(orientationDebounceRunnable)
+                orientationDebounceRunnable = Runnable {
                     if (isLandscape) {
                         if (!fullscreenMode.isInFullscreenMode()) {
                             fullscreenMode.enterFullscreen()
@@ -234,6 +241,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                         }
                     }
                 }
+                postDelayed(orientationDebounceRunnable!!, ORIENTATION_DEBOUNCE_MS)
             }
             start()
         }
@@ -242,6 +250,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     fun disableAutoFullscreenOnRotate() {
+        removeCallbacks(orientationDebounceRunnable)
+        orientationDebounceRunnable = null
         orientationEventListener?.stop()
         orientationEventListener = null
         autoFullscreenEnabled = false
@@ -523,6 +533,17 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "TPStreamsPlayerView"
+
+        /**
+         * Minimum interval between consecutive auto-fullscreen-on-rotate transitions.
+         * The Sentry trace (ANDROID-PLAYER-SDK-2-38GDMQ2JC) shows up to 4 surface
+         * CLEAR/DETACH/ATTACH cycles in ~10 s from a single rotation gesture because the
+         * OrientationEventListener fires multiple callbacks while the device settles.
+         * Debouncing collapses those into a single transition, eliminating the race
+         * with decoder reconfiguration (YES_WITH_RECONFIGURATION) that causes
+         * ERROR_CODE_TIMEOUT 1003 on Qualcomm OMX decoders.
+         */
+        private const val ORIENTATION_DEBOUNCE_MS = 250L
 
         /**
          * Returns an [AttributeSet] that configures [PlayerView] to render video using [TextureView].

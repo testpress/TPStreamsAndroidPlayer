@@ -17,6 +17,7 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.ExoTimeoutException
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -95,6 +96,7 @@ private constructor(
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var defaultCaptionsApplied = false
+    private var timeoutRecoveryAttempts = 0
 
     val isLiveStream: Boolean
         get() = mediaLoader.isLiveStream
@@ -449,6 +451,7 @@ private constructor(
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 Log.d("TPStreamsPlayer", "Is playing changed: $isPlaying")
                 if (isPlaying) {
+                    timeoutRecoveryAttempts = 0
                     networkDiagnosticsManager.onPlaybackRecovered()
                 } else {
                     resumePlaybackManager?.onPaused()
@@ -466,6 +469,28 @@ private constructor(
                 // failures. Returns true when the error has been handled and playback will
                 // resume (either via renewal or retry), so we stop further processing.
                 if (drmHandler.handleError(error)) return
+
+                // --- Surface detach timeout non-fatal handling ---
+                // When surface detachment times out (ERROR_CODE_TIMEOUT 1003) on slow hardware decoders,
+                // log as non-fatal to Sentry and recover playback instead of displaying a fatal error screen.
+                // Scoped specifically to surface detach timeouts; other timeouts follow the standard fatal path.
+                // Cap retries at MAX_TIMEOUT_RECOVERY_ATTEMPTS so persistent hardware faults fall through
+                // to the normal fatal error path instead of looping indefinitely.
+                if (isSurfaceDetachTimeout(error) && timeoutRecoveryAttempts < MAX_TIMEOUT_RECOVERY_ATTEMPTS) {
+                    timeoutRecoveryAttempts++
+                    debugLog("Surface detach timeout encountered (attempt $timeoutRecoveryAttempts/$MAX_TIMEOUT_RECOVERY_ATTEMPTS) — recovering non-fatally")
+                    val errorPlayerId = SentryLogger.generatePlayerIdString()
+                    SentryLogger.logNonFatalException(
+                        error,
+                        assetId,
+                        errorPlayerId,
+                        context = context,
+                        player = exoPlayer,
+                        decoderState = decoderState
+                    )
+                    exoPlayer.prepare()
+                    return
+                }
 
                 if (isLiveStream && error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && error.isLiveStreamEndHttpError()) {
                     debugLog("Live stream source returned bad HTTP status — stream likely ended")
@@ -618,10 +643,10 @@ private constructor(
 
     /**
      * Explicitly releases the video surface from the ExoPlayer's video renderer.
-     * Must be called before setPlayer(null) during fullscreen transitions to prevent
-     * MediaTek secure decoder NO_MEMORY crashes — the codec retains a surface reference
-     * even after setPlayer(null), and rapid detach/reattach creates a new codec before
-     * the old one is fully released.
+     *
+     * Previously invoked during fullscreen transitions prior to direct view reparenting.
+     * Retained as a public SDK method for backwards compatibility and as an escape hatch
+     * for consumers managing custom surface lifecycles.
      */
     fun releaseVideoSurface() {
         if (released) return
@@ -696,7 +721,21 @@ private constructor(
         internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
         private const val DEFAULT_SEEK_INCREMENT_MS = 10000L
         private const val DIAGNOSTIC_DUMMY_ASSET_ID = "00000000000"
+        private const val MAX_TIMEOUT_RECOVERY_ATTEMPTS = 2
         private val SERVER_PROBE_PATH_REGEX = Regex("^/api/[^/]+/")
+
+        @OptIn(UnstableApi::class)
+        internal fun isSurfaceDetachTimeout(error: PlaybackException): Boolean {
+            if (error.errorCode != PlaybackException.ERROR_CODE_TIMEOUT) return false
+            val cause = error.cause
+            // Primary check: typed ExoTimeoutException with TIMEOUT_OPERATION_DETACH_SURFACE.
+            // String matching is a defensive fallback for cases where the exception is wrapped
+            // or shadowed, though it is version-fragile if Media3 changes its internal message format.
+            return (cause is ExoTimeoutException &&
+                    cause.timeoutOperation == ExoTimeoutException.TIMEOUT_OPERATION_DETACH_SURFACE) ||
+                    error.message?.contains("Detaching surface", ignoreCase = true) == true ||
+                    cause?.message?.contains("Detaching surface", ignoreCase = true) == true
+        }
 
 
 
