@@ -9,7 +9,7 @@ import com.tpstreams.player.constants.getErrorMessage
 import com.tpstreams.player.constants.toPlaybackError
 import com.tpstreams.player.data.network.model.AssetInfo
 import com.tpstreams.player.util.ServerDateHeaderInterceptor
-import com.tpstreams.player.util.SentryLogger
+import com.tpstreams.player.util.TPStreamsSentry
 import com.tpstreams.player.util.toPlaybackErrorFromHttpStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -85,8 +85,8 @@ object AssetRepository {
     }
 
     private fun handleApiError(assetId: String, code: Int, url: String, callback: AssetCallback, context: Context? = null) {
-        val errorPlayerId = SentryLogger.generatePlayerIdString()
-        SentryLogger.logAPIException(Exception("API request failed with code: $code"), assetId, code, errorPlayerId, url, context = context)
+        val errorPlayerId = TPStreamsSentry.generatePlayerIdString()
+        TPStreamsSentry.logAPIException(Exception("API request failed with code: $code"), assetId, code, errorPlayerId, url, context = context)
 
         val errorType = code.toPlaybackErrorFromHttpStatus()
 
@@ -97,9 +97,9 @@ object AssetRepository {
     }
 
     private fun handleException(assetId: String, e: Exception, url: String, callback: AssetCallback, context: Context? = null) {
-        val errorPlayerId = SentryLogger.generatePlayerIdString()
+        val errorPlayerId = TPStreamsSentry.generatePlayerIdString()
         if (e !is LiveStreamNotStartedException && e !is LiveStreamEndedException) {
-            SentryLogger.logAPIException(e, assetId, null, errorPlayerId, url, context = context)
+            TPStreamsSentry.logAPIException(e, assetId, null, errorPlayerId, url, context = context)
         }
 
         val errorType = e.toPlaybackError()

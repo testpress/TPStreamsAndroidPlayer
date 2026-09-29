@@ -37,7 +37,7 @@ import com.tpstreams.player.util.CodecManager
 import com.tpstreams.player.util.DecoderInfoProvider
 import com.tpstreams.player.util.NetworkDiagnosticsManager
 import com.tpstreams.player.util.PlaybackHistoryManager
-import com.tpstreams.player.util.SentryLogger
+import com.tpstreams.player.util.TPStreamsSentry
 import com.tpstreams.player.util.WidevineDrmSessionManagerProvider
 import com.tpstreams.player.util.WidevinePlaybackLevelResolver
 import com.tpstreams.player.util.isLiveStreamEndHttpError
@@ -481,8 +481,8 @@ class TPStreamsPlayer private constructor(
                 // Non-network errors go directly to _listener?.onError() (not onNetworkError).
                 // Network errors route through handleError → manager → _listener?.onNetworkError().
                 debugLog("Player ERROR - ${error.errorCodeName}")
-                val errorPlayerId = SentryLogger.generatePlayerIdString()
-                SentryLogger.logPlaybackException(
+                val errorPlayerId = TPStreamsSentry.generatePlayerIdString()
+                TPStreamsSentry.logPlaybackException(
                     error,
                     assetId,
                     errorPlayerId,
@@ -520,7 +520,13 @@ class TPStreamsPlayer private constructor(
         })
 
         TPStreamsSDK.requireOrgId()
-        mediaLoader.load()
+        TPStreamsSentry.init()
+        try {
+            mediaLoader.load()
+        } catch (error: Throwable) {
+            TPStreamsSentry.close()
+            throw error
+        }
     }
 
     private fun enableDefaultCaptions() = textTrackManager.enableDefaultCaptions()
@@ -630,6 +636,9 @@ class TPStreamsPlayer private constructor(
     }
 
     override fun release() {
+        if (released) return
+        released = true
+        TPStreamsSentry.close()
         debugLog("Surface DETACH (Player Released)")
         debugLog("Player RELEASE - assetId: $assetId")
         resumePlaybackManager?.onRelease()
@@ -637,7 +646,6 @@ class TPStreamsPlayer private constructor(
             activePlayerCount--
             debugLog("Active Player COUNT: $activePlayerCount")
         }
-        released = true
         playerScope.cancel()
         networkDiagnosticsManager.onRelease()
         // Clear surface binding before releasing the player.

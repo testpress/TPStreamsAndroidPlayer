@@ -16,9 +16,8 @@ import com.tpstreams.player.drm.DrmHandler
 import com.tpstreams.player.tracks.TextTrackManager
 import com.tpstreams.player.util.MediaItemUtils
 import com.tpstreams.player.util.NetworkDiagnosticsManager
-import com.tpstreams.player.util.SentryLogger
+import com.tpstreams.player.util.TPStreamsSentry
 import io.sentry.Breadcrumb
-import io.sentry.Sentry
 import io.sentry.SentryLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,7 +82,7 @@ internal class MediaLoader(
                         }
                     } else {
                         if (error != PlaybackError.LIVE_STREAM_NOT_STARTED && error != PlaybackError.LIVE_STREAM_ENDED) {
-                            SentryLogger.logMessageWithEnrichment(
+                            TPStreamsSentry.logMessageWithEnrichment(
                                 message = "Non-network error from asset fetch: $error",
                                 level = SentryLevel.WARNING,
                                 context = context,
@@ -92,11 +91,11 @@ internal class MediaLoader(
                                 tags = mapOf("assetId" to assetId, "errorType" to error.name)
                             )
                         }
-                        Sentry.addBreadcrumb(Breadcrumb().apply {
+                        TPStreamsSentry.addBreadcrumb(Breadcrumb().apply {
                             setMessage("Non-network error from asset fetch")
                             setData("error_type", error.name)
                             setData("error_message", message)
-                            setData("player_id", SentryLogger.generatePlayerIdString())
+                            setData("player_id", TPStreamsSentry.generatePlayerIdString())
                             setData("asset_id", assetId)
                         })
                         playerScope.launch {

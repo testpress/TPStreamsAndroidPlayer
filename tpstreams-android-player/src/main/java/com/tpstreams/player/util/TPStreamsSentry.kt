@@ -5,11 +5,84 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import com.tpstreams.player.BuildConfig
 import com.tpstreams.player.data.PlayerDecoderState
+import io.sentry.Breadcrumb
 import io.sentry.IScope
-import io.sentry.Sentry
+import io.sentry.Scope
+import io.sentry.ScopeCallback
+import io.sentry.Scopes
+import io.sentry.SentryClient
 import io.sentry.SentryLevel
+import io.sentry.SentryOptions
+import io.sentry.protocol.SentryId
 
-internal object SentryLogger {
+/**
+ * Sentry reporting and scope ownership isolated to the TPStreams player SDK.
+ *
+ * See https://docs.sentry.io/platforms/android/configuration/shared-environments/
+ */
+internal object TPStreamsSentry {
+    private const val DSN = "https://1a888cef4d504918b5b506f9b1decef7@sentry.testpress.in/23"
+    private const val CREATOR = "TPStreamsPlayer.init"
+
+    private var scopes: Scopes? = null
+    private var referenceCount = 0
+
+    @Synchronized
+    fun init() {
+        if (referenceCount == 0) {
+            scopes = createScopes()
+        }
+        referenceCount++
+    }
+
+    @Synchronized
+    fun captureException(
+        throwable: Throwable,
+        configureScope: (IScope) -> Unit,
+    ): SentryId? = scopes?.captureException(throwable, ScopeCallback(configureScope))
+
+    @Synchronized
+    fun captureMessage(
+        message: String,
+        level: SentryLevel,
+        configureScope: (IScope) -> Unit,
+    ): SentryId? = scopes?.captureMessage(message, level, ScopeCallback(configureScope))
+
+    @Synchronized
+    fun addBreadcrumb(breadcrumb: Breadcrumb) {
+        scopes?.addBreadcrumb(breadcrumb)
+    }
+
+    @Synchronized
+    fun setTag(key: String, value: String) {
+        scopes?.setTag(key, value)
+    }
+
+    @Synchronized
+    fun close() {
+        if (referenceCount == 0) return
+
+        referenceCount--
+        if (referenceCount == 0) {
+            scopes?.close()
+            scopes = null
+        }
+    }
+
+    private fun createScopes(): Scopes {
+        val options = SentryOptions().apply {
+            dsn = DSN
+        }
+        val globalScope = Scope(options).apply {
+            bindClient(SentryClient(options))
+        }
+        return Scopes(
+            Scope(options),
+            Scope(options),
+            globalScope,
+            CREATOR,
+        )
+    }
 
     fun generatePlayerIdString(): String {
         return (1..10)
@@ -105,7 +178,7 @@ internal object SentryLogger {
         decoderState: PlayerDecoderState? = null,
         drmSecurityLevel: String = "unknown"
     ): String? {
-        return Sentry.captureException(error) { scope ->
+        return captureException(error) { scope ->
             val nowEpochMs = System.currentTimeMillis()
             ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
                 scope.setTag(key, value)
@@ -156,7 +229,7 @@ internal object SentryLogger {
         context: Context? = null,
         player: Player? = null
     ): String? {
-        return Sentry.captureException(exception) { scope ->
+        return captureException(exception) { scope ->
             val nowEpochMs = System.currentTimeMillis()
             ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
                 scope.setTag(key, value)
@@ -187,7 +260,7 @@ internal object SentryLogger {
         decoderState: PlayerDecoderState? = null,
         tags: Map<String, String> = emptyMap()
     ): String? {
-        return Sentry.captureMessage(message, level) { scope ->
+        return captureMessage(message, level) { scope ->
             tags.forEach { (key, value) -> scope.setTag(key, value) }
             scope.setContexts(
                 "Playback History",
