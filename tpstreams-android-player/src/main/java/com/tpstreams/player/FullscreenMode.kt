@@ -129,7 +129,18 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
      */
     internal fun restoreUI(activity: ComponentActivity) {
         restoreOriginalView(activity)
-        activity.requestedOrientation = originalOrientation
+        val targetOrientation = if (
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_USER &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_SENSOR &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+        ) {
+            originalOrientation
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        }
+        activity.requestedOrientation = targetOrientation
         activity.window.decorView.systemUiVisibility = originalSystemUiVisibility
         clearBackPressHandler()
         isFullscreen = false

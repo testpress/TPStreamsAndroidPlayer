@@ -62,7 +62,7 @@ class FullscreenModeTest {
         fullscreen.exitFullscreen()
         assertFalse(fullscreen.isInFullscreenMode())
         verify(originalParent).addView(view, 0, layoutParams)
-        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         verify(decor).systemUiVisibility = 123
     }
 
@@ -124,14 +124,14 @@ class FullscreenModeTest {
     }
 
     @Test
-    fun `exitFullscreen restores original orientation when it was UNSPECIFIED`() {
+    fun `exitFullscreen sets SENSOR_PORTRAIT when original orientation was UNSPECIFIED`() {
         `when`(activity.requestedOrientation).thenReturn(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
 
         fullscreen.enterFullscreen()
         verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
         fullscreen.exitFullscreen()
-        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
 
     @Test
