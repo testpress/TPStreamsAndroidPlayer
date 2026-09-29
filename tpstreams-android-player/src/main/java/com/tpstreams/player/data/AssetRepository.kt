@@ -25,7 +25,7 @@ object AssetRepository {
     private val client = OkHttpClient.Builder()
         .addInterceptor(ServerDateHeaderInterceptor())
         .build()
-    private val standaloneSentryLogger by lazy(SentryLogger::create)
+    private val sentryLogger by lazy(SentryLogger::create)
 
     interface AssetCallback {
         fun onSuccess(assetInfo: AssetInfo)
@@ -39,7 +39,7 @@ object AssetRepository {
         callback: AssetCallback,
         context: Context? = null
     ) {
-        fetchAssetInfoInternal(orgId, assetId, accessToken, callback, context, standaloneSentryLogger)
+        fetchAssetInfoInternal(orgId, assetId, accessToken, callback, context, sentryLogger)
     }
 
     private fun fetchAssetInfoInternal(
