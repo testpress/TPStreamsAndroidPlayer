@@ -13,7 +13,8 @@ okhttp = "4.12.0"
 coroutines = "1.10.2"
 constraintlayout = "2.2.1"
 activityKtx = "1.10.1" # You can choose any name for the version alias
-sentry = "7.20.0"
+sentry = "8.58.0"
+sentryPlugin = "6.23.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -38,4 +39,5 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 android-library = { id = "com.android.library", version.ref = "agp" }
+sentry = { id = "io.sentry.android.gradle", version.ref = "sentryPlugin" }
 
