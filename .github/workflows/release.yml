@@ -77,9 +77,14 @@ jobs:
 
       - name: Create and push Git tag
         env:
+          APP_SLUG: ${{ steps.release-app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.release-app-token.outputs.token }}
           RELEASE_APP_TOKEN: ${{ steps.release-app-token.outputs.token }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
+          app_user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq '.id')"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${app_user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
           git tag --annotate "$VERSION" --message "Release $VERSION"
           git remote set-url origin "https://x-access-token:${RELEASE_APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "refs/tags/$VERSION"
