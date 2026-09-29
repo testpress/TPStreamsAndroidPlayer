@@ -106,7 +106,8 @@ class TPStreamsPlayer private constructor(
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val networkRecoveryHandler = NetworkRecoveryHandler(context)
-    private val sentryLogger by lazy { SentryLogger.create() }
+    private val sentryLoggerLazy = lazy { SentryLogger.create() }
+    private val sentryLogger: SentryLogger by sentryLoggerLazy
 
     private val textTrackManager: TextTrackManager by lazy {
         TextTrackManager(
@@ -527,7 +528,9 @@ class TPStreamsPlayer private constructor(
         try {
             mediaLoader.load()
         } catch (error: Throwable) {
-            sentryLogger.close()
+            if (sentryLoggerLazy.isInitialized()) {
+                sentryLogger.close()
+            }
             throw error
         }
     }
@@ -641,7 +644,9 @@ class TPStreamsPlayer private constructor(
     override fun release() {
         if (released) return
         released = true
-        sentryLogger.close()
+        if (sentryLoggerLazy.isInitialized()) {
+            sentryLogger.close()
+        }
         debugLog("Surface DETACH (Player Released)")
         debugLog("Player RELEASE - assetId: $assetId")
         resumePlaybackManager?.onRelease()

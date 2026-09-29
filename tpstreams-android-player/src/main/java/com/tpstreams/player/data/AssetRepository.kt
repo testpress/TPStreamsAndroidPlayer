@@ -25,6 +25,8 @@ object AssetRepository {
     private val client = OkHttpClient.Builder()
         .addInterceptor(ServerDateHeaderInterceptor())
         .build()
+    // Process-lifetime standalone logger for fetching asset info without an active player instance.
+    // Restricted to one-shot captures to prevent breadcrumbs from piling up across unrelated requests.
     private val sentryLogger by lazy(SentryLogger::create)
 
     interface AssetCallback {
