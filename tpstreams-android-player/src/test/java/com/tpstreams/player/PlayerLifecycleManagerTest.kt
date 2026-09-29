@@ -97,6 +97,27 @@ class PlayerLifecycleManagerTest {
         verify(player, never()).pause()
     }
 
+    @Test
+    fun `onResume during transition resets pauseHandledInOnPause so subsequent pause pauses player`() {
+        `when`(player.playWhenReady).thenReturn(true)
+        manager.onPlaybackStateChanged(playWhenReady = true)
+
+        // First backgrounding: onPause pauses player
+        manager.onPause(lifecycleOwner)
+        verify(player, times(1)).pause()
+
+        // Resume happens while in transition
+        manager.setInTransition(true)
+        manager.onResume(lifecycleOwner)
+
+        // Transition ends
+        manager.setInTransition(false)
+
+        // Second backgrounding: onPause must pause player again
+        manager.onPause(lifecycleOwner)
+        verify(player, times(2)).pause()
+    }
+
     // ── onResume ─────────────────────────────────────────────────────────────
 
     @Test
@@ -112,6 +133,21 @@ class PlayerLifecycleManagerTest {
         // App returns to foreground
         manager.onResume(lifecycleOwner)
         verify(player).play()
+    }
+
+    @Test
+    fun `onResume restores foreground tracking when no onStop occurs`() {
+        manager.onPlaybackStateChanged(playWhenReady = true)
+        `when`(player.playWhenReady).thenReturn(true)
+
+        manager.onPause(lifecycleOwner)
+        manager.onResume(lifecycleOwner)
+
+        // A later user pause must be recorded after a transient pause/resume cycle.
+        manager.onPlaybackStateChanged(playWhenReady = false)
+        manager.onResume(lifecycleOwner)
+
+        verify(player, times(1)).play()
     }
 
     @Test

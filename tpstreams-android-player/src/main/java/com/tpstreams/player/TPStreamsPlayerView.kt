@@ -83,9 +83,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             notifyWatermarkPlayerState()
         }
 
-        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-            lifecycleManager?.onPlaybackStateChanged(playWhenReady)
-        }
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {}
     }
 
     private val tracksStateListener = object : Player.Listener {

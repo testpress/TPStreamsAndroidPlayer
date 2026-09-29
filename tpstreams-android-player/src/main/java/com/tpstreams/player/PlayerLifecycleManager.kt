@@ -98,11 +98,12 @@ open class PlayerLifecycleManager(
     }
 
     override fun onResume(owner: LifecycleOwner) {
+        isAppInForeground = true
+        pauseHandledInOnPause = false
         if (isInTransition) return
         // Only resume if it was playing before AND the user didn't manually pause
         if (wasPlayingBeforePause && !userPausedPlayback) {
             player?.play()
         }
-        pauseHandledInOnPause = false
     }
 }
