@@ -91,7 +91,7 @@ internal class WidevineDrmSessionManagerProvider(
     }
 
     companion object {
-        private const val TAG = "WidevineDrmSessionManager"
+        private const val TAG = "WidevineDrmSessionMgr"
 
         internal val L3_EXO_MEDIA_DRM_PROVIDER = ExoMediaDrm.Provider { uuid ->
             try {

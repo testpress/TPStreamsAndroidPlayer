@@ -299,6 +299,6 @@ internal class PlayerErrorViewController(
     }
 
     private companion object {
-        private const val TAG = "PlayerErrorViewController"
+        private const val TAG = "PlayerErrorViewCtrl"
     }
 }

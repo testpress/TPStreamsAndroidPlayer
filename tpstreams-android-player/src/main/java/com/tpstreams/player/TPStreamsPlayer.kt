@@ -49,8 +49,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-class TPStreamsPlayer @OptIn(UnstableApi::class)
-private constructor(
+@OptIn(UnstableApi::class)
+class TPStreamsPlayer private constructor(
     private val context: Context,
     private val exoPlayer: ExoPlayer,
     private val trackSelector: DefaultTrackSelector,

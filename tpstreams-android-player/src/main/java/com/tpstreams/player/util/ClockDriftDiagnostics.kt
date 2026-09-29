@@ -18,16 +18,20 @@ internal object ClockDriftDiagnostics {
     private val lastServerDateHeaderEpochMs = AtomicLong(UNKNOWN_LONG)
     private val lastServerDateObservedAtEpochMs = AtomicLong(UNKNOWN_LONG)
 
-    private val rfc1123Parser = ThreadLocal.withInitial {
-        SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("GMT")
+    private val rfc1123Parser = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat {
+            return SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("GMT")
+            }
         }
     }
 
-    private val humanLocalFormatter = ThreadLocal.withInitial {
-        // Example: 2026-04-24 16:41:20.465 +05:30
-        SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS XXX", Locale.US).apply {
-            timeZone = TimeZone.getDefault()
+    private val humanLocalFormatter = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat {
+            // Example: 2026-04-24 16:41:20.465 +05:30 (formatted via Z pattern with inserted colon)
+            return SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z", Locale.US).apply {
+                timeZone = TimeZone.getDefault()
+            }
         }
     }
 
@@ -82,7 +86,12 @@ internal object ClockDriftDiagnostics {
     }
 
     private fun formatHumanLocal(epochMs: Long): String {
-        return humanLocalFormatter.get()?.format(Date(epochMs)) ?: epochMs.toString()
+        val formatted = humanLocalFormatter.get()?.format(Date(epochMs)) ?: return epochMs.toString()
+        if (formatted.length >= 5 && (formatted[formatted.length - 5] == '+' || formatted[formatted.length - 5] == '-')) {
+            val idx = formatted.length - 2
+            return formatted.substring(0, idx) + ":" + formatted.substring(idx)
+        }
+        return formatted
     }
 
     private fun formatDurationMs(durationMs: Long): String {

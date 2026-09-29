@@ -175,7 +175,7 @@ internal class ImageWatermarkController(parent: TPStreamsPlayerView) : BaseWater
     }
 
     companion object {
-        private const val TAG = "ImageWatermarkController"
+        private const val TAG = "ImageWatermarkCtrl"
         private const val CONNECT_TIMEOUT_MS = 5000
         private const val READ_TIMEOUT_MS = 5000
         private const val FADE_DURATION_MS = 150L
