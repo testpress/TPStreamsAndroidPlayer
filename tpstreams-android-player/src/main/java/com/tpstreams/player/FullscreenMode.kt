@@ -165,7 +165,8 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         view.background = originalBackground
         // Re-insert at the original child index to preserve sibling ordering
         if (originalViewIndex >= 0) {
-            originalParent?.addView(view, originalViewIndex, originalLayoutParams)
+            val safeIndex = originalViewIndex.coerceAtMost(originalParent?.childCount ?: 0)
+            originalParent?.addView(view, safeIndex, originalLayoutParams)
         } else {
             originalParent?.addView(view, originalLayoutParams)
         }

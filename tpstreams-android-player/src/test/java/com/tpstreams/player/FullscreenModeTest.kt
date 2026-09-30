@@ -144,4 +144,21 @@ class FullscreenModeTest {
         fullscreen.exitFullscreen()
         verify(activity, atLeastOnce()).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
     }
+
+    @Test
+    fun `exitFullscreen clamps re-insert index when parent loses children while in fullscreen`() {
+        // View was at sibling index 2 when fullscreen was entered (e.g. header, ad banner, player)
+        `when`(originalParent.indexOfChild(view)).thenReturn(2)
+        fullscreen.enterFullscreen()
+
+        // While in fullscreen the host screen removes siblings (e.g. the ad banner is dismissed),
+        // so the parent now only has 1 child left. Re-inserting at index 2 would throw
+        // IndexOutOfBoundsException in a real ViewGroup.
+        `when`(originalParent.childCount).thenReturn(1)
+
+        fullscreen.exitFullscreen()
+
+        // The safe clamped index must be used: min(2, 1) = 1
+        verify(originalParent).addView(view, 1, layoutParams)
+    }
 }
