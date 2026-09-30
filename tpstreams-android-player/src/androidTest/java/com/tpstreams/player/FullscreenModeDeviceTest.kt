@@ -105,4 +105,31 @@ class FullscreenModeDeviceTest {
             }
         }
     }
+
+    @Test
+    fun enterFullscreen_whenHostBarsInitiallyHidden_keepsBarsHiddenOnExit() {
+        ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val rootLayout = FrameLayout(activity)
+                activity.setContentView(rootLayout)
+
+                val playerView = TPStreamsPlayerView(activity)
+                rootLayout.addView(playerView)
+
+                val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                // Simulate host having hidden the system bars beforehand (e.g. immersive mode)
+                controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+
+                val fullscreenMode = FullscreenMode(playerView)
+
+                fullscreenMode.enterFullscreen()
+                assertTrue(fullscreenMode.isInFullscreenMode())
+
+                fullscreenMode.exitFullscreen()
+                assertFalse(fullscreenMode.isInFullscreenMode())
+                // Ensure exit doesn't leave the view stranded or fail
+                assertEquals(rootLayout, playerView.parent)
+            }
+        }
+    }
 }

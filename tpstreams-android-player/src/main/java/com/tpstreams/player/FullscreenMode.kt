@@ -6,6 +6,7 @@ import android.graphics.drawable.Drawable
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -21,6 +22,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     private var originalBackground: Drawable? = null
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private var originalSystemBarsBehavior: Int = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+    private var originalSystemBarsVisible: Boolean = true
     private var backCallback: OnBackPressedCallback? = null
 
     fun enterFullscreen() {
@@ -143,7 +145,11 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         }
         activity.requestedOrientation = targetOrientation
         WindowCompat.getInsetsController(activity.window, activity.window.decorView).also {
-            it.show(WindowInsetsCompat.Type.systemBars())
+            if (originalSystemBarsVisible) {
+                it.show(WindowInsetsCompat.Type.systemBars())
+            } else {
+                it.hide(WindowInsetsCompat.Type.systemBars())
+            }
             it.systemBarsBehavior = originalSystemBarsBehavior
         }
         clearBackPressHandler()
@@ -184,6 +190,8 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     private fun hideSystemUI(activity: ComponentActivity) {
         WindowCompat.getInsetsController(activity.window, activity.window.decorView).also {
             originalSystemBarsBehavior = it.systemBarsBehavior
+            originalSystemBarsVisible = ViewCompat.getRootWindowInsets(activity.window.decorView)
+                ?.isVisible(WindowInsetsCompat.Type.systemBars()) ?: true
             it.hide(WindowInsetsCompat.Type.systemBars())
             it.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
