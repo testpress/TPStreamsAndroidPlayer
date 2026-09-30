@@ -4,7 +4,6 @@
     <application>
         <activity
             android:name="com.tpstreams.player.FullscreenTestActivity"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
             android:exported="true"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
     </application>

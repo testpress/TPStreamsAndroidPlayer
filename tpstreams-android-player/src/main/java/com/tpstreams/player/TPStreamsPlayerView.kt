@@ -129,6 +129,20 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 enableAutoFullscreenOnRotate()
             }
             watermarkControllers.forEach { it.onViewAttached() }
+            restoreRequestedFullscreenIfNeeded()
+        }
+    }
+
+    private fun restoreRequestedFullscreenIfNeeded() {
+        val player = getPlayer() ?: return
+
+        if (
+            player.isFullscreenRequested &&
+            !fullscreenMode.isInFullscreenMode() &&
+            !fullscreenMode.isInTransition() &&
+            isAttachedToWindow
+        ) {
+            fullscreenMode.enterFullscreen()
         }
     }
 
@@ -227,12 +241,16 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             setOnChangeListener { isLandscape ->
                 post {
                     if (isLandscape) {
-                        if (!fullscreenMode.isInFullscreenMode()) {
+                        if (
+                            !fullscreenMode.isInFullscreenMode() &&
+                            getPlayer()?.suppressAutoFullscreenUntilPortrait != true
+                        ) {
                             fullscreenMode.enterFullscreen()
                         }
                     } else {
+                        getPlayer()?.suppressAutoFullscreenUntilPortrait = false
                         if (fullscreenMode.isInFullscreenMode()) {
-                            fullscreenMode.exitFullscreen()
+                            fullscreenMode.exitFullscreen(suppressAutoReentry = false)
                         }
                     }
                 }
@@ -263,12 +281,15 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             post {
                 when (newConfig.orientation) {
                     Configuration.ORIENTATION_LANDSCAPE -> {
-                        setFullscreenButtonState(true)
-                        fullscreenMode.enterFullscreen()
+                        if (getPlayer()?.suppressAutoFullscreenUntilPortrait != true) {
+                            setFullscreenButtonState(true)
+                            fullscreenMode.enterFullscreen()
+                        }
                     }
                     Configuration.ORIENTATION_PORTRAIT -> {
+                        getPlayer()?.suppressAutoFullscreenUntilPortrait = false
                         setFullscreenButtonState(false)
-                        fullscreenMode.exitFullscreen()
+                        fullscreenMode.exitFullscreen(suppressAutoReentry = false)
                     }
                 }
 
@@ -298,7 +319,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         // second call trying to remove a view that is no longer in the DecorView.
         if (player == null && fullscreenMode.isInFullscreenMode() && !fullscreenMode.isInTransition()) {
             val activity = getActivity() as? ComponentActivity
-            if (activity != null) fullscreenMode.restoreUI(activity)
+            if (activity != null && !activity.isChangingConfigurations && !activity.isFinishing && !activity.isDestroyed) {
+                fullscreenMode.restoreUI(activity)
+            }
         }
 
         // Use super.getPlayer() for the identity check so non-TPStreams players are compared
@@ -387,9 +410,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 }
                 updateLiveStreamUI(player.isLiveStream)
 
-                if (player.startInFullscreen) {
-                    fullscreenMode.enterFullscreen()
-                }
+                restoreRequestedFullscreenIfNeeded()
             }
         } else {
             hideErrorMessage()

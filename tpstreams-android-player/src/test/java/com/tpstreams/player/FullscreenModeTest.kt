@@ -5,14 +5,12 @@ import android.view.ViewGroup
 import android.view.Window
 import androidx.activity.OnBackPressedDispatcher
 import androidx.fragment.app.FragmentActivity
-import androidx.media3.common.util.UnstableApi
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.*
 
-@OptIn(UnstableApi::class)
 class FullscreenModeTest {
     private val view = mock(TPStreamsPlayerView::class.java)
     private val player = mock(TPStreamsPlayer::class.java)
@@ -134,13 +132,24 @@ class FullscreenModeTest {
 
     @Test
     fun `exitFullscreen restores explicit orientation when original was set`() {
+        `when`(activity.requestedOrientation).thenReturn(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+
+        fullscreen.enterFullscreen()
+        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        fullscreen.exitFullscreen()
+        verify(activity, atLeastOnce()).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    }
+
+    @Test
+    fun `exitFullscreen sets SENSOR_PORTRAIT when original orientation was landscape`() {
         `when`(activity.requestedOrientation).thenReturn(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
 
         fullscreen.enterFullscreen()
         verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
         fullscreen.exitFullscreen()
-        verify(activity, atLeastOnce()).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
 
     @Test
@@ -160,5 +169,18 @@ class FullscreenModeTest {
 
         // The safe clamped index must be used: min(2, 1) = 1
         verify(originalParent).addView(view, 1, layoutParams)
+    }
+
+    @Test
+    fun `enterFullscreen updates player isFullscreenRequested to true`() {
+        fullscreen.enterFullscreen()
+        verify(player).isFullscreenRequested = true
+    }
+
+    @Test
+    fun `exitFullscreen updates player isFullscreenRequested to false`() {
+        fullscreen.enterFullscreen()
+        fullscreen.exitFullscreen()
+        verify(player).isFullscreenRequested = false
     }
 }

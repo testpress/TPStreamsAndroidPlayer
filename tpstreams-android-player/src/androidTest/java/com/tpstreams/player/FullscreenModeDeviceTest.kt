@@ -132,4 +132,147 @@ class FullscreenModeDeviceTest {
             }
         }
     }
+
+    @Test
+    fun enterFullscreen_activityRecreatedWithoutConfigChanges_restoresFullscreenAutomatically() {
+        var retainedPlayer: TPStreamsPlayer? = null
+
+        ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                try {
+                    TPStreamsSDK.init("test_org")
+                } catch (_: Exception) {}
+
+                val player = TPStreamsPlayer.create(
+                    context = activity,
+                    assetId = "test_asset",
+                    accessToken = "test_token"
+                )
+                retainedPlayer = player
+
+                val rootLayout = FrameLayout(activity)
+                activity.setContentView(rootLayout)
+
+                val originalContainer = FrameLayout(activity)
+                rootLayout.addView(originalContainer)
+
+                val playerView = TPStreamsPlayerView(activity)
+                originalContainer.addView(playerView)
+                playerView.player = player
+
+                val fullscreenMode = FullscreenMode(playerView)
+                fullscreenMode.enterFullscreen()
+
+                assertTrue(player.isFullscreenRequested)
+                assertTrue(fullscreenMode.isInFullscreenMode())
+                assertEquals(activity.window.decorView, playerView.parent)
+            }
+
+            // Recreate activity (simulating configuration change on orientation change without configChanges)
+            scenario.recreate()
+
+            scenario.onActivity { activity2 ->
+                val newRootLayout = FrameLayout(activity2)
+                activity2.setContentView(newRootLayout)
+
+                val newOriginalContainer = FrameLayout(activity2)
+                newRootLayout.addView(newOriginalContainer)
+
+                val newPlayerView = TPStreamsPlayerView(activity2)
+                newOriginalContainer.addView(newPlayerView)
+
+                // Reattach the retained player to the new view in recreated activity
+                newPlayerView.player = retainedPlayer
+
+                assertTrue("Player should still have isFullscreenRequested = true", retainedPlayer!!.isFullscreenRequested)
+            }
+
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+            scenario.onActivity { activity2 ->
+                // Look for the playerView in DecorView of activity2
+                val decorView = activity2.window.decorView as android.view.ViewGroup
+                var foundInDecor = false
+                for (i in 0 until decorView.childCount) {
+                    if (decorView.getChildAt(i) is TPStreamsPlayerView) {
+                        foundInDecor = true
+                        break
+                    }
+                }
+                assertTrue("New playerView should be automatically attached to DecorView after recreation", foundInDecor)
+            }
+        }
+    }
+
+    @Test
+    fun exitFullscreen_activityRecreatedWithoutConfigChanges_staysInOriginalContainer() {
+        var retainedPlayer: TPStreamsPlayer? = null
+
+        ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                try {
+                    TPStreamsSDK.init("test_org")
+                } catch (_: Exception) {}
+
+                val player = TPStreamsPlayer.create(
+                    context = activity,
+                    assetId = "test_asset",
+                    accessToken = "test_token"
+                )
+                retainedPlayer = player
+
+                val rootLayout = FrameLayout(activity)
+                activity.setContentView(rootLayout)
+
+                val originalContainer = FrameLayout(activity)
+                rootLayout.addView(originalContainer)
+
+                val playerView = TPStreamsPlayerView(activity)
+                originalContainer.addView(playerView)
+                playerView.player = player
+
+                val fullscreenMode = FullscreenMode(playerView)
+                fullscreenMode.enterFullscreen()
+                fullscreenMode.exitFullscreen()
+
+                assertFalse(player.isFullscreenRequested)
+                assertFalse(fullscreenMode.isInFullscreenMode())
+                assertEquals(originalContainer, playerView.parent)
+            }
+
+            // Recreate activity
+            scenario.recreate()
+
+            var newOriginalContainerRef: FrameLayout? = null
+            var newPlayerViewRef: TPStreamsPlayerView? = null
+
+            scenario.onActivity { activity2 ->
+                val newRootLayout = FrameLayout(activity2)
+                activity2.setContentView(newRootLayout)
+
+                val newOriginalContainer = FrameLayout(activity2)
+                newRootLayout.addView(newOriginalContainer)
+                newOriginalContainerRef = newOriginalContainer
+
+                val newPlayerView = TPStreamsPlayerView(activity2)
+                newOriginalContainer.addView(newPlayerView)
+                newPlayerViewRef = newPlayerView
+
+                // Reattach the retained player
+                newPlayerView.player = retainedPlayer
+
+                assertFalse("Player should have isFullscreenRequested = false", retainedPlayer!!.isFullscreenRequested)
+            }
+
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+            scenario.onActivity {
+                assertEquals(
+                    "PlayerView should remain in original container after recreation",
+                    newOriginalContainerRef,
+                    newPlayerViewRef?.parent
+                )
+            }
+        }
+    }
 }

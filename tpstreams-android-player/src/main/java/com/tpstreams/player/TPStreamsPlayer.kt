@@ -97,6 +97,8 @@ class TPStreamsPlayer private constructor(
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var defaultCaptionsApplied = false
+    internal var isFullscreenRequested: Boolean = startInFullscreen
+    internal var suppressAutoFullscreenUntilPortrait: Boolean = false
 
     /**
      * Tracks playback intent (play/pause) across app lifecycle events and UI transitions.
