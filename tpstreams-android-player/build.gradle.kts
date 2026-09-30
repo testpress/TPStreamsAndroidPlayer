@@ -23,6 +23,10 @@ android {
         buildConfig = true
     }
 
+    publishing {
+        singleVariant("release")
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
