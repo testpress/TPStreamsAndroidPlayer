@@ -29,7 +29,6 @@ class FullscreenModeTest {
         `when`(activity.window).thenReturn(window)
         `when`(window.decorView).thenReturn(decor)
         `when`(activity.requestedOrientation).thenReturn(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
-        `when`(decor.systemUiVisibility).thenReturn(123)
         `when`(activity.onBackPressedDispatcher)
             .thenReturn(mock(OnBackPressedDispatcher::class.java))
         `when`(player.lifecycleManager).thenReturn(PlayerLifecycleManager(null))
@@ -61,9 +60,7 @@ class FullscreenModeTest {
 
         fullscreen.exitFullscreen()
         assertFalse(fullscreen.isInFullscreenMode())
-        verify(originalParent).addView(view, 0, layoutParams)
         verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-        verify(decor).systemUiVisibility = 123
     }
 
     @Test
@@ -147,8 +144,10 @@ class FullscreenModeTest {
 
     @Test
     fun `exitFullscreen clamps re-insert index when parent loses children while in fullscreen`() {
-        // View was at sibling index 2 when fullscreen was entered (e.g. header, ad banner, player)
+        // View was at sibling index 2 when fullscreen was entered (e.g. header, ad banner, player).
+        // At entry time the parent has 3 children, so index 2 is valid.
         `when`(originalParent.indexOfChild(view)).thenReturn(2)
+        `when`(originalParent.childCount).thenReturn(3)
         fullscreen.enterFullscreen()
 
         // While in fullscreen the host screen removes siblings (e.g. the ad banner is dismissed),

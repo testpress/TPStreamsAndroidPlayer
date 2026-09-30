@@ -3,10 +3,12 @@ package com.tpstreams.player
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.graphics.drawable.Drawable
-import android.view.View
 import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
 
 @UnstableApi
@@ -18,7 +20,6 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     private var originalViewIndex: Int = -1
     private var originalBackground: Drawable? = null
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-    private var originalSystemUiVisibility: Int = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
     private var backCallback: OnBackPressedCallback? = null
 
     fun enterFullscreen() {
@@ -60,7 +61,6 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         originalLayoutParams = view.layoutParams
         originalViewIndex = parent?.indexOfChild(view) ?: -1
         originalBackground = view.background
-        originalSystemUiVisibility = decorView.systemUiVisibility
 
         parent?.removeView(view)
         view.setBackgroundColor(Color.BLACK)
@@ -141,7 +141,8 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         }
         activity.requestedOrientation = targetOrientation
-        activity.window.decorView.systemUiVisibility = originalSystemUiVisibility
+        WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
         clearBackPressHandler()
         isFullscreen = false
         view.setFullscreenButtonState(false)
@@ -178,13 +179,10 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     }
 
     private fun hideSystemUI(activity: ComponentActivity) {
-        activity.window.decorView.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_FULLSCREEN
+        WindowCompat.getInsetsController(activity.window, activity.window.decorView).also {
+            it.hide(WindowInsetsCompat.Type.systemBars())
+            it.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     fun isInFullscreenMode(): Boolean = isFullscreen
