@@ -109,8 +109,8 @@ object AssetRepository {
     }
 
     private fun handleApiError(assetId: String, code: Int, url: String, callback: AssetCallback, context: Context?, sentryLogger: SentryLogger) {
-        val errorPlayerId = sentryLogger.generatePlayerIdString()
-        sentryLogger.logAPIException(Exception("API request failed with code: $code"), assetId, code, errorPlayerId, url, context = context)
+        val errorPlayerId = sentryLogger.playerId
+        sentryLogger.logAPIException(Exception("API request failed with code: $code"), assetId, code, url, context = context)
 
         val errorType = code.toPlaybackErrorFromHttpStatus()
 
@@ -121,9 +121,9 @@ object AssetRepository {
     }
 
     private fun handleException(assetId: String, e: Exception, url: String, callback: AssetCallback, context: Context?, sentryLogger: SentryLogger) {
-        val errorPlayerId = sentryLogger.generatePlayerIdString()
+        val errorPlayerId = sentryLogger.playerId
         if (e !is LiveStreamNotStartedException && e !is LiveStreamEndedException) {
-            sentryLogger.logAPIException(e, assetId, null, errorPlayerId, url, context = context)
+            sentryLogger.logAPIException(e, assetId, null, url, context = context)
         }
 
         val errorType = e.toPlaybackError()

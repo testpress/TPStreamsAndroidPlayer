@@ -21,8 +21,16 @@ import io.sentry.protocol.SentryId
  *
  * See https://docs.sentry.io/platforms/android/configuration/shared-environments/
  */
-internal class SentryLogger private constructor() {
+internal class SentryLogger private constructor(
+    context: Context? = null,
+    assetId: String? = null,
+    val playerId: String = generatePlayerId(),
+) {
     private var scopes: Scopes? = createScopes()
+
+    init {
+        initializeCommonScope(context?.applicationContext, assetId)
+    }
 
     @Synchronized
     fun captureException(
@@ -73,23 +81,49 @@ internal class SentryLogger private constructor() {
         private const val DSN = "https://1a888cef4d504918b5b506f9b1decef7@sentry.testpress.in/23"
         private const val CREATOR = "TPStreamsPlayer.init"
 
-        fun create(): SentryLogger = SentryLogger()
-    }
+        fun create(
+            context: Context? = null,
+            assetId: String? = null,
+            playerId: String = generatePlayerId(),
+        ): SentryLogger = SentryLogger(context, assetId, playerId)
 
-    fun generatePlayerIdString(): String {
-        return (1..10)
-            .map { ('a'..'z').toList() + ('0'..'9').toList() }
-            .map { it.random() }
+        private fun generatePlayerId(): String = (1..11)
+            .map { (('a'..'z') + ('0'..'9')).random() }
             .joinToString("")
     }
 
+    private fun initializeCommonScope(context: Context?, assetId: String?) {
+        val scope = scopes?.isolationScope ?: return
+        scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
+        scope.setTag("playerId", playerId)
+        assetId?.let { scope.setTag("assetId", it) }
+        TPStreamsSDK.orgId?.let { scope.setTag("orgCode", it) }
+
+        scope.setContexts(
+            "TPStreamsPlayer",
+            buildMap {
+                put("Player ID", playerId)
+                assetId?.let { put("Asset ID", it) }
+            }
+        )
+
+        try {
+            DeviceInfoProvider.getTags(context).forEach { (key, value) -> scope.setTag(key, value) }
+            scope.setContexts("Device Info", DeviceInfoProvider.getContext(context))
+        } catch (_: Exception) { /* best-effort */ }
+
+        if (context != null) try {
+            AppInfoProvider.getHostAppVersion(context)?.let { scope.setTag("client_app", it) }
+        } catch (_: Exception) { /* best-effort */ }
+    }
+
     /**
-     * Enriches the Sentry [scope] with device, network, storage, decoder, and player state.
+     * Enriches an event's [scope] with dynamic network, storage, decoder, and player state.
      *
      * All providers are best-effort — if one throws, only that provider's data is lost.
      * Context-dependent providers ([StorageMemoryProvider], [NetworkInfoProvider]) are
-     * skipped when [context] is null. Decoder state is sourced from [decoderState] which
-     * should be the calling player's [PlayerDecoderState].
+     * skipped when [context] is null. Stable SDK, organization, device, application, and
+     * video identifiers are initialized once on the logger's isolation scope.
      */
     fun enrichScope(
         context: Context? = null,
@@ -100,23 +134,6 @@ internal class SentryLogger private constructor() {
     ) {
         // Error category — high-level classification for triage
         errorCategory?.let { scope.setTag("error_category", it) }
-
-        // SDK version — included on every event for searchability
-        scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
-
-        // Org code / subdomain
-        TPStreamsSDK.orgId?.let { scope.setTag("orgCode", it) }
-
-        // Device info (cached fields always work, screen resolution needs context)
-        try {
-            DeviceInfoProvider.getTags(context).forEach { (key, value) -> scope.setTag(key, value) }
-            scope.setContexts("Device Info", DeviceInfoProvider.getContext(context))
-        } catch (_: Exception) { /* best-effort */ }
-
-        // App info (needs context)
-        if (context != null) try {
-            AppInfoProvider.getHostAppVersion(context)?.let { scope.setTag("client_app", it) }
-        } catch (_: Exception) { /* best-effort */ }
 
         // Storage & memory (needs context) — single pass
         if (context != null) try {
@@ -165,7 +182,6 @@ internal class SentryLogger private constructor() {
     fun logPlaybackException(
         error: PlaybackException,
         assetId: String?,
-        playerId: String,
         drmLicenseUrl: String? = null,
         rootCause: String? = null,
         context: Context? = null,
@@ -181,7 +197,6 @@ internal class SentryLogger private constructor() {
             scope.setTag("errorCode", error.errorCode.toString())
             scope.setTag("errorCodeName", error.errorCodeName)
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
-            scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
             drmLicenseUrl?.takeIf { it.isNotEmpty() }?.let { scope.setTag("drmLicenseUrl", it) }
             scope.setTag("widevine_security_level", drmSecurityLevel)
@@ -192,12 +207,10 @@ internal class SentryLogger private constructor() {
             }
             derivedRootCause?.let { scope.setTag("rootCause", it) }
             scope.setContexts(
-                "TPStreamsPlayer",
+                "Playback Error",
                 mapOf(
                     "Error Code" to error.errorCode,
                     "Error Code Name" to error.errorCodeName,
-                    "Asset ID" to (assetId ?: "N/A"),
-                    "Player ID" to playerId,
                     "DRM License URL" to (drmLicenseUrl?.takeIf { it.isNotEmpty() } ?: "N/A")
                 )
             )
@@ -219,7 +232,6 @@ internal class SentryLogger private constructor() {
         exception: Exception,
         assetId: String?,
         responseCode: Int?,
-        playerId: String,
         url: String? = null,
         context: Context? = null,
         player: Player? = null
@@ -230,15 +242,12 @@ internal class SentryLogger private constructor() {
                 scope.setTag(key, value)
             }
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
-            scope.setTag("playerId", playerId)
             assetId?.let { scope.setTag("assetId", it) }
             responseCode?.let { scope.setTag("responseCode", it.toString()) }
             url?.takeIf { it.isNotEmpty() }?.let { scope.setTag("requestUrl", it) }
             scope.setContexts(
-                "TPStreamsPlayer",
+                "API Request",
                 mapOf(
-                    "Asset ID" to (assetId ?: "N/A"),
-                    "Player ID" to playerId,
                     "Response Code" to (responseCode ?: "N/A"),
                     "Request URL" to (url?.takeIf { it.isNotEmpty() } ?: "N/A")
                 )

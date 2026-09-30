@@ -117,7 +117,9 @@ class TPStreamsPlayer private constructor(
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val networkRecoveryHandler = NetworkRecoveryHandler(context)
-    private val sentryLoggerLazy = lazy { SentryLogger.create() }
+    private val sentryLoggerLazy = lazy {
+        SentryLogger.create(context = context, assetId = assetId)
+    }
     private val sentryLogger: SentryLogger by sentryLoggerLazy
 
     private val textTrackManager: TextTrackManager by lazy {
@@ -498,11 +500,10 @@ class TPStreamsPlayer private constructor(
                 // Non-network errors go directly to _listener?.onError() (not onNetworkError).
                 // Network errors route through handleError → manager → _listener?.onNetworkError().
                 debugLog("Player ERROR - ${error.errorCodeName}")
-                val errorPlayerId = sentryLogger.generatePlayerIdString()
+                val errorPlayerId = sentryLogger.playerId
                 sentryLogger.logPlaybackException(
                     error,
                     assetId,
-                    errorPlayerId,
                     drmLicenseUrl = drmHandler.licenseUrl,
                     context = context,
                     player = exoPlayer,

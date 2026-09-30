@@ -96,7 +96,7 @@ internal class MediaLoader(
                             setMessage("Non-network error from asset fetch")
                             setData("error_type", error.name)
                             setData("error_message", message)
-                            setData("player_id", sentryLogger.generatePlayerIdString())
+                            setData("player_id", sentryLogger.playerId)
                             setData("asset_id", assetId)
                         })
                         playerScope.launch {

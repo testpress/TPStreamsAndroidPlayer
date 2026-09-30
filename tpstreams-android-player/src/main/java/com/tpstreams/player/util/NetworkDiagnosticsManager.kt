@@ -157,7 +157,7 @@ internal class NetworkDiagnosticsManager(
             }
 
             val displayAttempt = autoRetryCount + 1
-            val playerId = sentryLogger.generatePlayerIdString()
+            val playerId = sentryLogger.playerId
 
             addSentryBreadcrumb(rootCause, displayAttempt, isRetrying, diagnostics, finalError, exoPlayer, playerId)
             val sentryEventId = sendSentryEvent(exoError, rootCause, finalError, diagnostics, playerId, isRetrying, exoPlayer, decoderState)
@@ -244,7 +244,7 @@ internal class NetworkDiagnosticsManager(
         if (isRetrying) return null  // Don't spam Sentry during backoff attempts; log on final failure only
         if (!diagnostics.internetReachable) return null
         return if (exoError != null) {
-            sentryLogger.logPlaybackException(exoError, assetId, playerId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)
+            sentryLogger.logPlaybackException(exoError, assetId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)
         } else {
             sentryLogger.logMessageWithEnrichment(
                 message = "Network error: $rootCause",

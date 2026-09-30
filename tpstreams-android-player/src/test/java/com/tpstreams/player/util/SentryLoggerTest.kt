@@ -1,6 +1,7 @@
 package com.tpstreams.player.util
 
 import com.tpstreams.player.TPStreamsSDK
+import com.tpstreams.player.BuildConfig
 import io.sentry.Breadcrumb
 import io.sentry.Scopes
 import io.sentry.SentryLevel
@@ -15,6 +16,33 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class SentryLoggerTest {
+    @Test
+    fun `player id is initialized once with eleven characters`() {
+        val sentryLogger = SentryLogger.create()
+        try {
+            assertEquals(11, sentryLogger.playerId.length)
+            assertEquals(sentryLogger.playerId, sentryLogger.playerId)
+        } finally {
+            sentryLogger.close()
+        }
+    }
+
+    @Test
+    fun `common player scope is initialized at creation`() {
+        TPStreamsSDK.init("my_org_code")
+        val sentryLogger = SentryLogger.create(assetId = "asset-123")
+        try {
+            val scope = requireNotNull(currentScopes(sentryLogger)).isolationScope
+
+            assertEquals(sentryLogger.playerId, scope.tags["playerId"])
+            assertEquals("asset-123", scope.tags["assetId"])
+            assertEquals("my_org_code", scope.tags["orgCode"])
+            assertEquals(BuildConfig.SDK_VERSION, scope.tags["sdkVersion"])
+        } finally {
+            sentryLogger.close()
+        }
+    }
+
     @Test
     fun `each logger owns independent scopes`() {
         val firstSentryLogger = SentryLogger.create()
