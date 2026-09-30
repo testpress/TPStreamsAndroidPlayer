@@ -20,6 +20,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     private var originalViewIndex: Int = -1
     private var originalBackground: Drawable? = null
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    private var originalSystemBarsBehavior: Int = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
     private var backCallback: OnBackPressedCallback? = null
 
     fun enterFullscreen() {
@@ -141,8 +142,10 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         }
         activity.requestedOrientation = targetOrientation
-        WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-            .show(WindowInsetsCompat.Type.systemBars())
+        WindowCompat.getInsetsController(activity.window, activity.window.decorView).also {
+            it.show(WindowInsetsCompat.Type.systemBars())
+            it.systemBarsBehavior = originalSystemBarsBehavior
+        }
         clearBackPressHandler()
         isFullscreen = false
         view.setFullscreenButtonState(false)
@@ -180,6 +183,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
 
     private fun hideSystemUI(activity: ComponentActivity) {
         WindowCompat.getInsetsController(activity.window, activity.window.decorView).also {
+            originalSystemBarsBehavior = it.systemBarsBehavior
             it.hide(WindowInsetsCompat.Type.systemBars())
             it.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }

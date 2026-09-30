@@ -60,6 +60,7 @@ class FullscreenModeTest {
 
         fullscreen.exitFullscreen()
         assertFalse(fullscreen.isInFullscreenMode())
+        verify(originalParent).addView(view, 0, layoutParams)
         verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
 
