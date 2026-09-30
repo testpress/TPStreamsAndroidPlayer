@@ -45,6 +45,7 @@ android {
     }
 
     testOptions {
+        targetSdk = 35
         unitTests {
             isReturnDefaultValues = true
         }
@@ -69,6 +70,8 @@ dependencies {
     testImplementation("org.mockito:mockito-core:5.18.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.rules)
 
 }
 apply(from = rootProject.file("gradle/gradle-mvn-build-packages.gradle"))
