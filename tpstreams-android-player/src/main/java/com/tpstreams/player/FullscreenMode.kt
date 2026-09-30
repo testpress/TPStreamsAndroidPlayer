@@ -30,6 +30,10 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         if (isFullscreen || isTransitioning) return
 
         val player = view.getPlayer()
+        (player as? TPStreamsPlayer)?.also {
+            it.isFullscreenRequested = true
+            it.suppressAutoFullscreenUntilPortrait = false
+        }
         val lifecycleManager = (player as? TPStreamsPlayer)?.lifecycleManager ?: view.lifecycleManager
         val transitionAction = {
             // Release the codec's surface binding before detaching the player.
@@ -98,11 +102,15 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         activity.onBackPressedDispatcher.addCallback(activity, backCallback!!)
     }
 
-    fun exitFullscreen() {
+    fun exitFullscreen(suppressAutoReentry: Boolean = true) {
         val activity = view.getActivity() as? ComponentActivity ?: return
         if (!isFullscreen || isTransitioning) return
 
         val player = view.getPlayer()
+        (player as? TPStreamsPlayer)?.also {
+            it.isFullscreenRequested = false
+            it.suppressAutoFullscreenUntilPortrait = suppressAutoReentry
+        }
         val lifecycleManager = (player as? TPStreamsPlayer)?.lifecycleManager ?: view.lifecycleManager
         val transitionAction = {
             // Release the codec's surface binding before detaching the player.
@@ -137,7 +145,11 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
             originalOrientation != ActivityInfo.SCREEN_ORIENTATION_USER &&
             originalOrientation != ActivityInfo.SCREEN_ORIENTATION_SENSOR &&
             originalOrientation != ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR &&
-            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_FULL_USER &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE &&
+            originalOrientation != ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
         ) {
             originalOrientation
         } else {
