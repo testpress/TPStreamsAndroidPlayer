@@ -45,7 +45,7 @@ jobs:
           name: lint-reports
           path: |
             **/build/reports/lint-results*.*
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
   test:
     name: Unit Tests
@@ -75,7 +75,7 @@ jobs:
           name: unit-test-reports
           path: |
             **/build/reports/tests/**
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
   assemble-debug:
     name: Assemble Debug
@@ -102,6 +102,10 @@ jobs:
     name: Connected Android Tests
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      API_LEVEL: '30'
+      TARGET: 'google_apis'
+      ARCH: 'x86_64'
 
     steps:
       - name: Checkout repository
@@ -129,15 +133,15 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-30-google_apis-x86_64
+          key: avd-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}
 
       - name: Create AVD snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
-          target: google_apis
-          arch: x86_64
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.TARGET }}
+          arch: ${{ env.ARCH }}
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-audio -no-boot-anim -camera-back none
           disable-animations: false
@@ -146,9 +150,9 @@ jobs:
       - name: Run Connected Android Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
-          target: google_apis
-          arch: x86_64
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.TARGET }}
+          arch: ${{ env.ARCH }}
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -no-audio -no-boot-anim -camera-back none
           disable-animations: true
@@ -161,4 +165,4 @@ jobs:
           name: connected-test-reports
           path: |
             **/build/reports/androidTests/connected/**
-          if-no-files-found: ignore
+          if-no-files-found: warn
