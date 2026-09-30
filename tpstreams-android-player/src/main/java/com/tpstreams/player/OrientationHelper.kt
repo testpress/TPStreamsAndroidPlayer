@@ -11,6 +11,9 @@ import android.view.OrientationEventListener
  */
 internal class OrientationListener(val context: Context): OrientationEventListener(context) {
     private var isLandscape: Boolean? = null
+    val isCurrentlyLandscape: Boolean?
+        get() = isLandscape
+    var onPortraitDetected: (() -> Unit)? = null
 
     internal var autoRotationChecker: () -> Boolean = {
         Settings.System.getInt(
@@ -38,6 +41,9 @@ internal class OrientationListener(val context: Context): OrientationEventListen
         }
 
         val newIsLandscape = isOrientationLandscape(orientation)
+        if (!newIsLandscape) {
+            onPortraitDetected?.invoke()
+        }
         if (isLandscape == null) {
             isLandscape = newIsLandscape
             return

@@ -223,7 +223,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         if (!fullscreenMode.isInFullscreenMode()) {
             fullscreenMode.enterFullscreen()
         } else {
-            fullscreenMode.exitFullscreen()
+            val isPhysicallyLandscape = orientationEventListener?.isCurrentlyLandscape == true
+            fullscreenMode.exitFullscreen(suppressAutoReentry = isPhysicallyLandscape)
         }
 
         post {
@@ -238,6 +239,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         disableAutoFullscreenOnRotate()
 
         orientationEventListener = OrientationListener(context).apply {
+            onPortraitDetected = {
+                getPlayer()?.suppressAutoFullscreenUntilPortrait = false
+            }
             setOnChangeListener { isLandscape ->
                 post {
                     if (isLandscape) {
