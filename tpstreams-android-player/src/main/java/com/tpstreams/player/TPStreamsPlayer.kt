@@ -234,13 +234,8 @@ class TPStreamsPlayer private constructor(
     }
 
     private fun getReadableErrorName(error: PlaybackException): String {
-        val detail = error.findHttpResponseCode()?.let { "HTTP $it response" }
-            ?: error.errorCodeName
-                .removePrefix("ERROR_CODE_")
-                .lowercase()
-                .replace('_', ' ')
-                .replaceFirstChar { it.titlecase() }
-        return "${error.errorCode} - $detail"
+        val httpDetail = error.findHttpResponseCode()?.let { " - HTTP $it response" }.orEmpty()
+        return "${error.errorCode} - ${error.errorCodeName}$httpDetail"
     }
 
     private fun getSafeUrl(url: String): String = url.substringBefore('?').substringBefore('#')
