@@ -31,7 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * preserve the Activity instance, Player instance, and hardware decoder without
  * recreation, decoder re-initialization, or surface detachment timeouts.
  *
- * This is an opt-in connected test requiring instrumentation arguments:
+ * By default, this test runs against the sample Widevine DRM video (assetId: 7xbZeQzR36h).
+ * Custom or non-DRM assets can be passed via instrumentation arguments (e.g. non-DRM sample 4Zs4MNd5Ksj):
  * ```
  * ./gradlew :tpstreams-android-player:connectedDebugAndroidTest \
  *   -Pandroid.testInstrumentationRunnerArguments.class=com.tpstreams.player.PlayerFullscreenLifecycleInstrumentedTest \
@@ -220,28 +221,25 @@ class PlayerFullscreenLifecycleInstrumentedTest {
             val played = playingLatch.await(30, TimeUnit.SECONDS) || (player?.isPlaying == true)
             val firstFrame = firstFrameLatch.await(30, TimeUnit.SECONDS) || (renderedFirstFrameCount.get() > 0) || (player != null && player!!.currentPosition > 0)
 
-            // Graceful skip if running in CI without active network or if remote token/asset expired
-            val isRemoteAssetUnreachable = tokenExpired.get() ||
+            // Graceful skip strictly if running in an offline environment or if the remote demo token expired
+            val isNetworkOrTokenFailure = tokenExpired.get() ||
                 apiErrors.any {
                     it == com.tpstreams.player.constants.PlaybackError.NETWORK_CONNECTION_FAILED ||
                     it == com.tpstreams.player.constants.PlaybackError.NETWORK_CONNECTION_TIMEOUT ||
                     it == com.tpstreams.player.constants.PlaybackError.VIDEO_SERVICE_BLOCKED ||
                     it == com.tpstreams.player.constants.PlaybackError.INVALID_ACCESS_TOKEN_FOR_ASSETS ||
                     it == com.tpstreams.player.constants.PlaybackError.EXPIRED_ACCESS_TOKEN_FOR_ASSETS ||
-                    it == com.tpstreams.player.constants.PlaybackError.INVALID_ACCESS_TOKEN_FOR_DRM_LICENSE ||
-                    it == com.tpstreams.player.constants.PlaybackError.INVALID_ASSETS_ID ||
-                    it == com.tpstreams.player.constants.PlaybackError.SERVER_ERROR
+                    it == com.tpstreams.player.constants.PlaybackError.INVALID_ACCESS_TOKEN_FOR_DRM_LICENSE
                 } ||
                 errors.any {
                     val pe = it as? PlaybackException
                     pe?.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-                    pe?.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-                    pe?.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+                    pe?.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
                 }
 
-            if (isRemoteAssetUnreachable || (!played && (apiErrors.isNotEmpty() || errors.isNotEmpty()))) {
+            if (isNetworkOrTokenFailure) {
                 Assume.assumeTrue(
-                    "Skipping test: Remote asset unreachable or token expired in CI/test environment (apiErrors=$apiErrors, playbackErrors=${errors.map { (it as? PlaybackException)?.errorCodeName ?: it.message }})",
+                    "Skipping test: Remote network unreachable or demo token expired in test environment (apiErrors=$apiErrors, errors=${errors.map { (it as? PlaybackException)?.errorCodeName ?: it.message }})",
                     false
                 )
             }
@@ -262,30 +260,26 @@ class PlayerFullscreenLifecycleInstrumentedTest {
             val cycles = 5
             for (i in 1..cycles) {
                 Log.d(TAG, "CYCLE $i: Enter Fullscreen")
-                instrumentation.runOnMainSync {
+                scenario.onActivity {
                     fullscreenMode?.enterFullscreen()
                 }
                 Thread.sleep(400)
 
                 // Trigger explicit orientation switch to landscape
-                instrumentation.runOnMainSync {
-                    scenario.onActivity { act ->
-                        act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                    }
+                scenario.onActivity { act ->
+                    act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 }
                 Thread.sleep(400)
 
                 Log.d(TAG, "CYCLE $i: Exit Fullscreen")
-                instrumentation.runOnMainSync {
+                scenario.onActivity {
                     fullscreenMode?.exitFullscreen()
                 }
                 Thread.sleep(400)
 
                 // Trigger explicit orientation switch back to portrait
-                instrumentation.runOnMainSync {
-                    scenario.onActivity { act ->
-                        act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                    }
+                scenario.onActivity { act ->
+                    act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 }
                 Thread.sleep(400)
             }

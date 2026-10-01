@@ -85,7 +85,7 @@ To support seamless fullscreen transitions without video interruption or surface
     android:exported="true" />
 ```
 
-> **Note**: Without `configChanges`, Android destroys and recreates the Activity during orientation changes. This forces the player and its video surface to tear down and rebuild, which can cause playback interruptions or hardware decoder surface detachment timeouts on certain vendor chipsets.
+> **Note**: Declaring `configChanges` prevents Android from destroying and recreating the Activity during orientation changes, ensuring smooth playback without UI flickering or view reconstruction.
 
 5. Basic playback control:
 
