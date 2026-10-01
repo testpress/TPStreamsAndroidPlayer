@@ -74,9 +74,9 @@ val player = TPStreamsPlayer.create(
 binding.playerView.player = player
 ```
 
-4. Fullscreen & Activity Configuration:
+4. Fullscreen & Activity Configuration (Recommended):
 
-To support seamless fullscreen transitions without video interruption or surface detachment errors, declare `android:configChanges` on your player Activity in `AndroidManifest.xml`:
+To avoid Activity recreation and visual flickering during fullscreen transitions and device rotations, declare `android:configChanges` on your player Activity in `AndroidManifest.xml`:
 
 ```xml
 <activity
