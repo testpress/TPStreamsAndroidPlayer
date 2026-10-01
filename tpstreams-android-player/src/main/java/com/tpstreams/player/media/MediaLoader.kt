@@ -9,16 +9,12 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.tpstreams.player.TPStreamsSDK
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.data.AssetRepository
-import com.tpstreams.player.data.PlayerDecoderState
 import com.tpstreams.player.data.network.model.AssetInfo
 import com.tpstreams.player.download.DownloadPlaybackHandler
 import com.tpstreams.player.drm.DrmHandler
 import com.tpstreams.player.tracks.TextTrackManager
 import com.tpstreams.player.util.MediaItemUtils
 import com.tpstreams.player.util.NetworkDiagnosticsManager
-import com.tpstreams.player.util.SentryLogger
-import io.sentry.Breadcrumb
-import io.sentry.SentryLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -33,15 +29,14 @@ internal class MediaLoader(
     private val playerScope: CoroutineScope,
     private val assetId: String,
     private val accessToken: String,
-    private val sentryLogger: SentryLogger,
     private val drmHandler: DrmHandler,
     private val textTrackManager: TextTrackManager,
     private val downloadPlaybackHandler: DownloadPlaybackHandler,
     private val networkDiagnosticsManager: NetworkDiagnosticsManager,
-    private val getDecoderState: () -> PlayerDecoderState,
     private val onMediaPrepared: () -> Unit,
     private val shouldPlayOnPrepared: () -> Boolean,
     private val onLiveStreamStatusChanged: (Boolean) -> Unit,
+    private val onAssetFetchError: (AssetRepository.AssetFetchFailure) -> String,
     private val onPlaybackError: (PlaybackError, String) -> Unit,
     private val logDebug: (String) -> Unit,
 ) {
@@ -69,42 +64,25 @@ internal class MediaLoader(
                     preparePlayer(assetInfo)
                 }
 
-                override fun onError(error: PlaybackError, message: String) {
-                    logDebug("fetchAndPrepare onError — error=$error, message=$message")
-                    if (error == PlaybackError.NETWORK_CONNECTION_FAILED ||
-                        error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
+                override fun onError(failure: AssetRepository.AssetFetchFailure) {
+                    val message = onAssetFetchError(failure)
+                    logDebug("fetchAndPrepare onError — error=${failure.error}, message=$message")
+                    if (failure.error == PlaybackError.NETWORK_CONNECTION_FAILED ||
+                        failure.error == PlaybackError.NETWORK_CONNECTION_TIMEOUT) {
                         playerScope.launch {
                             networkDiagnosticsManager.handleError(
-                                error,
+                                failure.error,
                                 cdnHostname = cdnHostname,
-                                decoderState = getDecoderState(),
                                 mediaUrl = mediaUrl
                             )
                         }
                     } else {
-                        if (error != PlaybackError.LIVE_STREAM_NOT_STARTED && error != PlaybackError.LIVE_STREAM_ENDED) {
-                            sentryLogger.logMessageWithEnrichment(
-                                message = "Non-network error from asset fetch: $error",
-                                level = SentryLevel.WARNING,
-                                context = context,
-                                player = exoPlayer,
-                                decoderState = getDecoderState(),
-                                tags = mapOf("assetId" to assetId, "errorType" to error.name)
-                            )
-                        }
-                        sentryLogger.addBreadcrumb(Breadcrumb().apply {
-                            setMessage("Non-network error from asset fetch")
-                            setData("error_type", error.name)
-                            setData("error_message", message)
-                            setData("player_id", sentryLogger.playerId)
-                            setData("asset_id", assetId)
-                        })
                         playerScope.launch {
-                            onPlaybackError(error, message)
+                            onPlaybackError(failure.error, message)
                         }
                     }
                 }
-            }, context = context, sentryLogger = sentryLogger)
+            })
         }
     }
 

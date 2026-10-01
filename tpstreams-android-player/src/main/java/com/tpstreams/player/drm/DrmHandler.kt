@@ -9,9 +9,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.tpstreams.player.download.DownloadClient
-import com.tpstreams.player.util.SentryLogger
 import com.tpstreams.player.util.WidevinePlaybackLevelResolver
-import io.sentry.Breadcrumb
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,9 +23,9 @@ internal class DrmHandler(
     private val playerScope: CoroutineScope,
     private val context: Context,
     private val assetId: String,
-    private val sentryLogger: SentryLogger,
     private val isLiveStream: () -> Boolean,
     private val onRenewOfflineLicense: () -> Unit,
+    private val onL3Fallback: (PlaybackException, String, Boolean) -> Unit,
 ) {
 
     var licenseUrl: String? = null
@@ -121,13 +119,7 @@ internal class DrmHandler(
             exoPlayer.playWhenReady = shouldPlayWhenReady
         }
 
-        sentryLogger.addBreadcrumb(Breadcrumb().apply {
-            setMessage("L3 DRM fallback triggered")
-            setData("asset_id", assetId)
-            setData("error_code", error.errorCodeName ?: "unknown")
-            setData("is_permanent_failure", WidevinePlaybackLevelResolver.isDrmPermanentFailure(error).toString())
-            setData("native_security_level", nativeSecurityLevel)
-        })
+        onL3Fallback(error, nativeSecurityLevel, WidevinePlaybackLevelResolver.isDrmPermanentFailure(error))
 
         Log.i(TAG, "L3 fallback retry scheduled for asset: $assetId")
         return true

@@ -23,9 +23,12 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.tpstreams.player.constants.NetworkDiagnostics
+import com.tpstreams.player.constants.LiveStreamEndedException
+import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.constants.getErrorMessage
 import com.tpstreams.player.constants.toError
+import com.tpstreams.player.data.AssetRepository
 import com.tpstreams.player.data.PlayerDecoderState
 import com.tpstreams.player.download.DownloadConstants
 import com.tpstreams.player.download.DownloadController
@@ -37,14 +40,17 @@ import com.tpstreams.player.tracks.ResolutionManager
 import com.tpstreams.player.tracks.TextTrackManager
 import com.tpstreams.player.util.CodecManager
 import com.tpstreams.player.util.DecoderInfoProvider
+import com.tpstreams.player.util.NetworkErrorResult
 import com.tpstreams.player.util.NetworkDiagnosticsManager
 import com.tpstreams.player.util.PlaybackHistoryManager
+import com.tpstreams.player.util.PlayerStateSnapshot
 import com.tpstreams.player.util.SentryLogger
 import com.tpstreams.player.util.WidevineDrmSessionManagerProvider
 import com.tpstreams.player.util.WidevinePlaybackLevelResolver
 import com.tpstreams.player.util.isLiveStreamEndHttpError
 import com.tpstreams.player.util.network.NetworkRecoveryHandler
 import com.tpstreams.player.util.network.isNetworkError
+import io.sentry.Breadcrumb
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -77,6 +83,152 @@ class TPStreamsPlayer private constructor(
         Log.d(DEBUG_TAG, fullMessage)
         PlaybackHistoryManager.recordLog(fullMessage)
     }
+
+    private fun getPlaybackContexts(): Map<String, Map<String, Any>> = mapOf(
+        "Player State" to PlayerStateSnapshot.capture(exoPlayer).getContext(),
+        "Decoder Info" to DecoderInfoProvider.getContext(decoderState),
+        "Playback History" to mapOf("Timeline" to PlaybackHistoryManager.getFullHistory()),
+    )
+
+    private fun reportPlaybackError(
+        error: PlaybackException,
+        tags: Map<String, String> = emptyMap(),
+        contexts: Map<String, Map<String, Any>> = emptyMap(),
+    ) {
+        reportError(
+            throwable = error,
+            category = "Playback",
+            errorDomain = "ExoPlayer",
+            name = getReadableErrorName(error),
+            groupingKey = listOf("playback", "exoplayer", error.errorCode.toString()),
+            tags = buildMap {
+                put("errorCode", error.errorCode.toString())
+                put("errorCodeName", error.errorCodeName)
+                if (error.errorCodeName.contains("DRM", ignoreCase = true) && "rootCause" !in tags) {
+                    put("rootCause", error.errorCodeName)
+                }
+                putAll(tags)
+            },
+            contexts = getPlaybackContexts() + contexts,
+        )
+    }
+
+    private fun reportNetworkError(result: NetworkErrorResult, diagnostics: NetworkDiagnostics) {
+        addNetworkBreadcrumb(result, diagnostics)
+        if (!shouldReportNetworkError(result)) return
+        result.exoError?.let { error ->
+            reportPlaybackError(
+                error = error,
+                tags = mapOf(
+                    "rootCause" to result.rootCause,
+                    "finalError" to result.error.name,
+                    "network_internet" to diagnostics.internetReachable.toString(),
+                    "network_dns" to diagnostics.dnsResolves.toString(),
+                    "network_server" to diagnostics.serverReachable.toString(),
+                    "network_cdn" to (diagnostics.cdnReachable?.toString() ?: "skipped"),
+                    "network_proxy" to diagnostics.proxyConfigured.toString(),
+                ),
+                contexts = mapOf("Network Diagnostics" to getNetworkContext(diagnostics)),
+            )
+        }
+    }
+
+    private fun reportAssetFetchError(failure: AssetRepository.AssetFetchFailure): String {
+        val message = failure.getMessage(sentryLogger.playerId)
+        if (failure.exception is LiveStreamNotStartedException || failure.exception is LiveStreamEndedException) {
+            return message
+        }
+        val responseCode = failure.responseCode
+        reportError(
+            throwable = failure.exception,
+            category = "Initializing",
+            errorDomain = if (responseCode == null) "Network" else "HTTP",
+            name = getAssetFetchErrorName(responseCode),
+            groupingKey = if (responseCode == null) {
+                listOf("asset-fetch", "network")
+            } else {
+                listOf("asset-fetch", "http-$responseCode")
+            },
+            tags = buildMap {
+                put("requestUrl", failure.requestUrl)
+                responseCode?.let { put("responseCode", it.toString()) }
+            },
+            contexts = mapOf(
+                "API Request" to mapOf(
+                    "Response Code" to (responseCode ?: "N/A"),
+                    "Request URL" to failure.requestUrl,
+                )
+            ),
+        )
+        return message
+    }
+
+    private fun reportError(
+        throwable: Throwable,
+        category: String,
+        errorDomain: String,
+        name: String,
+        groupingKey: List<String>,
+        tags: Map<String, String> = emptyMap(),
+        contexts: Map<String, Map<String, Any>> = emptyMap(),
+    ) {
+        sentryLogger.logException(
+            throwable = throwable,
+            category = category,
+            errorDomain = errorDomain,
+            name = name,
+            groupingKey = groupingKey,
+            tags = mapOf("assetId" to assetId) + tags,
+            contexts = contexts,
+        )
+    }
+
+    private fun addNetworkBreadcrumb(result: NetworkErrorResult, diagnostics: NetworkDiagnostics) {
+        sentryLogger.addBreadcrumb(Breadcrumb().apply {
+            setMessage(if (result.isRetrying) "Exponential backoff retry scheduled" else "Network error shown to user")
+            setData("root_cause", result.rootCause)
+            setData("retry_attempt", diagnostics.retryAttempt.toString())
+            setData("internet_reachable", diagnostics.internetReachable.toString())
+            setData("dns_resolves", diagnostics.dnsResolves.toString())
+            setData("server_reachable", diagnostics.serverReachable.toString())
+            setData("cdn_reachable", diagnostics.cdnReachable?.toString() ?: "null")
+            setData("proxy_configured", diagnostics.proxyConfigured.toString())
+            setData("final_error", result.error.name)
+            setData("player_state", PlayerStateSnapshot.capture(exoPlayer).playerState ?: "unknown")
+            setData("player_id", sentryLogger.playerId)
+        })
+    }
+
+    private fun addDrmFallbackBreadcrumb(error: PlaybackException, securityLevel: String, isPermanentFailure: Boolean) {
+        sentryLogger.addBreadcrumb(Breadcrumb().apply {
+            setMessage("L3 DRM fallback triggered")
+            setData("asset_id", assetId)
+            setData("error_code", error.errorCodeName)
+            setData("is_permanent_failure", isPermanentFailure.toString())
+            setData("native_security_level", securityLevel)
+        })
+    }
+
+    private fun getNetworkContext(diagnostics: NetworkDiagnostics): Map<String, Any> = mapOf(
+        "Internet Reachable" to diagnostics.internetReachable,
+        "DNS Resolves" to diagnostics.dnsResolves,
+        "Server Reachable" to diagnostics.serverReachable,
+        "CDN Reachable" to (diagnostics.cdnReachable ?: "skipped"),
+        "Proxy Configured" to diagnostics.proxyConfigured,
+    )
+
+    private fun getAssetFetchErrorName(responseCode: Int?): String = when (responseCode) {
+        401, 403 -> "Authentication failure"
+        404 -> "Asset not found"
+        in 500..599 -> "Server failure"
+        else -> "Asset fetch failed"
+    }
+
+    private fun getReadableErrorName(error: PlaybackException): String = error.errorCodeName
+        .removePrefix("ERROR_CODE_")
+        .lowercase()
+        .replace('_', ' ')
+        .replaceFirstChar { it.titlecase() }
 
     interface Listener {
         fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit)
@@ -144,11 +296,11 @@ class TPStreamsPlayer private constructor(
         playerScope = playerScope,
         context = context,
         assetId = assetId,
-        sentryLogger = sentryLogger,
         isLiveStream = { isLiveStream },
         onRenewOfflineLicense = {
             DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)
-        }
+        },
+        onL3Fallback = ::addDrmFallbackBreadcrumb,
     )
 
     private val downloadPlaybackHandler = DownloadPlaybackHandler(
@@ -163,13 +315,10 @@ class TPStreamsPlayer private constructor(
 
     private val networkDiagnosticsManager = NetworkDiagnosticsManager(
         playerScope = playerScope,
-        assetId = assetId,
-        exoPlayer = exoPlayer,
         context = context,
-        sentryLogger = sentryLogger,
         networkRecoveryHandler = networkRecoveryHandler,
-        listener = { error, message, diagnostics ->
-            _listener?.onNetworkError(error, message, diagnostics)
+        listener = { result ->
+            handleNetworkResult(result)
         },
         retryPlayback = { retryPlayback() },
         onDiagnosticsStarted = {
@@ -179,21 +328,32 @@ class TPStreamsPlayer private constructor(
         serverProbePathProvider = ::resolveServerProbePath
     )
 
+    private fun handleNetworkResult(result: NetworkErrorResult) {
+        val shouldReport = shouldReportNetworkError(result)
+        val diagnostics = result.diagnostics.copy(
+            playerId = sentryLogger.playerId.takeIf { shouldReport },
+        )
+        reportNetworkError(result, diagnostics)
+        _listener?.onNetworkError(result.error, result.message, diagnostics)
+    }
+
+    private fun shouldReportNetworkError(result: NetworkErrorResult): Boolean =
+        !result.isRetrying && result.diagnostics.internetReachable && result.exoError != null
+
     private val mediaLoader = MediaLoader(
         context = context,
         exoPlayer = exoPlayer,
         playerScope = playerScope,
         assetId = assetId,
         accessToken = accessToken,
-        sentryLogger = sentryLogger,
         drmHandler = drmHandler,
         textTrackManager = textTrackManager,
         downloadPlaybackHandler = downloadPlaybackHandler,
         networkDiagnosticsManager = networkDiagnosticsManager,
-        getDecoderState = { decoderState },
         onMediaPrepared = { isPrepared = true },
         shouldPlayOnPrepared = { shouldAutoPlay || requestedPlay },
         onLiveStreamStatusChanged = { onLiveStreamStatusChanged?.invoke(it) },
+        onAssetFetchError = ::reportAssetFetchError,
         onPlaybackError = { error, message -> _listener?.onError(error, message) },
         logDebug = { debugLog(it) }
     )
@@ -493,7 +653,7 @@ class TPStreamsPlayer private constructor(
                 }
 
                 if (isNetworkError(error)) {
-                    networkDiagnosticsManager.handleError(error.toError(), error, mediaLoader.cdnHostname, decoderState, mediaLoader.mediaUrl)
+                    networkDiagnosticsManager.handleError(error.toError(), error, mediaLoader.cdnHostname, mediaLoader.mediaUrl)
                     return
                 }
 
@@ -501,14 +661,19 @@ class TPStreamsPlayer private constructor(
                 // Network errors route through handleError → manager → _listener?.onNetworkError().
                 debugLog("Player ERROR - ${error.errorCodeName}")
                 val errorPlayerId = sentryLogger.playerId
-                sentryLogger.logPlaybackException(
-                    error,
-                    assetId,
-                    drmLicenseUrl = drmHandler.licenseUrl,
-                    context = context,
-                    player = exoPlayer,
-                    decoderState = decoderState,
-                    drmSecurityLevel = drmHandler.nativeSecurityLevel
+                reportPlaybackError(
+                    error = error,
+                    tags = buildMap {
+                        put("widevine_security_level", drmHandler.nativeSecurityLevel)
+                        drmHandler.licenseUrl?.takeIf(String::isNotEmpty)?.let { put("drmLicenseUrl", it) }
+                    },
+                    contexts = mapOf(
+                        "Playback Error" to mapOf(
+                            "Error Code" to error.errorCode,
+                            "Error Code Name" to error.errorCodeName,
+                            "DRM License URL" to (drmHandler.licenseUrl?.takeIf(String::isNotEmpty) ?: "N/A"),
+                        ),
+                    ),
                 )
                 
                 val errorType = error.toError()

@@ -2,13 +2,10 @@ package com.tpstreams.player.util
 
 import android.content.Context
 import android.util.Log
-import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
 import com.tpstreams.player.constants.NetworkDiagnostics
 import com.tpstreams.player.constants.PlaybackError
-import com.tpstreams.player.data.PlayerDecoderState
 import com.tpstreams.player.util.network.NetworkRecoveryHandler
-import io.sentry.Breadcrumb
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -17,19 +14,15 @@ import kotlinx.coroutines.yield
 
 internal class NetworkDiagnosticsManager(
     private val playerScope: CoroutineScope,
-    private val assetId: String,
-    private val exoPlayer: Player,
-    context: Context? = null,
-    private val sentryLogger: SentryLogger,
+    context: Context,
     private val networkRecoveryHandler: NetworkRecoveryHandler,
-    private val listener: (PlaybackError, String, NetworkDiagnostics) -> Unit,
+    private val listener: (NetworkErrorResult) -> Unit,
     private val retryPlayback: () -> Unit,
     private val onDiagnosticsStarted: (() -> Unit)? = null,
     private val diagnosticHostProvider: () -> String = { DIAGNOSTIC_HOST_DEFAULT },
     private val serverProbePathProvider: () -> String = { DEFAULT_SERVER_PROBE_PATH },
 ) {
-    // Application context to avoid Activity leaks
-    private val appContext: Context? = context?.applicationContext
+    private val appContext = context.applicationContext
     private val probeRunner = NetworkProbeRunner(diagnosticHostProvider, serverProbePathProvider)
 
     private var networkErrorJob: Job? = null
@@ -96,7 +89,6 @@ internal class NetworkDiagnosticsManager(
         errorType: PlaybackError,
         exoError: PlaybackException? = null,
         cdnHostname: String? = null,
-        decoderState: PlayerDecoderState? = null,
         mediaUrl: String? = null
     ) {
         networkErrorJob?.cancel()
@@ -111,24 +103,29 @@ internal class NetworkDiagnosticsManager(
                 playerScope.launch { retryPlayback() }
             }
             listener(
-                PlaybackError.NETWORK_CONNECTION_FAILED,
-                "No internet connection",
-                NetworkDiagnostics(
-                    internetReachable = false,
-                    internetLatencyMs = null,
-                    serverReachable = false,
-                    serverLatencyMs = null,
-                    serverDetail = "unreachable",
-                    cdnReachable = if (cdnHostname == null) null else false,
-                    dnsResolves = false,
-                    dnsLatencyMs = null
+                NetworkErrorResult(
+                    error = PlaybackError.NETWORK_CONNECTION_FAILED,
+                    message = "No internet connection",
+                    diagnostics = NetworkDiagnostics(
+                        internetReachable = false,
+                        internetLatencyMs = null,
+                        serverReachable = false,
+                        serverLatencyMs = null,
+                        serverDetail = "unreachable",
+                        cdnReachable = if (cdnHostname == null) null else false,
+                        dnsResolves = false,
+                        dnsLatencyMs = null
+                    ),
+                    exoError = exoError,
+                    rootCause = "no_internet",
+                    isRetrying = false,
                 )
             )
             return
         }
 
         onDiagnosticsStarted?.invoke()
-        logDebug("NETWORK_PROBE: handleError CALLED — errorType=$errorType, exoError=${exoError?.errorCodeName}, assetId=$assetId")
+        logDebug("NETWORK_PROBE: handleError CALLED — errorType=$errorType, exoError=${exoError?.errorCodeName}")
 
         networkErrorJob = playerScope.launch {
             logDebug("NETWORK_PROBE: starting — attempt=$attempt, errorType=$errorType, exoError=${exoError?.errorCodeName}")
@@ -157,17 +154,18 @@ internal class NetworkDiagnosticsManager(
             }
 
             val displayAttempt = autoRetryCount + 1
-            val playerId = sentryLogger.playerId
-
-            addSentryBreadcrumb(rootCause, displayAttempt, isRetrying, diagnostics, finalError, exoPlayer, playerId)
-            val sentryEventId = sendSentryEvent(exoError, rootCause, finalError, diagnostics, playerId, isRetrying, exoPlayer, decoderState)
-            Log.e(DEBUG_TAG, "Network error: $message (sentry: ${sentryEventId ?: "null"})", exoError)
+            Log.e(DEBUG_TAG, "Network error: $message", exoError)
 
             listener(
-                finalError, message,
-                diagnostics.copy(
-                    retryAttempt = if (isRetrying) displayAttempt else 0,
-                    playerId = if (!isRetrying && hasInternet) playerId else null
+                NetworkErrorResult(
+                    error = finalError,
+                    message = message,
+                    diagnostics = diagnostics.copy(
+                        retryAttempt = if (isRetrying) displayAttempt else 0,
+                    ),
+                    exoError = exoError,
+                    rootCause = rootCause,
+                    isRetrying = isRetrying,
                 )
             )
 
@@ -210,60 +208,13 @@ internal class NetworkDiagnosticsManager(
         }
     }
 
-    private fun addSentryBreadcrumb(
-        rootCause: String, displayAttempt: Int, isRetrying: Boolean,
-        diagnostics: NetworkDiagnostics, finalError: PlaybackError, exoPlayer: Player, playerId: String
-    ) {
-        val stateName = when (exoPlayer.playbackState) {
-            Player.STATE_IDLE -> "idle"
-            Player.STATE_BUFFERING -> "buffering"
-            Player.STATE_READY -> "ready"
-            Player.STATE_ENDED -> "ended"
-            else -> "unknown"
-        }
-        sentryLogger.addBreadcrumb(Breadcrumb().apply {
-            setMessage(if (isRetrying) "Exponential backoff retry scheduled" else "Network error shown to user")
-            setData("root_cause", rootCause)
-            setData("retry_attempt", displayAttempt.toString())
-            setData("internet_reachable", diagnostics.internetReachable.toString())
-            setData("dns_resolves", diagnostics.dnsResolves.toString())
-            setData("server_reachable", diagnostics.serverReachable.toString())
-            setData("cdn_reachable", diagnostics.cdnReachable?.toString() ?: "null")
-            setData("proxy_configured", diagnostics.proxyConfigured.toString())
-            setData("final_error", finalError.name)
-            setData("player_state", stateName)
-            setData("player_id", playerId)
-        })
-    }
-
-    private fun sendSentryEvent(
-        exoError: PlaybackException?, rootCause: String, finalError: PlaybackError,
-        diagnostics: NetworkDiagnostics, playerId: String, isRetrying: Boolean,
-        player: Player? = null, decoderState: PlayerDecoderState? = null
-    ): String? {
-        if (isRetrying) return null  // Don't spam Sentry during backoff attempts; log on final failure only
-        if (!diagnostics.internetReachable) return null
-        return if (exoError != null) {
-            sentryLogger.logPlaybackException(exoError, assetId, rootCause = rootCause, context = appContext, player = player, decoderState = decoderState)
-        } else {
-            sentryLogger.logMessageWithEnrichment(
-                message = "Network error: $rootCause",
-                level = io.sentry.SentryLevel.WARNING,
-                context = appContext,
-                player = player,
-                tags = mapOf(
-                    "playerId" to playerId,
-                    "assetId" to assetId,
-                    "rootCause" to rootCause,
-                    "finalError" to finalError.name,
-                    "network_internet" to diagnostics.internetReachable.toString(),
-                    "network_dns" to diagnostics.dnsResolves.toString(),
-                    "network_server" to diagnostics.serverReachable.toString(),
-                    "network_cdn" to (diagnostics.cdnReachable?.toString() ?: "skipped"),
-                    "network_proxy" to diagnostics.proxyConfigured.toString()
-                )
-            )
-        }
-    }
-
 }
+
+internal data class NetworkErrorResult(
+    val error: PlaybackError,
+    val message: String,
+    val diagnostics: NetworkDiagnostics,
+    val exoError: PlaybackException?,
+    val rootCause: String,
+    val isRetrying: Boolean,
+)

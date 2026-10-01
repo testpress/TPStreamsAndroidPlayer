@@ -14,8 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
  * [PlayerDecoderState] — typically sourced from the current
  * [com.tpstreams.player.TPStreamsPlayer] instance.
  *
- * Tags: widevine_security_level, active_decoder_count, video_decoder_name
- * Context: all DecoderInfo fields
+ * Returns decoder and Widevine details for an event context.
  */
 internal object DecoderInfoProvider {
 
@@ -26,23 +25,8 @@ internal object DecoderInfoProvider {
     /** Cache of isDecoderHardware results to avoid redundant MediaCodecList enumeration. */
     private val decoderHardwareCache = ConcurrentHashMap<String, Boolean>()
 
-    /** Returns tags for Sentry events using the given [decoderState]. */
-    fun buildTags(decoderState: PlayerDecoderState?): Map<String, String> {
-        return buildMap {
-            widevineLevel?.let { put("widevine_security_level", it) }
-            WidevinePlaybackLevelResolver.getPlaybackLevelOrNull()?.let {
-                put("widevine_playback_level", it.name)
-            }
-            val activeCount = CodecManager.getActiveDecoderCount()
-            put("active_decoder_count", activeCount.toString())
-            decoderState?.videoDecoderName?.let { put("video_decoder_name", it) }
-            decoderState?.videoMimeType?.let { put("video_mime_type", it) }
-            decoderState?.audioMimeType?.let { put("audio_mime_type", it) }
-        }
-    }
-
-    /** Returns the full decoder context for Sentry using the given [decoderState]. */
-    fun buildContext(decoderState: PlayerDecoderState?): Map<String, Any> {
+    /** Returns decoder context for Sentry using the given [decoderState]. */
+    fun getContext(decoderState: PlayerDecoderState?): Map<String, Any> {
         return buildMap {
             decoderState?.videoDecoderName?.let { put("video_decoder_name", it) }
             decoderState?.audioDecoderName?.let { put("audio_decoder_name", it) }
