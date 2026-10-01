@@ -1,5 +1,6 @@
 package com.tpstreams.player.util
 
+import android.content.Context
 import com.tpstreams.player.TPStreamsSDK
 import com.tpstreams.player.BuildConfig
 import io.sentry.Breadcrumb
@@ -11,6 +12,7 @@ import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.Mockito
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -18,7 +20,7 @@ import java.util.concurrent.TimeUnit
 class SentryLoggerTest {
     @Test
     fun `player id is initialized once with eleven characters`() {
-        val sentryLogger = SentryLogger.create()
+        val sentryLogger = createLogger()
         try {
             assertEquals(11, sentryLogger.playerId.length)
             assertEquals(sentryLogger.playerId, sentryLogger.playerId)
@@ -30,7 +32,7 @@ class SentryLoggerTest {
     @Test
     fun `common player scope is initialized at creation`() {
         TPStreamsSDK.init("my_org_code")
-        val sentryLogger = SentryLogger.create(assetId = "asset-123")
+        val sentryLogger = createLogger(assetId = "asset-123")
         try {
             val scope = requireNotNull(currentScopes(sentryLogger)).isolationScope
 
@@ -45,8 +47,8 @@ class SentryLoggerTest {
 
     @Test
     fun `each logger owns independent scopes`() {
-        val firstSentryLogger = SentryLogger.create()
-        val secondSentryLogger = SentryLogger.create()
+        val firstSentryLogger = createLogger()
+        val secondSentryLogger = createLogger()
         try {
             val firstScopes = currentScopes(firstSentryLogger)
             val secondScopes = currentScopes(secondSentryLogger)
@@ -68,8 +70,8 @@ class SentryLoggerTest {
 
     @Test
     fun `closing one logger does not close another logger scopes`() {
-        val firstSentryLogger = SentryLogger.create()
-        val secondSentryLogger = SentryLogger.create()
+        val firstSentryLogger = createLogger()
+        val secondSentryLogger = createLogger()
         try {
             firstSentryLogger.close()
 
@@ -82,39 +84,72 @@ class SentryLoggerTest {
 
     @Test
     fun `helpers forward tags breadcrumbs and capture scope enrichment`() {
-        val sentryLogger = SentryLogger.create()
+        val sentryLogger = createLogger()
         try {
             val scopes = requireNotNull(currentScopes(sentryLogger))
             val beforeSendCalled = CountDownLatch(2)
             val capturedTags = Collections.synchronizedSet(mutableSetOf<String>())
+            val capturedNames = Collections.synchronizedSet(mutableSetOf<String>())
+            val capturedFingerprints = Collections.synchronizedSet(mutableSetOf<List<String>>())
+            val capturedExceptionValues = Collections.synchronizedSet(mutableSetOf<String>())
             scopes.options.setBeforeSend { event, _ ->
                 event.getTag("event_tag")?.let(capturedTags::add)
+                event.transaction?.let(capturedNames::add)
+                event.fingerprints?.let(capturedFingerprints::add)
+                event.exceptions?.mapNotNull { it.value }?.let(capturedExceptionValues::addAll)
                 beforeSendCalled.countDown()
                 null
             }
 
-            sentryLogger.setTag("shared_tag", "shared_value")
             sentryLogger.addBreadcrumb(Breadcrumb("breadcrumb"))
-            sentryLogger.captureMessage("message", SentryLevel.WARNING) { scope ->
-                scope.setTag("event_tag", "message_value")
-            }
-            sentryLogger.captureException(IllegalStateException("exception")) { scope ->
-                scope.setTag("event_tag", "exception_value")
-            }
+            sentryLogger.logMessage(
+                message = "message details",
+                category = "Playback",
+                errorDomain = "Network",
+                name = "Connection failed",
+                groupingKey = listOf("playback", "network", "connection"),
+                level = SentryLevel.WARNING,
+                tags = mapOf("event_tag" to "message_value"),
+            )
+            sentryLogger.logException(
+                throwable = IllegalStateException("exception"),
+                category = "Initializing",
+                errorDomain = "HTTP",
+                name = "Asset not found",
+                groupingKey = listOf("asset-fetch", "http-404"),
+                tags = mapOf("event_tag" to "exception_value"),
+            )
 
-            assertEquals("shared_value", scopes.isolationScope.tags["shared_tag"])
             assertEquals("breadcrumb", scopes.isolationScope.breadcrumbs.last().message)
             assertTrue(beforeSendCalled.await(5, TimeUnit.SECONDS))
             assertEquals(setOf("message_value", "exception_value"), capturedTags)
+            assertEquals(
+                setOf(
+                    "Playback: Network: Connection failed",
+                    "Initializing: HTTP: Asset not found",
+                ),
+                capturedNames,
+            )
+            assertEquals(
+                setOf(
+                    listOf("playback", "network", "connection"),
+                    listOf("asset-fetch", "http-404"),
+                ),
+                capturedFingerprints,
+            )
+            assertEquals(
+                setOf("exception"),
+                capturedExceptionValues,
+            )
         } finally {
             sentryLogger.close()
         }
     }
 
     @Test
-    fun `enrichScope adds orgCode tag when initialized`() {
+    fun `log message includes orgCode tag initialized on common scope`() {
         TPStreamsSDK.init("my_org_code")
-        val sentryLogger = SentryLogger.create()
+        val sentryLogger = createLogger()
         try {
             val scopes = requireNotNull(currentScopes(sentryLogger))
             val beforeSendCalled = CountDownLatch(1)
@@ -125,9 +160,14 @@ class SentryLoggerTest {
                 null
             }
 
-            sentryLogger.captureMessage("test message", SentryLevel.INFO) { scope ->
-                sentryLogger.enrichScope(scope = scope)
-            }
+            sentryLogger.logMessage(
+                message = "test message",
+                category = "Playback",
+                errorDomain = "ExoPlayer",
+                name = "Source error",
+                groupingKey = listOf("playback", "exoplayer", "2000"),
+                level = SentryLevel.INFO,
+            )
 
             assertTrue(beforeSendCalled.await(5, TimeUnit.SECONDS))
             assertEquals("my_org_code", capturedOrgCode)
@@ -140,5 +180,11 @@ class SentryLoggerTest {
         val field = SentryLogger::class.java.getDeclaredField("scopes")
         field.isAccessible = true
         return field.get(sentryLogger) as Scopes?
+    }
+
+    private fun createLogger(assetId: String? = null): SentryLogger {
+        val context = Mockito.mock(Context::class.java)
+        Mockito.`when`(context.applicationContext).thenReturn(context)
+        return SentryLogger.create(context = context, assetId = assetId)
     }
 }

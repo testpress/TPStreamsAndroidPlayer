@@ -158,7 +158,8 @@ class DownloadClient private constructor(private val context: Context) {
                 }
             }
 
-            override fun onError(error: PlaybackError, message: String) {
+            override fun onError(failure: AssetRepository.AssetFetchFailure) {
+                val message = failure.getMessage("download")
                 val title = "Video $assetId"
                 val failedItem = DownloadItem(assetId, title, null, 0, 0, 0f, Download.STATE_FAILED, metadata ?: emptyMap())
                 listeners.toList().forEach { it.onDownloadFailed(failedItem, Exception("Failed to fetch asset info: $message")) }

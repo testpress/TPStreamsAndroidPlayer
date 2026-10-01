@@ -1,11 +1,8 @@
 package com.tpstreams.player.util
 
 import android.content.Context
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
 import com.tpstreams.player.BuildConfig
 import com.tpstreams.player.TPStreamsSDK
-import com.tpstreams.player.data.PlayerDecoderState
 import io.sentry.Breadcrumb
 import io.sentry.IScope
 import io.sentry.Scope
@@ -14,45 +11,62 @@ import io.sentry.Scopes
 import io.sentry.SentryClient
 import io.sentry.SentryLevel
 import io.sentry.SentryOptions
-import io.sentry.protocol.SentryId
 
 /**
- * Sentry reporting and scope ownership isolated to the TPStreams player SDK.
+ * Generic Sentry event reporter with a scope isolated from the host application.
  *
- * See https://docs.sentry.io/platforms/android/configuration/shared-environments/
+ * Business code owns event classification and prepares any domain-specific tags and
+ * contexts. This class only adds common SDK/device diagnostics and sends the event.
  */
 internal class SentryLogger private constructor(
-    context: Context? = null,
+    context: Context,
     assetId: String? = null,
     val playerId: String = generatePlayerId(),
 ) {
+    private val applicationContext = context.applicationContext
     private var scopes: Scopes? = createScopes()
 
     init {
-        initializeCommonScope(context?.applicationContext, assetId)
+        initializeCommonScope(assetId)
     }
 
     @Synchronized
-    fun captureException(
+    fun logException(
         throwable: Throwable,
-        configureScope: (IScope) -> Unit,
-    ): SentryId? = scopes?.captureException(throwable, ScopeCallback(configureScope))
+        category: String,
+        errorDomain: String,
+        name: String,
+        groupingKey: List<String>,
+        tags: Map<String, String> = emptyMap(),
+        contexts: Map<String, Map<String, Any>> = emptyMap(),
+    ): String? {
+        val eventName = buildEventName(category, errorDomain, name)
+        return scopes?.captureException(throwable, ScopeCallback { scope ->
+            configureEventScope(scope, eventName, category, errorDomain, groupingKey, tags, contexts)
+        })?.toString()
+    }
 
     @Synchronized
-    fun captureMessage(
+    fun logMessage(
         message: String,
-        level: SentryLevel,
-        configureScope: (IScope) -> Unit,
-    ): SentryId? = scopes?.captureMessage(message, level, ScopeCallback(configureScope))
+        category: String,
+        errorDomain: String,
+        name: String,
+        groupingKey: List<String>,
+        level: SentryLevel = SentryLevel.WARNING,
+        tags: Map<String, String> = emptyMap(),
+        contexts: Map<String, Map<String, Any>> = emptyMap(),
+    ): String? {
+        val eventName = buildEventName(category, errorDomain, name)
+        return scopes?.captureMessage(eventName, level, ScopeCallback { scope ->
+            scope.setExtra("details", message)
+            configureEventScope(scope, eventName, category, errorDomain, groupingKey, tags, contexts)
+        })?.toString()
+    }
 
     @Synchronized
     fun addBreadcrumb(breadcrumb: Breadcrumb) {
         scopes?.addBreadcrumb(breadcrumb)
-    }
-
-    @Synchronized
-    fun setTag(key: String, value: String) {
-        scopes?.setTag(key, value)
     }
 
     @Synchronized
@@ -61,82 +75,36 @@ internal class SentryLogger private constructor(
         scopes = null
     }
 
-    private fun createScopes(): Scopes {
-        val options = SentryOptions().apply {
-            dsn = DSN
-            release = "TPStreamsAndroidPlayer@${BuildConfig.SDK_VERSION}"
-        }
-        val globalScope = Scope(options).apply {
-            bindClient(SentryClient(options))
-        }
-        return Scopes(
-            Scope(options),
-            Scope(options),
-            globalScope,
-            CREATOR,
-        )
-    }
-
-    companion object {
-        private const val DSN = "https://1a888cef4d504918b5b506f9b1decef7@sentry.testpress.in/23"
-        private const val CREATOR = "TPStreamsPlayer.init"
-
-        fun create(
-            context: Context? = null,
-            assetId: String? = null,
-            playerId: String = generatePlayerId(),
-        ): SentryLogger = SentryLogger(context, assetId, playerId)
-
-        private fun generatePlayerId(): String = (1..11)
-            .map { (('a'..'z') + ('0'..'9')).random() }
-            .joinToString("")
-    }
-
-    private fun initializeCommonScope(context: Context?, assetId: String?) {
-        val scope = scopes?.isolationScope ?: return
-        scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
-        scope.setTag("playerId", playerId)
-        assetId?.let { scope.setTag("assetId", it) }
-        TPStreamsSDK.orgId?.let { scope.setTag("orgCode", it) }
-
-        scope.setContexts(
-            "TPStreamsPlayer",
-            buildMap {
-                put("Player ID", playerId)
-                assetId?.let { put("Asset ID", it) }
-            }
-        )
-
-        try {
-            DeviceInfoProvider.getTags(context).forEach { (key, value) -> scope.setTag(key, value) }
-            scope.setContexts("Device Info", DeviceInfoProvider.getContext(context))
-        } catch (_: Exception) { /* best-effort */ }
-
-        if (context != null) try {
-            AppInfoProvider.getHostAppVersion(context)?.let { scope.setTag("client_app", it) }
-        } catch (_: Exception) { /* best-effort */ }
-    }
-
-    /**
-     * Enriches an event's [scope] with dynamic network, storage, decoder, and player state.
-     *
-     * All providers are best-effort — if one throws, only that provider's data is lost.
-     * Context-dependent providers ([StorageMemoryProvider], [NetworkInfoProvider]) are
-     * skipped when [context] is null. Stable SDK, organization, device, application, and
-     * video identifiers are initialized once on the logger's isolation scope.
-     */
-    fun enrichScope(
-        context: Context? = null,
-        player: Player? = null,
-        decoderState: PlayerDecoderState? = null,
-        errorCategory: String? = null,
-        scope: IScope
+    private fun configureEventScope(
+        scope: IScope,
+        eventName: String,
+        category: String,
+        errorDomain: String,
+        groupingKey: List<String>,
+        tags: Map<String, String>,
+        contexts: Map<String, Map<String, Any>>,
     ) {
-        // Error category — high-level classification for triage
-        errorCategory?.let { scope.setTag("error_category", it) }
+        scope.setTransaction(eventName)
+        scope.setTag("event_name", eventName)
+        scope.setTag("error_category", category)
+        scope.setTag("error_domain", errorDomain)
+        scope.fingerprint = groupingKey
+        for ((key, value) in tags) scope.setTag(key, value)
+        for ((key, value) in contexts) scope.setContexts(key, value)
+        addAutomaticContexts(scope)
+    }
 
-        // Storage & memory (needs context) — single pass
-        if (context != null) try {
+    private fun addAutomaticContexts(scope: IScope) {
+        val nowEpochMs = System.currentTimeMillis()
+        try {
+            for ((key, value) in ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs)) {
+                scope.setTag(key, value)
+            }
+            scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
+        } catch (_: Exception) { /* best-effort */ }
+
+        val context = applicationContext
+        try {
             val info = StorageMemoryProvider.getStorageMemoryInfo(context)
             info.lowMemory?.let { scope.setTag("low_memory", it.toString()) }
             scope.setContexts("Storage & Memory", buildMap {
@@ -148,8 +116,7 @@ internal class SentryLogger private constructor(
             })
         } catch (_: Exception) { /* best-effort */ }
 
-        // Network info (needs context) — single pass
-        if (context != null) try {
+        try {
             val info = NetworkInfoProvider.getNetworkInfo(context)
             info.networkType?.let { scope.setTag("network_type", it) }
             info.vpnActive?.let { scope.setTag("vpn_active", it.toString()) }
@@ -164,114 +131,54 @@ internal class SentryLogger private constructor(
                 info.operatorName?.let { put("operator_name", it) }
             })
         } catch (_: Exception) { /* best-effort */ }
+    }
 
-        // Player state snapshot
+    private fun initializeCommonScope(assetId: String?) {
+        val scope = scopes?.isolationScope ?: return
+        scope.setTag("sdkVersion", BuildConfig.SDK_VERSION)
+        scope.setTag("playerId", playerId)
+        assetId?.let { scope.setTag("assetId", it) }
+        TPStreamsSDK.orgId?.let { scope.setTag("orgCode", it) }
+        scope.setContexts("TPStreamsPlayer", buildMap {
+            put("Player ID", playerId)
+            assetId?.let { put("Asset ID", it) }
+        })
+
+        val context = applicationContext
         try {
-            val snapshot = PlayerStateSnapshot.capture(player)
-            snapshot.getTags().forEach { (key, value) -> scope.setTag(key, value) }
-            scope.setContexts("Player State", snapshot.getContext())
+            for ((key, value) in DeviceInfoProvider.getTags(context)) scope.setTag(key, value)
+            scope.setContexts("Device Info", DeviceInfoProvider.getContext(context))
         } catch (_: Exception) { /* best-effort */ }
 
-        // Decoder info
         try {
-            DecoderInfoProvider.buildTags(decoderState).forEach { (key, value) -> scope.setTag(key, value) }
-            scope.setContexts("Decoder Info", DecoderInfoProvider.buildContext(decoderState))
+            AppInfoProvider.getHostAppVersion(context)?.let { scope.setTag("client_app", it) }
         } catch (_: Exception) { /* best-effort */ }
     }
 
-    fun logPlaybackException(
-        error: PlaybackException,
-        assetId: String?,
-        drmLicenseUrl: String? = null,
-        rootCause: String? = null,
-        context: Context? = null,
-        player: Player? = null,
-        decoderState: PlayerDecoderState? = null,
-        drmSecurityLevel: String = "unknown"
-    ): String? {
-        return captureException(error) { scope ->
-            val nowEpochMs = System.currentTimeMillis()
-            ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
-                scope.setTag(key, value)
-            }
-            scope.setTag("errorCode", error.errorCode.toString())
-            scope.setTag("errorCodeName", error.errorCodeName)
-            scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
-            assetId?.let { scope.setTag("assetId", it) }
-            drmLicenseUrl?.takeIf { it.isNotEmpty() }?.let { scope.setTag("drmLicenseUrl", it) }
-            scope.setTag("widevine_security_level", drmSecurityLevel)
-            // Set rootCause: prefer explicit value, then auto-derive from DRM error code
-            val derivedRootCause = rootCause ?: when {
-                error.errorCodeName?.contains("DRM", ignoreCase = true) == true -> error.errorCodeName
-                else -> null
-            }
-            derivedRootCause?.let { scope.setTag("rootCause", it) }
-            scope.setContexts(
-                "Playback Error",
-                mapOf(
-                    "Error Code" to error.errorCode,
-                    "Error Code Name" to error.errorCodeName,
-                    "DRM License URL" to (drmLicenseUrl?.takeIf { it.isNotEmpty() } ?: "N/A")
-                )
-            )
-            scope.setContexts(
-                "Playback History",
-                mapOf("Timeline" to PlaybackHistoryManager.getFullHistory())
-            )
-            val category = when {
-                rootCause != null -> "NETWORK"
-                error.errorCodeName?.contains("DRM", ignoreCase = true) == true -> "DRM"
-                error.errorCodeName?.contains("DECODER", ignoreCase = true) == true -> "DECODER"
-                else -> "PLAYBACK"
-            }
-            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, scope = scope)
-        }?.toString()
+    private fun createScopes(): Scopes {
+        val options = SentryOptions().apply {
+            dsn = DSN
+            release = "TPStreamsAndroidPlayer@${BuildConfig.SDK_VERSION}"
+        }
+        val globalScope = Scope(options).apply { bindClient(SentryClient(options)) }
+        return Scopes(Scope(options), Scope(options), globalScope, CREATOR)
     }
 
-    fun logAPIException(
-        exception: Exception,
-        assetId: String?,
-        responseCode: Int?,
-        url: String? = null,
-        context: Context? = null,
-        player: Player? = null
-    ): String? {
-        return captureException(exception) { scope ->
-            val nowEpochMs = System.currentTimeMillis()
-            ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach { (key, value) ->
-                scope.setTag(key, value)
-            }
-            scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
-            assetId?.let { scope.setTag("assetId", it) }
-            responseCode?.let { scope.setTag("responseCode", it.toString()) }
-            url?.takeIf { it.isNotEmpty() }?.let { scope.setTag("requestUrl", it) }
-            scope.setContexts(
-                "API Request",
-                mapOf(
-                    "Response Code" to (responseCode ?: "N/A"),
-                    "Request URL" to (url?.takeIf { it.isNotEmpty() } ?: "N/A")
-                )
-            )
-            enrichScope(context = context, player = player, errorCategory = "API", scope = scope)
-        }?.toString()
-    }
+    companion object {
+        private const val DSN = "https://1a888cef4d504918b5b506f9b1decef7@sentry.testpress.in/23"
+        private const val CREATOR = "TPStreamsPlayer.init"
 
-    fun logMessageWithEnrichment(
-        message: String,
-        level: SentryLevel = SentryLevel.WARNING,
-        context: Context? = null,
-        player: Player? = null,
-        decoderState: PlayerDecoderState? = null,
-        tags: Map<String, String> = emptyMap()
-    ): String? {
-        return captureMessage(message, level) { scope ->
-            tags.forEach { (key, value) -> scope.setTag(key, value) }
-            scope.setContexts(
-                "Playback History",
-                mapOf("Timeline" to PlaybackHistoryManager.getFullHistory())
-            )
-            val category = if (tags.containsKey("rootCause")) "NETWORK" else "UNKNOWN"
-            enrichScope(context = context, player = player, decoderState = decoderState, errorCategory = category, scope = scope)
-        }?.toString()
+        fun create(
+            context: Context,
+            assetId: String? = null,
+            playerId: String = generatePlayerId(),
+        ): SentryLogger = SentryLogger(context, assetId, playerId)
+
+        private fun generatePlayerId(): String = (1..11)
+            .map { (('a'..'z') + ('0'..'9')).random() }
+            .joinToString("")
+
+        private fun buildEventName(category: String, errorDomain: String, name: String): String =
+            "${category.trim()}: ${errorDomain.trim()}: ${name.trim()}"
     }
 }
