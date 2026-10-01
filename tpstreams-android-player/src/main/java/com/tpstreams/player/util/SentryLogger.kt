@@ -9,6 +9,7 @@ import io.sentry.Scope
 import io.sentry.ScopeCallback
 import io.sentry.Scopes
 import io.sentry.SentryClient
+import io.sentry.SentryEvent
 import io.sentry.SentryLevel
 import io.sentry.SentryOptions
 
@@ -159,9 +160,21 @@ internal class SentryLogger private constructor(
         val options = SentryOptions().apply {
             dsn = DSN
             release = "TPStreamsAndroidPlayer@${BuildConfig.SDK_VERSION}"
+            tracesSampleRate = null
+            profilesSampleRate = null
+            profileSessionSampleRate = null
+            setBeforeSend { event, _ -> useEventNameAsExceptionValue(event) }
         }
         val globalScope = Scope(options).apply { bindClient(SentryClient(options)) }
         return Scopes(Scope(options), Scope(options), globalScope, CREATOR)
+    }
+
+    private fun useEventNameAsExceptionValue(event: SentryEvent): SentryEvent {
+        val eventName = event.getTag("event_name") ?: return event
+        val exception = event.exceptions?.lastOrNull() ?: return event
+        exception.value?.let { event.setExtra("original_exception_message", it) }
+        exception.value = eventName
+        return event
     }
 
     companion object {

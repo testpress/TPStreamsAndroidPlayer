@@ -15,7 +15,6 @@ import com.tpstreams.player.constants.NetworkDiagnostics
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.ui.PlayerErrorViewController
 import com.tpstreams.player.ui.PlayerSheetManager
-import com.tpstreams.player.util.PlaybackHistoryManager
 
 import android.util.Xml
 import org.xmlpull.v1.XmlPullParser
@@ -339,7 +338,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         if (previousPlayer is TPStreamsPlayer) {
             val message = "[${previousPlayer.playbackSessionId}] Surface DETACH"
             Log.d(TPStreamsPlayer.DEBUG_TAG, message)
-            PlaybackHistoryManager.recordLog(message)
+            previousPlayer.recordPlaybackLog(message)
             val current = previousPlayer.listener
             previousPlayer.listener = if (current is ViewPlayerListener) current.userListener else null
             previousPlayer.onLiveStreamStatusChanged = null
@@ -355,7 +354,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         if (player is TPStreamsPlayer) {
             val message = "[${player.playbackSessionId}] Surface ATTACH"
             Log.d(TPStreamsPlayer.DEBUG_TAG, message)
-            PlaybackHistoryManager.recordLog(message)
+            player.recordPlaybackLog(message)
         }
 
 

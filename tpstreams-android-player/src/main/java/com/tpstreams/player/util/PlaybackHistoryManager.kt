@@ -3,12 +3,8 @@ package com.tpstreams.player.util
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * Singleton to manage global playback history for production debugging.
- * Stores a chronological list of video events to help trace decoder/memory issues across multiple sessions.
- */
-internal object PlaybackHistoryManager {
-    private const val MAX_LOG_LINES = 500
+/** Stores a bounded history for one player instance. */
+internal class PlaybackHistoryManager {
     private val logHistory = ConcurrentLinkedDeque<String>()
     private val logCount = AtomicInteger(0)
 
@@ -43,11 +39,7 @@ internal object PlaybackHistoryManager {
         return logHistory.toList()
     }
 
-    /**
-     * Clears all history. Usually done at app level if required.
-     */
-    fun clearHistory() {
-        logHistory.clear()
-        logCount.set(0)
+    private companion object {
+        const val MAX_LOG_LINES = 500
     }
 }

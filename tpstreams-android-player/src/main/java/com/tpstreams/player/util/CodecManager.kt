@@ -62,14 +62,13 @@ object CodecManager {
     /**
      * Logs the current codec status.
      */
-    fun logCodecStatus(codecName: String, mimeType: String) {
+    fun logCodecStatus(codecName: String, mimeType: String, recordHistory: (String) -> Unit) {
         val max = getMaxSupportedInstances(codecName, mimeType)
         val active = getActiveDecoderCount()
         val capacityStr = if (max > 0) max.toString() else "Unknown"
 
         Log.d(TAG, "Codec Capacity Status - Codec: $codecName | Total Hardware Limit: $capacityStr | TPStreams Active: $active")
 
-        // Also add to play history for Sentry
-        PlaybackHistoryManager.recordLog("CODEC_STATUS: $codecName, Limit: $capacityStr, Active: $active")
+        recordHistory("CODEC_STATUS: $codecName, Limit: $capacityStr, Active: $active")
     }
 }

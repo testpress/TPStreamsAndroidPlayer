@@ -92,11 +92,13 @@ class SentryLoggerTest {
             val capturedNames = Collections.synchronizedSet(mutableSetOf<String>())
             val capturedFingerprints = Collections.synchronizedSet(mutableSetOf<List<String>>())
             val capturedExceptionValues = Collections.synchronizedSet(mutableSetOf<String>())
-            scopes.options.setBeforeSend { event, _ ->
-                event.getTag("event_tag")?.let(capturedTags::add)
-                event.transaction?.let(capturedNames::add)
-                event.fingerprints?.let(capturedFingerprints::add)
-                event.exceptions?.mapNotNull { it.value }?.let(capturedExceptionValues::addAll)
+            val configuredBeforeSend = scopes.options.beforeSend
+            scopes.options.setBeforeSend { event, hint ->
+                val processedEvent = configuredBeforeSend?.execute(event, hint)
+                processedEvent?.getTag("event_tag")?.let(capturedTags::add)
+                processedEvent?.transaction?.let(capturedNames::add)
+                processedEvent?.fingerprints?.let(capturedFingerprints::add)
+                processedEvent?.exceptions?.mapNotNull { it.value }?.let(capturedExceptionValues::addAll)
                 beforeSendCalled.countDown()
                 null
             }
@@ -138,7 +140,7 @@ class SentryLoggerTest {
                 capturedFingerprints,
             )
             assertEquals(
-                setOf("exception"),
+                setOf("Initializing: HTTP: Asset not found"),
                 capturedExceptionValues,
             )
         } finally {

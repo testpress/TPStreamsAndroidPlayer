@@ -47,6 +47,7 @@ import com.tpstreams.player.util.PlayerStateSnapshot
 import com.tpstreams.player.util.SentryLogger
 import com.tpstreams.player.util.WidevineDrmSessionManagerProvider
 import com.tpstreams.player.util.WidevinePlaybackLevelResolver
+import com.tpstreams.player.util.findHttpResponseCode
 import com.tpstreams.player.util.isLiveStreamEndHttpError
 import com.tpstreams.player.util.network.NetworkRecoveryHandler
 import com.tpstreams.player.util.network.isNetworkError
@@ -74,6 +75,8 @@ class TPStreamsPlayer private constructor(
     val userId: String? = null
 ) : Player by exoPlayer {
 
+    private val playbackHistory = PlaybackHistoryManager()
+
     val playbackSessionId = (1..6)
         .map { (('a'..'z') + ('0'..'9')).random() }
         .joinToString("")
@@ -81,13 +84,15 @@ class TPStreamsPlayer private constructor(
     private fun debugLog(message: String) {
         val fullMessage = "[$playbackSessionId] $message"
         Log.d(DEBUG_TAG, fullMessage)
-        PlaybackHistoryManager.recordLog(fullMessage)
+        recordPlaybackLog(fullMessage)
     }
+
+    internal fun recordPlaybackLog(message: String) = playbackHistory.recordLog(message)
 
     private fun getPlaybackContexts(): Map<String, Map<String, Any>> = mapOf(
         "Player State" to PlayerStateSnapshot.capture(exoPlayer).getContext(),
         "Decoder Info" to DecoderInfoProvider.getContext(decoderState),
-        "Playback History" to mapOf("Timeline" to PlaybackHistoryManager.getFullHistory()),
+        "Playback History" to mapOf("Timeline" to playbackHistory.getFullHistory()),
     )
 
     private fun reportPlaybackError(
@@ -95,6 +100,7 @@ class TPStreamsPlayer private constructor(
         tags: Map<String, String> = emptyMap(),
         contexts: Map<String, Map<String, Any>> = emptyMap(),
     ) {
+        val httpResponseCode = error.findHttpResponseCode()
         reportError(
             throwable = error,
             category = "Playback",
@@ -104,6 +110,8 @@ class TPStreamsPlayer private constructor(
             tags = buildMap {
                 put("errorCode", error.errorCode.toString())
                 put("errorCodeName", error.errorCodeName)
+                put("causeType", error.cause?.javaClass?.simpleName ?: error.javaClass.simpleName)
+                httpResponseCode?.let { put("httpResponseCode", it.toString()) }
                 if (error.errorCodeName.contains("DRM", ignoreCase = true) && "rootCause" !in tags) {
                     put("rootCause", error.errorCodeName)
                 }
@@ -139,6 +147,7 @@ class TPStreamsPlayer private constructor(
             return message
         }
         val responseCode = failure.responseCode
+        val requestUrl = getSafeUrl(failure.requestUrl)
         reportError(
             throwable = failure.exception,
             category = "Initializing",
@@ -150,13 +159,13 @@ class TPStreamsPlayer private constructor(
                 listOf("asset-fetch", "http-$responseCode")
             },
             tags = buildMap {
-                put("requestUrl", failure.requestUrl)
+                put("requestUrl", requestUrl)
                 responseCode?.let { put("responseCode", it.toString()) }
             },
             contexts = mapOf(
                 "API Request" to mapOf(
                     "Response Code" to (responseCode ?: "N/A"),
-                    "Request URL" to failure.requestUrl,
+                    "Request URL" to requestUrl,
                 )
             ),
         )
@@ -224,11 +233,17 @@ class TPStreamsPlayer private constructor(
         else -> "Asset fetch failed"
     }
 
-    private fun getReadableErrorName(error: PlaybackException): String = error.errorCodeName
-        .removePrefix("ERROR_CODE_")
-        .lowercase()
-        .replace('_', ' ')
-        .replaceFirstChar { it.titlecase() }
+    private fun getReadableErrorName(error: PlaybackException): String {
+        val detail = error.findHttpResponseCode()?.let { "HTTP $it response" }
+            ?: error.errorCodeName
+                .removePrefix("ERROR_CODE_")
+                .lowercase()
+                .replace('_', ' ')
+                .replaceFirstChar { it.titlecase() }
+        return "${error.errorCode} - $detail"
+    }
+
+    private fun getSafeUrl(url: String): String = url.substringBefore('?').substringBefore('#')
 
     interface Listener {
         fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit)
@@ -477,7 +492,7 @@ class TPStreamsPlayer private constructor(
                     videoDecoderName = decoderName,
                     videoDecoderIsHardware = isHardware
                 )
-                CodecManager.logCodecStatus(decoderName, "video/avc")
+                CodecManager.logCodecStatus(decoderName, "video/avc", ::recordPlaybackLog)
             }
 
             override fun onAudioDecoderInitialized(
@@ -665,13 +680,17 @@ class TPStreamsPlayer private constructor(
                     error = error,
                     tags = buildMap {
                         put("widevine_security_level", drmHandler.nativeSecurityLevel)
-                        drmHandler.licenseUrl?.takeIf(String::isNotEmpty)?.let { put("drmLicenseUrl", it) }
+                        drmHandler.licenseUrl?.takeIf(String::isNotEmpty)?.let {
+                            put("drmLicenseUrl", getSafeUrl(it))
+                        }
                     },
                     contexts = mapOf(
                         "Playback Error" to mapOf(
                             "Error Code" to error.errorCode,
                             "Error Code Name" to error.errorCodeName,
-                            "DRM License URL" to (drmHandler.licenseUrl?.takeIf(String::isNotEmpty) ?: "N/A"),
+                            "DRM License URL" to (
+                                drmHandler.licenseUrl?.takeIf(String::isNotEmpty)?.let(::getSafeUrl) ?: "N/A"
+                            ),
                         ),
                     ),
                 )
