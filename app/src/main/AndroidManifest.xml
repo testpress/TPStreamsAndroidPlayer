@@ -27,6 +27,7 @@
         <activity
             android:name="com.tpstreams.player.PlayerActivity"
             android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
             android:theme="@style/Theme.TPStreamsAndroidPlayer" />
 
         <activity
