@@ -74,7 +74,20 @@ val player = TPStreamsPlayer.create(
 binding.playerView.player = player
 ```
 
-4. Basic playback control:
+4. Fullscreen & Activity Configuration (Recommended):
+
+To avoid Activity recreation and visual flickering during fullscreen transitions and device rotations, declare `android:configChanges` on your player Activity in `AndroidManifest.xml`:
+
+```xml
+<activity
+    android:name=".PlayerActivity"
+    android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
+    android:exported="true" />
+```
+
+> **Note**: Declaring `configChanges` prevents Android from destroying and recreating the Activity during orientation changes, ensuring smooth playback without UI flickering or view reconstruction.
+
+5. Basic playback control:
 
 ```kotlin
 // Start playback

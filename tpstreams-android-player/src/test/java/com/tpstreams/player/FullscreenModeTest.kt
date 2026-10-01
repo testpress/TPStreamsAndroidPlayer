@@ -38,45 +38,38 @@ class FullscreenModeTest {
     }
 
     @Test
-    fun `reattaching player requesting fullscreen does not reenter or lose original parent`() {
-        // Simulate setPlayer's startInFullscreen callback at the reattachment boundary.
-        // Bound the callback so a regression fails assertions instead of overflowing the stack.
-        var attachments = 0
-        doAnswer {
-            attachments++
-            if (attachments == 1) {
-                `when`(view.parent).thenReturn(decor)
-                fullscreen.enterFullscreen()
-            }
-            null
-        }.`when`(view).setPlayer(player)
-
+    fun `enterFullscreen and exitFullscreen move view without detaching or reattaching player`() {
         fullscreen.enterFullscreen()
         assertTrue(fullscreen.isInFullscreenMode())
-        verify(view, times(1)).setPlayer(player)
+        verify(view, never()).setPlayer(any())
         verify(originalParent, times(1)).removeView(view)
 
         fullscreen.exitFullscreen()
         assertFalse(fullscreen.isInFullscreenMode())
+        verify(view, never()).setPlayer(any())
         verify(originalParent).addView(view, 0, layoutParams)
         verify(activity).requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
 
     @Test
-    fun `reattaching player during exit cannot recursively exit`() {
+    fun `re-entrant enter or exit during transition is blocked`() {
+        var callCount = 0
+        `when`(view.parent).thenAnswer {
+            callCount++
+            if (callCount == 1) {
+                fullscreen.enterFullscreen()
+            }
+            originalParent
+        }
+
         fullscreen.enterFullscreen()
-        var attachments = 0
-        doAnswer {
-            attachments++
-            if (attachments == 1) fullscreen.exitFullscreen()
-            null
-        }.`when`(view).setPlayer(player)
+        assertTrue(fullscreen.isInFullscreenMode())
+        verify(originalParent, times(1)).removeView(view)
 
         fullscreen.exitFullscreen()
-
         assertFalse(fullscreen.isInFullscreenMode())
         verify(originalParent, times(1)).addView(view, 0, layoutParams)
-        verify(view, times(2)).setPlayer(player)
+        verify(view, never()).setPlayer(any())
     }
 
     @Test
