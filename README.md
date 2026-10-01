@@ -74,7 +74,20 @@ val player = TPStreamsPlayer.create(
 binding.playerView.player = player
 ```
 
-4. Basic playback control:
+4. Fullscreen & Activity Configuration:
+
+To support seamless fullscreen transitions without video interruption or surface detachment errors, declare `android:configChanges` on your player Activity in `AndroidManifest.xml`:
+
+```xml
+<activity
+    android:name=".PlayerActivity"
+    android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
+    android:exported="true" />
+```
+
+> **Note**: Without `configChanges`, Android destroys and recreates the Activity during orientation changes. This forces the player and its video surface to tear down and rebuild, which can cause playback interruptions or hardware decoder surface detachment timeouts on certain vendor chipsets.
+
+5. Basic playback control:
 
 ```kotlin
 // Start playback

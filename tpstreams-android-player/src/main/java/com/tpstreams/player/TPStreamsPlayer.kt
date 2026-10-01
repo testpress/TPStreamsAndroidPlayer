@@ -826,19 +826,6 @@ class TPStreamsPlayer private constructor(
      */
     override fun getPlaybackState(): Int = exoPlayer.playbackState
 
-    /**
-     * Explicitly releases the video surface from the ExoPlayer's video renderer.
-     * Must be called before setPlayer(null) during fullscreen transitions to prevent
-     * MediaTek secure decoder NO_MEMORY crashes — the codec retains a surface reference
-     * even after setPlayer(null), and rapid detach/reattach creates a new codec before
-     * the old one is fully released.
-     */
-    fun releaseVideoSurface() {
-        if (released) return
-        debugLog("Surface CLEAR (pre-transition)")
-        exoPlayer.clearVideoSurface()
-    }
-
     override fun release() {
         if (released) return
         released = true
