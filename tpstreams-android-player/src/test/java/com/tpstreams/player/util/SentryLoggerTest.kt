@@ -91,10 +91,12 @@ class SentryLoggerTest {
             val capturedTags = Collections.synchronizedSet(mutableSetOf<String>())
             val capturedNames = Collections.synchronizedSet(mutableSetOf<String>())
             val capturedFingerprints = Collections.synchronizedSet(mutableSetOf<List<String>>())
+            val capturedExceptionValues = Collections.synchronizedSet(mutableSetOf<String>())
             scopes.options.setBeforeSend { event, _ ->
                 event.getTag("event_tag")?.let(capturedTags::add)
                 event.transaction?.let(capturedNames::add)
                 event.fingerprints?.let(capturedFingerprints::add)
+                event.exceptions?.mapNotNull { it.value }?.let(capturedExceptionValues::addAll)
                 beforeSendCalled.countDown()
                 null
             }
@@ -134,6 +136,10 @@ class SentryLoggerTest {
                     listOf("asset-fetch", "http-404"),
                 ),
                 capturedFingerprints,
+            )
+            assertEquals(
+                setOf("exception"),
+                capturedExceptionValues,
             )
         } finally {
             sentryLogger.close()

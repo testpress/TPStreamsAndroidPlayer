@@ -89,15 +89,17 @@ internal class SentryLogger private constructor(
         scope.setTag("error_category", category)
         scope.setTag("error_domain", errorDomain)
         scope.fingerprint = groupingKey
-        tags.forEach(scope::setTag)
-        contexts.forEach(scope::setContexts)
+        for ((key, value) in tags) scope.setTag(key, value)
+        for ((key, value) in contexts) scope.setContexts(key, value)
         addAutomaticContexts(scope)
     }
 
     private fun addAutomaticContexts(scope: IScope) {
         val nowEpochMs = System.currentTimeMillis()
         try {
-            ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs).forEach(scope::setTag)
+            for ((key, value) in ClockDriftDiagnostics.buildSentryClockTags(nowEpochMs)) {
+                scope.setTag(key, value)
+            }
             scope.setContexts("Clock Drift", ClockDriftDiagnostics.buildSentryClockContext(nowEpochMs))
         } catch (_: Exception) { /* best-effort */ }
 
@@ -144,7 +146,7 @@ internal class SentryLogger private constructor(
 
         val context = applicationContext
         try {
-            DeviceInfoProvider.getTags(context).forEach(scope::setTag)
+            for ((key, value) in DeviceInfoProvider.getTags(context)) scope.setTag(key, value)
             scope.setContexts("Device Info", DeviceInfoProvider.getContext(context))
         } catch (_: Exception) { /* best-effort */ }
 
