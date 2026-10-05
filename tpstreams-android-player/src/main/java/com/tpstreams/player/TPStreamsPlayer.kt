@@ -28,6 +28,7 @@ import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.constants.getErrorMessage
 import com.tpstreams.player.constants.toError
+import java.util.concurrent.CopyOnWriteArraySet
 import com.tpstreams.player.data.AssetRepository
 import com.tpstreams.player.data.PlayerDecoderState
 import com.tpstreams.player.download.DownloadConstants
@@ -59,7 +60,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
-class TPStreamsPlayer private constructor(
+class TPStreamsPlayer internal constructor(
     private val context: Context,
     private val exoPlayer: ExoPlayer,
     private val trackSelector: DefaultTrackSelector,
@@ -241,7 +242,7 @@ class TPStreamsPlayer private constructor(
     private fun getSafeUrl(url: String): String = url.substringBefore('?').substringBefore('#')
 
     interface Listener {
-        fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit)
+        fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {}
         fun onError(error: PlaybackError, message: String)
         fun onNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
             onError(error, message)
@@ -254,6 +255,12 @@ class TPStreamsPlayer private constructor(
 
         fun onSubtitleStateChanged(enabled: Boolean, language: String?) {}
     }
+
+    /**
+     * Internal marker for view-level listeners so TokenManager prioritizes
+     * application-level listeners for token refresh.
+     */
+    internal interface ViewListener : Listener
 
     private var isPrepared = false
     private var requestedPlay = false
@@ -288,14 +295,17 @@ class TPStreamsPlayer private constructor(
         TextTrackManager(
             exoPlayer,
             trackSelector,
-            onSubtitleStateChanged = { enabled, language -> _listener?.onSubtitleStateChanged(enabled, language) },
+            onSubtitleStateChanged = { enabled, language -> notifySubtitleStateChanged(enabled, language) },
         )
     }
     private val resolutionManager: ResolutionManager by lazy {
         ResolutionManager(exoPlayer, trackSelector)
     }
+    internal fun getTokenListener(): Listener? =
+        appListener ?: listeners.firstOrNull { it !is ViewListener }
+
     private val tokenManager: TokenManager by lazy {
-        TokenManager(assetId, accessToken, offlineLicenseExpireTime) { _listener }
+        TokenManager(assetId, accessToken, offlineLicenseExpireTime) { getTokenListener() }
     }
 
     /**
@@ -332,7 +342,7 @@ class TPStreamsPlayer private constructor(
         },
         retryPlayback = { retryPlayback() },
         onDiagnosticsStarted = {
-            _listener?.onNetworkDiagnosticsStarted()
+            notifyNetworkDiagnosticsStarted()
         },
         diagnosticHostProvider = ::resolveDiagnosticHost,
         serverProbePathProvider = ::resolveServerProbePath
@@ -344,7 +354,7 @@ class TPStreamsPlayer private constructor(
             playerId = sentryLogger.playerId.takeIf { shouldReport },
         )
         reportNetworkError(result, diagnostics)
-        _listener?.onNetworkError(result.error, result.message, diagnostics)
+        notifyNetworkError(result.error, result.message, diagnostics)
     }
 
     private fun shouldReportNetworkError(result: NetworkErrorResult): Boolean =
@@ -364,7 +374,7 @@ class TPStreamsPlayer private constructor(
         shouldPlayOnPrepared = { shouldAutoPlay || requestedPlay },
         onLiveStreamStatusChanged = { onLiveStreamStatusChanged?.invoke(it) },
         onAssetFetchError = ::reportAssetFetchError,
-        onPlaybackError = { error, message -> _listener?.onError(error, message) },
+        onPlaybackError = { error, message -> notifyError(error, message) },
         logDebug = { debugLog(it) }
     )
 
@@ -453,15 +463,43 @@ class TPStreamsPlayer private constructor(
         }
     }
 
-    private var _listener: Listener? = null
+    private val listeners = CopyOnWriteArraySet<Listener>()
+    @Volatile private var appListener: Listener? = null
+
+    fun addListener(listener: Listener) {
+        listeners.add(listener)
+    }
+
+    fun removeListener(listener: Listener) {
+        listeners.remove(listener)
+    }
+
     var listener: Listener?
-        get() = _listener
+        get() = appListener
         set(value) {
-            _listener = value
+            appListener?.let { removeListener(it) }
+            appListener = value
             if (value != null) {
+                addListener(value)
                 Log.d("TPStreamsPlayer", "Player listener set")
             }
         }
+
+    internal fun notifyError(error: PlaybackError, message: String) {
+        listeners.forEach { it.onError(error, message) }
+    }
+
+    internal fun notifyNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
+        listeners.forEach { it.onNetworkError(error, message, diagnostics) }
+    }
+
+    internal fun notifyNetworkDiagnosticsStarted() {
+        listeners.forEach { it.onNetworkDiagnosticsStarted() }
+    }
+
+    internal fun notifySubtitleStateChanged(enabled: Boolean, language: String?) {
+        listeners.forEach { it.onSubtitleStateChanged(enabled, language) }
+    }
 
     init {
         WidevinePlaybackLevelResolver.initialize(
@@ -658,7 +696,7 @@ class TPStreamsPlayer private constructor(
 
                 if (isLiveStream && error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && error.isLiveStreamEndHttpError()) {
                     debugLog("Live stream source returned bad HTTP status — stream likely ended")
-                    _listener?.onError(PlaybackError.LIVE_STREAM_ENDED, "Live stream has ended")
+                    notifyError(PlaybackError.LIVE_STREAM_ENDED, "Live stream has ended")
                     return
                 }
 
@@ -694,7 +732,7 @@ class TPStreamsPlayer private constructor(
                 val errorMessage = error.getErrorMessage(errorPlayerId)
                 
                 Log.e("TPStreamsPlayer", "Player error: ${error.errorCodeName}", error)
-                _listener?.onError(errorType, errorMessage)
+                notifyError(errorType, errorMessage)
             }
             
             override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
