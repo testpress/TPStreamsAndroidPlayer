@@ -156,4 +156,23 @@ class PlayerListenerTest {
         assertFalse(view1Error)
         assertTrue(view2Error)
     }
+
+    @Test
+    fun `token refresh never selects view listener and correctly selects app listener from addListener`() {
+        // 1. Only view listener attached -> getTokenListener should be null
+        val viewListener = object : TPStreamsPlayer.ViewListener {
+            override fun onError(error: PlaybackError, message: String) {}
+        }
+        player.addListener(viewListener)
+        assertNull("ViewListener should never be selected for token refresh", player.getTokenListener())
+
+        // 2. App registers listener via addListener (not setter) -> getTokenListener should pick it
+        val appListener = object : TPStreamsPlayer.Listener {
+            override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {}
+            override fun onError(error: PlaybackError, message: String) {}
+        }
+        player.addListener(appListener)
+        assertEquals("App listener from addListener should be selected for token refresh", appListener, player.getTokenListener())
+    }
 }
+

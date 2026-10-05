@@ -99,11 +99,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
 
-    private val viewPlayerListener = object : TPStreamsPlayer.Listener {
-        override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {
-            callback("")
-        }
-
+    private val viewPlayerListener = object : TPStreamsPlayer.ViewListener {
         override fun onError(error: PlaybackError, message: String) {
             hideLoading()
             post { showErrorMessage(message) }
@@ -631,26 +627,3 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 }
 
-internal class ViewPlayerListener(
-    val userListener: TPStreamsPlayer.Listener?,
-    private val onAccessTokenExpiredAction: (String, (String) -> Unit) -> Unit,
-    private val onErrorAction: (PlaybackError, String) -> Unit,
-    private val onNetworkErrorAction: (PlaybackError, String, NetworkDiagnostics) -> Unit,
-    private val onNetworkDiagnosticsStartedAction: () -> Unit,
-) : TPStreamsPlayer.Listener {
-    override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) =
-        onAccessTokenExpiredAction(videoId, callback)
-
-    override fun onError(error: PlaybackError, message: String) =
-        onErrorAction(error, message)
-
-    override fun onNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) =
-        onNetworkErrorAction(error, message, diagnostics)
-
-    override fun onNetworkDiagnosticsStarted() =
-        onNetworkDiagnosticsStartedAction()
-
-    override fun onSubtitleStateChanged(enabled: Boolean, language: String?) {
-        userListener?.onSubtitleStateChanged(enabled, language)
-    }
-}

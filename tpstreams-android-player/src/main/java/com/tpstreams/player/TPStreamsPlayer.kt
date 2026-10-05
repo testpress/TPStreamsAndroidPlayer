@@ -242,7 +242,7 @@ class TPStreamsPlayer internal constructor(
     private fun getSafeUrl(url: String): String = url.substringBefore('?').substringBefore('#')
 
     interface Listener {
-        fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit)
+        fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {}
         fun onError(error: PlaybackError, message: String)
         fun onNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
             onError(error, message)
@@ -255,6 +255,12 @@ class TPStreamsPlayer internal constructor(
 
         fun onSubtitleStateChanged(enabled: Boolean, language: String?) {}
     }
+
+    /**
+     * Internal marker for view-level listeners so TokenManager prioritizes
+     * application-level listeners for token refresh.
+     */
+    internal interface ViewListener : Listener
 
     private var isPrepared = false
     private var requestedPlay = false
@@ -295,8 +301,11 @@ class TPStreamsPlayer internal constructor(
     private val resolutionManager: ResolutionManager by lazy {
         ResolutionManager(exoPlayer, trackSelector)
     }
+    internal fun getTokenListener(): Listener? =
+        appListener ?: listeners.firstOrNull { it !is ViewListener }
+
     private val tokenManager: TokenManager by lazy {
-        TokenManager(assetId, accessToken, offlineLicenseExpireTime) { appListener ?: listeners.firstOrNull() }
+        TokenManager(assetId, accessToken, offlineLicenseExpireTime) { getTokenListener() }
     }
 
     /**
@@ -455,7 +464,7 @@ class TPStreamsPlayer internal constructor(
     }
 
     private val listeners = CopyOnWriteArraySet<Listener>()
-    private var appListener: Listener? = null
+    @Volatile private var appListener: Listener? = null
 
     fun addListener(listener: Listener) {
         listeners.add(listener)
