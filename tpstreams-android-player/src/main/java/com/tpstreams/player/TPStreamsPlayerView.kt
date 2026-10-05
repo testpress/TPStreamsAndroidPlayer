@@ -99,6 +99,28 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         }
     }
 
+    private val viewPlayerListener = object : TPStreamsPlayer.Listener {
+        override fun onAccessTokenExpired(videoId: String, callback: (String) -> Unit) {
+            callback("")
+        }
+
+        override fun onError(error: PlaybackError, message: String) {
+            hideLoading()
+            post { showErrorMessage(message) }
+        }
+
+        override fun onNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
+            post {
+                hideLoading()
+                showNetworkDiagnostics(error, diagnostics)
+            }
+        }
+
+        override fun onNetworkDiagnosticsStarted() {
+            post { showDiagnosingState() }
+        }
+    }
+
     // Bottom sheets (delegated to sheetManager for backward compatibility)
     val settingsBottomSheet: PlayerSettingsBottomSheet get() = sheetManager.settingsBottomSheet
     val qualityOptionsBottomSheet: QualityOptionsBottomSheet get() = sheetManager.qualityOptionsBottomSheet
@@ -339,8 +361,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
             val message = "[${previousPlayer.playbackSessionId}] Surface DETACH"
             Log.d(TPStreamsPlayer.DEBUG_TAG, message)
             previousPlayer.recordPlaybackLog(message)
-            val current = previousPlayer.listener
-            previousPlayer.listener = if (current is ViewPlayerListener) current.userListener else null
+            previousPlayer.removeListener(viewPlayerListener)
             previousPlayer.onLiveStreamStatusChanged = null
             previousPlayer.removeListener(tracksStateListener)
         }
@@ -382,30 +403,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
             if (player is TPStreamsPlayer) {
                 player.addListener(tracksStateListener)
-                val current = player.listener
-                val existingListener = if (current is ViewPlayerListener) current.userListener else current
-                player.listener = ViewPlayerListener(
-                    userListener = existingListener,
-                    onAccessTokenExpiredAction = { videoId, callback ->
-                        existingListener?.onAccessTokenExpired(videoId, callback) ?: callback("")
-                    },
-                    onErrorAction = { error, message ->
-                        hideLoading()
-                        post { showErrorMessage(message) }
-                        existingListener?.onError(error, message)
-                    },
-                    onNetworkErrorAction = { error, message, diagnostics ->
-                        post {
-                            hideLoading()
-                            showNetworkDiagnostics(error, diagnostics)
-                        }
-                        existingListener?.onNetworkError(error, message, diagnostics)
-                    },
-                    onNetworkDiagnosticsStartedAction = {
-                        post { showDiagnosingState() }
-                        existingListener?.onNetworkDiagnosticsStarted()
-                    }
-                )
+                player.addListener(viewPlayerListener)
                 captions.updateAvailableCaptions()
 
                 player.onLiveStreamStatusChanged = { isLiveStream ->
