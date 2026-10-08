@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.16] - 2026-10-08
+
+### Added
+
+- Support multiple independent listeners on `TPStreamsPlayer` via `addListener()` and `removeListener()`, preventing host application listeners from being overwritten by player views.
+- Bundle consumer ProGuard/R8 rules to preserve SDK symbol names and line numbers in minified release builds for clearer stack traces.
+
+### Fixed
+
+- Prevent surface detach timeouts during fullscreen transitions by maintaining player attachment during view reparenting.
+- Preserve fullscreen state and playback intent across Activity recreation and orientation changes.
+- Eliminate status and navigation bar flicker during fullscreen transitions on Android 11+ and edge-to-edge Android 15 devices using `WindowInsetsControllerCompat`.
+- Prevent `IndexOutOfBoundsException` when exiting fullscreen if parent layout views change dynamically.
+- Isolate SDK diagnostics per player and decouple internal telemetry from host app Sentry configurations.
+- Ensure SDK runtime dependencies are properly published to prevent `NoClassDefFoundError` during consumer builds.
+
 ## [1.2.15] - 2026-09-15
 
 ### Fixed
@@ -349,6 +365,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release with core playback and DRM support
 
+[1.2.16]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.15...1.2.16
+[1.2.15]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.14...1.2.15
 [1.2.14]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.13...1.2.14
 [1.2.12]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.11...1.2.12
 [1.2.11]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.10...1.2.11
