@@ -226,6 +226,10 @@ override fun onDestroy() {
 
 Check out the included example app in the `app` module for a complete implementation example using Jetpack Compose.
 
+## Contributing & Releases
+
+For local environment setup, architecture overview, development commands, and step-by-step release procedures, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 ```
