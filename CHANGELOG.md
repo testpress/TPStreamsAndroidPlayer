@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.17] - 2026-10-13
+
+### Fixed
+
+- Prevent `ForegroundServiceDidNotStartInTimeException` during download operations by initializing `DownloadController` (cache, database, and download manager) before dispatching foreground service requests (#160).
+
 ## [1.2.16] - 2026-10-08
 
 ### Added
@@ -365,6 +371,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release with core playback and DRM support
 
+[1.2.17]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.16...1.2.17
 [1.2.16]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.15...1.2.16
 [1.2.15]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.14...1.2.15
 [1.2.14]: https://github.com/testpress/TPStreamsAndroidPlayer/compare/1.2.13...1.2.14
