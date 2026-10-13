@@ -73,6 +73,7 @@ object DownloadController {
     private var downloadExecutor: ExecutorService? = null
 
     @VisibleForTesting
+    @Synchronized
     internal fun resetForTesting() {
         if (::downloadManager.isInitialized) {
             downloadManager.release()

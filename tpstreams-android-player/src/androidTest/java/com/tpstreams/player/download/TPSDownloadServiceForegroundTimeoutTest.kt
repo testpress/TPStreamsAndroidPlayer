@@ -47,10 +47,15 @@ class TPSDownloadServiceForegroundTimeoutTest {
         dispatch: () -> Unit
     ) {
         DownloadController.resetForTesting()
-        dispatch()
-        assertTrue(
-            "$operation must initialize DownloadController before dispatch",
-            DownloadController.isInitializedForTesting()
-        )
+        var initializedBeforeDispatch = false
+        TPSDownloadService.foregroundDispatchOverrideForTesting = {
+            initializedBeforeDispatch = DownloadController.isInitializedForTesting()
+        }
+        try {
+            dispatch()
+        } finally {
+            TPSDownloadService.foregroundDispatchOverrideForTesting = null
+        }
+        assertTrue("$operation must initialize DownloadController before dispatch", initializedBeforeDispatch)
     }
 }
