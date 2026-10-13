@@ -35,6 +35,9 @@ class TPSDownloadService : DownloadService(
         
         fun sendDownload(context: Context, downloadRequest: DownloadRequest, foreground: Boolean = true) {
             Log.d(TAG, "Sending download request: ${downloadRequest.id}, foreground: $foreground")
+            // DownloadService initializes its DownloadManager from onCreate(). Prepare it before
+            // startForegroundService() so foreground startup is not delayed by disk/cache setup.
+            DownloadController.initialize(context)
             sendAddDownload(
                 context,
                 TPSDownloadService::class.java,
@@ -45,6 +48,7 @@ class TPSDownloadService : DownloadService(
             
         fun removeDownload(context: Context, id: String) {
             Log.d(TAG, "Removing download: $id")
+            DownloadController.initialize(context)
             sendRemoveDownload(
                 context,
                 TPSDownloadService::class.java,
@@ -55,6 +59,7 @@ class TPSDownloadService : DownloadService(
         
         fun removeAllDownloads(context: Context) {
             Log.d(TAG, "Removing all downloads")
+            DownloadController.initialize(context)
             sendRemoveAllDownloads(
                 context,
                 TPSDownloadService::class.java,
@@ -64,6 +69,7 @@ class TPSDownloadService : DownloadService(
         
         fun pauseDownloads(context: Context) {
             Log.d(TAG, "Pausing all downloads")
+            DownloadController.initialize(context)
             sendPauseDownloads(
                 context,
                 TPSDownloadService::class.java,
@@ -73,6 +79,7 @@ class TPSDownloadService : DownloadService(
         
         fun resumeDownloads(context: Context) {
             Log.d(TAG, "Resuming all downloads")
+            DownloadController.initialize(context)
             sendResumeDownloads(
                 context,
                 TPSDownloadService::class.java,
