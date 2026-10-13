@@ -33,11 +33,14 @@ class TPSDownloadService : DownloadService(
         
         private var notificationHelper: DownloadNotificationHelper? = null
         
+        /**
+         * Dispatches a download request. The first call may perform synchronous disk I/O while
+         * initializing the download controller and may throw [IllegalStateException] when storage
+         * is unavailable. Call from a worker thread when possible.
+         */
         fun sendDownload(context: Context, downloadRequest: DownloadRequest, foreground: Boolean = true) {
             Log.d(TAG, "Sending download request: ${downloadRequest.id}, foreground: $foreground")
-            // DownloadService initializes its DownloadManager from onCreate(). Prepare it before
-            // startForegroundService() so foreground startup is not delayed by disk/cache setup.
-            DownloadController.initialize(context)
+            prepareForegroundRequest(context)
             sendAddDownload(
                 context,
                 TPSDownloadService::class.java,
@@ -48,7 +51,7 @@ class TPSDownloadService : DownloadService(
             
         fun removeDownload(context: Context, id: String) {
             Log.d(TAG, "Removing download: $id")
-            DownloadController.initialize(context)
+            prepareForegroundRequest(context)
             sendRemoveDownload(
                 context,
                 TPSDownloadService::class.java,
@@ -59,7 +62,7 @@ class TPSDownloadService : DownloadService(
         
         fun removeAllDownloads(context: Context) {
             Log.d(TAG, "Removing all downloads")
-            DownloadController.initialize(context)
+            prepareForegroundRequest(context)
             sendRemoveAllDownloads(
                 context,
                 TPSDownloadService::class.java,
@@ -69,7 +72,7 @@ class TPSDownloadService : DownloadService(
         
         fun pauseDownloads(context: Context) {
             Log.d(TAG, "Pausing all downloads")
-            DownloadController.initialize(context)
+            prepareForegroundRequest(context)
             sendPauseDownloads(
                 context,
                 TPSDownloadService::class.java,
@@ -79,12 +82,19 @@ class TPSDownloadService : DownloadService(
         
         fun resumeDownloads(context: Context) {
             Log.d(TAG, "Resuming all downloads")
-            DownloadController.initialize(context)
+            prepareForegroundRequest(context)
             sendResumeDownloads(
                 context,
                 TPSDownloadService::class.java,
                 true
             )
+        }
+
+        private fun prepareForegroundRequest(context: Context) {
+            // DownloadService initializes its DownloadManager from onCreate(). Prepare it before
+            // startForegroundService() so foreground startup is not delayed by disk/cache setup.
+            // Deliberately propagate initialization failures to the caller.
+            DownloadController.initialize(context)
         }
     }
     

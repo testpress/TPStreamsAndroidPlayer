@@ -6,7 +6,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 class TPSDownloadServiceForegroundTimeoutTest {
 
     @Test
-    fun startingForegroundDownloadService_initializesManagerBeforeDispatch() {
+    fun foregroundServiceRequests_initializeManagerBeforeDispatch() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val request = DownloadRequest.Builder(
             "foreground-timeout-reproduction",
@@ -25,11 +25,32 @@ class TPSDownloadServiceForegroundTimeoutTest {
             .setMimeType(MimeTypes.APPLICATION_M3U8)
             .build()
 
-        TPSDownloadService.sendDownload(context, request, foreground = true)
+        assertInitializesBeforeDispatch("add download") {
+            TPSDownloadService.sendDownload(context, request, foreground = true)
+        }
+        assertInitializesBeforeDispatch("remove download") {
+            TPSDownloadService.removeDownload(context, request.id)
+        }
+        assertInitializesBeforeDispatch("remove all downloads") {
+            TPSDownloadService.removeAllDownloads(context)
+        }
+        assertInitializesBeforeDispatch("pause downloads") {
+            TPSDownloadService.pauseDownloads(context)
+        }
+        assertInitializesBeforeDispatch("resume downloads") {
+            TPSDownloadService.resumeDownloads(context)
+        }
+    }
 
-        assertNotNull(
-            "DownloadManager must be initialized before the foreground service is dispatched",
-            DownloadController.downloadManager
+    private fun assertInitializesBeforeDispatch(
+        operation: String,
+        dispatch: () -> Unit
+    ) {
+        DownloadController.resetForTesting()
+        dispatch()
+        assertTrue(
+            "$operation must initialize DownloadController before dispatch",
+            DownloadController.isInitializedForTesting()
         )
     }
 }

@@ -39,7 +39,9 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ExecutorService
 import org.json.JSONObject
 import android.net.Uri
+import android.database.sqlite.SQLiteOpenHelper
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
+import androidx.annotation.VisibleForTesting
 import com.tpstreams.player.TPStreamsPlayer
 import com.tpstreams.player.TPStreamsSDK
 
@@ -69,6 +71,25 @@ object DownloadController {
     private var isInitialized = false
     private lateinit var notificationHelper: DownloadNotificationHelper
     private var downloadExecutor: ExecutorService? = null
+
+    @VisibleForTesting
+    internal fun resetForTesting() {
+        if (::downloadManager.isInitialized) {
+            downloadManager.release()
+        }
+        if (::downloadCache.isInitialized) {
+            downloadCache.release()
+        }
+        if (::databaseProvider.isInitialized) {
+            (databaseProvider as? SQLiteOpenHelper)?.close()
+        }
+        downloadExecutor?.shutdownNow()
+        downloadExecutor = null
+        isInitialized = false
+    }
+
+    @VisibleForTesting
+    internal fun isInitializedForTesting(): Boolean = isInitialized
     
     @Synchronized
     fun initialize(context: Context) {
