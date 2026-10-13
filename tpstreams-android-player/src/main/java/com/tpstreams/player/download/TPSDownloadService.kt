@@ -4,6 +4,7 @@ import android.app.Notification
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
@@ -32,52 +33,64 @@ class TPSDownloadService : DownloadService(
         private const val FOREGROUND_NOTIFICATION_UPDATE_INTERVAL = 1000L
         
         private var notificationHelper: DownloadNotificationHelper? = null
+
+        @VisibleForTesting
+        internal var foregroundDispatchOverrideForTesting: (() -> Unit)? = null
         
+        /**
+         * Dispatches a download request. The first call may perform synchronous disk I/O while
+         * initializing the download controller and may throw [IllegalStateException] when storage
+         * is unavailable. Call from a worker thread when possible.
+         */
         fun sendDownload(context: Context, downloadRequest: DownloadRequest, foreground: Boolean = true) {
             Log.d(TAG, "Sending download request: ${downloadRequest.id}, foreground: $foreground")
-            sendAddDownload(
-                context,
-                TPSDownloadService::class.java,
-                downloadRequest,
-                foreground
-            )
+            prepareForegroundRequest(context)
+            dispatchForegroundRequest {
+                sendAddDownload(context, TPSDownloadService::class.java, downloadRequest, foreground)
+            }
         }
             
         fun removeDownload(context: Context, id: String) {
             Log.d(TAG, "Removing download: $id")
-            sendRemoveDownload(
-                context,
-                TPSDownloadService::class.java,
-                id,
-                true
-            )
+            prepareForegroundRequest(context)
+            dispatchForegroundRequest {
+                sendRemoveDownload(context, TPSDownloadService::class.java, id, true)
+            }
         }
         
         fun removeAllDownloads(context: Context) {
             Log.d(TAG, "Removing all downloads")
-            sendRemoveAllDownloads(
-                context,
-                TPSDownloadService::class.java,
-                true
-            )
+            prepareForegroundRequest(context)
+            dispatchForegroundRequest {
+                sendRemoveAllDownloads(context, TPSDownloadService::class.java, true)
+            }
         }
         
         fun pauseDownloads(context: Context) {
             Log.d(TAG, "Pausing all downloads")
-            sendPauseDownloads(
-                context,
-                TPSDownloadService::class.java,
-                true
-            )
+            prepareForegroundRequest(context)
+            dispatchForegroundRequest {
+                sendPauseDownloads(context, TPSDownloadService::class.java, true)
+            }
         }
         
         fun resumeDownloads(context: Context) {
             Log.d(TAG, "Resuming all downloads")
-            sendResumeDownloads(
-                context,
-                TPSDownloadService::class.java,
-                true
-            )
+            prepareForegroundRequest(context)
+            dispatchForegroundRequest {
+                sendResumeDownloads(context, TPSDownloadService::class.java, true)
+            }
+        }
+
+        private fun prepareForegroundRequest(context: Context) {
+            // DownloadService initializes its DownloadManager from onCreate(). Prepare it before
+            // startForegroundService() so foreground startup is not delayed by disk/cache setup.
+            // Deliberately propagate initialization failures to the caller.
+            DownloadController.initialize(context)
+        }
+
+        private fun dispatchForegroundRequest(dispatch: () -> Unit) {
+            foregroundDispatchOverrideForTesting?.invoke() ?: dispatch()
         }
     }
     
