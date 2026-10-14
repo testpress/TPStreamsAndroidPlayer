@@ -22,7 +22,13 @@ object TPStreamsSDK {
             _orgCode = value
         }
 
+    internal var provider: Provider = Provider.TPStreams
+        private set
+
     internal var allowFallbackToL3: Boolean = false
+        private set
+
+    internal var licensePayloadEncryptionKey: String? = null
         private set
 
     @JvmStatic
@@ -32,12 +38,14 @@ object TPStreamsSDK {
         provider: Provider = Provider.TPStreams,
         authToken: String? = null,
         allowFallbackToL3: Boolean = false,
+        licensePayloadEncryptionKey: String? = null,
     ) {
         require(orgId.isNotBlank()) { "orgId cannot be empty." }
         if (provider == Provider.TPStreams && authToken != null) {
             throw IllegalArgumentException("authToken must be null for TPStreams provider")
         }
 
+        this.provider = provider
         apiService = when (provider) {
             Provider.TPStreams -> TPStreamsApiService()
             Provider.TestPress -> TestPressApiService()
@@ -45,7 +53,13 @@ object TPStreamsSDK {
         _orgCode = orgId
         this.authToken = authToken
         this.allowFallbackToL3 = allowFallbackToL3
+        this.licensePayloadEncryptionKey = licensePayloadEncryptionKey?.takeIf { it.isNotBlank() }
     }
+
+    internal fun isTPStreamsProvider(): Boolean = provider == Provider.TPStreams
+
+    internal fun isLicensePayloadEncryptionEnabled(): Boolean =
+        isTPStreamsProvider() && !licensePayloadEncryptionKey.isNullOrBlank()
 
     internal fun getAuthHeaders(): Map<String, String> {
         return authToken?.let { mapOf("Authorization" to "JWT $it") } ?: emptyMap()

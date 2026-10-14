@@ -43,4 +43,32 @@ class TPStreamsSDKTest {
         TPStreamsSDK.init("test_org", TPStreamsSDK.Provider.TestPress, null)
         assertTrue(TPStreamsSDK.getAuthHeaders().isEmpty())
     }
+
+    @Test
+    fun `test license payload encryption is disabled by default when no key is provided`() {
+        TPStreamsSDK.init("test_org", TPStreamsSDK.Provider.TPStreams)
+        org.junit.Assert.assertNull(TPStreamsSDK.licensePayloadEncryptionKey)
+        org.junit.Assert.assertFalse(TPStreamsSDK.isLicensePayloadEncryptionEnabled())
+    }
+
+    @Test
+    fun `test license payload encryption is enabled when key is passed for TPStreams`() {
+        TPStreamsSDK.init(
+            orgId = "test_org",
+            provider = TPStreamsSDK.Provider.TPStreams,
+            licensePayloadEncryptionKey = "7N9UuCkpKS9d84VAvMRFLos4AGCcS1aFsOjFKusmDsc="
+        )
+        assertEquals("7N9UuCkpKS9d84VAvMRFLos4AGCcS1aFsOjFKusmDsc=", TPStreamsSDK.licensePayloadEncryptionKey)
+        assertTrue(TPStreamsSDK.isLicensePayloadEncryptionEnabled())
+    }
+
+    @Test
+    fun `test license payload encryption is disabled for non-TPStreams provider even if key is passed`() {
+        TPStreamsSDK.init(
+            orgId = "test_org",
+            provider = TPStreamsSDK.Provider.TestPress,
+            licensePayloadEncryptionKey = "7N9UuCkpKS9d84VAvMRFLos4AGCcS1aFsOjFKusmDsc="
+        )
+        org.junit.Assert.assertFalse(TPStreamsSDK.isLicensePayloadEncryptionEnabled())
+    }
 }

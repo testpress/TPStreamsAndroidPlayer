@@ -16,6 +16,8 @@ import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
 import android.util.Log
 import com.google.common.primitives.Ints
 import java.util.Objects
+import com.tpstreams.player.TPStreamsSDK
+import androidx.media3.exoplayer.drm.MediaDrmCallback
 
 /**
  * Supplies [DrmSessionManager] instances using the cached playback level from
@@ -33,10 +35,19 @@ internal class WidevineDrmSessionManagerProvider(
     }
 
     @GuardedBy("lock")
-    private var l3DrmConfiguration: MediaItem.DrmConfiguration? = null
+    private var cachedDrmConfiguration: MediaItem.DrmConfiguration? = null
 
     @GuardedBy("lock")
-    private var l3Manager: DrmSessionManager? = null
+    private var cachedManager: DrmSessionManager? = null
+
+    @GuardedBy("lock")
+    private var cachedShouldUseL3: Boolean? = null
+
+    @GuardedBy("lock")
+    private var cachedEncryptionEnabled: Boolean? = null
+
+    @GuardedBy("lock")
+    private var cachedEncryptionKey: String? = null
 
     override fun get(mediaItem: MediaItem): DrmSessionManager {
         val drmConfiguration = mediaItem.localConfiguration?.drmConfiguration
@@ -55,20 +66,40 @@ internal class WidevineDrmSessionManagerProvider(
             }
         }
 
-        if (!shouldUseL3) {
+        // If license payload encryption is not enabled and not using L3, keep default Media3 provider
+        if (!shouldUseL3 && !TPStreamsSDK.isLicensePayloadEncryptionEnabled()) {
             return defaultProvider.get(mediaItem)
         }
 
+        val exoMediaDrmProvider = if (shouldUseL3) {
+            L3_EXO_MEDIA_DRM_PROVIDER
+        } else {
+            FrameworkMediaDrm.DEFAULT_PROVIDER
+        }
+
+        val currentEncryptionEnabled = TPStreamsSDK.isLicensePayloadEncryptionEnabled()
+        val currentEncryptionKey = TPStreamsSDK.licensePayloadEncryptionKey
+
         synchronized(lock) {
-            if (!Objects.equals(drmConfiguration, l3DrmConfiguration)) {
-                l3DrmConfiguration = drmConfiguration
-                l3Manager = createL3Manager(drmConfiguration)
+            if (!Objects.equals(drmConfiguration, cachedDrmConfiguration) ||
+                cachedShouldUseL3 != shouldUseL3 ||
+                cachedEncryptionEnabled != currentEncryptionEnabled ||
+                !Objects.equals(cachedEncryptionKey, currentEncryptionKey)
+            ) {
+                cachedDrmConfiguration = drmConfiguration
+                cachedShouldUseL3 = shouldUseL3
+                cachedEncryptionEnabled = currentEncryptionEnabled
+                cachedEncryptionKey = currentEncryptionKey
+                cachedManager = createManager(drmConfiguration, exoMediaDrmProvider)
             }
-            return checkNotNull(l3Manager)
+            return checkNotNull(cachedManager)
         }
     }
 
-    private fun createL3Manager(drmConfiguration: MediaItem.DrmConfiguration): DrmSessionManager {
+    private fun createManager(
+        drmConfiguration: MediaItem.DrmConfiguration,
+        exoMediaDrmProvider: ExoMediaDrm.Provider
+    ): DrmSessionManager {
         val httpDrmCallback = HttpMediaDrmCallback(
             drmConfiguration.licenseUri?.toString(),
             drmConfiguration.forceDefaultLicenseUri,
@@ -78,14 +109,21 @@ internal class WidevineDrmSessionManagerProvider(
             httpDrmCallback.setKeyRequestProperty(key, value)
         }
 
+        val drmCallback: MediaDrmCallback = if (TPStreamsSDK.isLicensePayloadEncryptionEnabled()) {
+            val key = checkNotNull(TPStreamsSDK.licensePayloadEncryptionKey)
+            AesEncryptedDrmCallback(httpDrmCallback, LicensePayloadEncryptor(key))
+        } else {
+            httpDrmCallback
+        }
+
         val drmSessionManager = DefaultDrmSessionManager.Builder()
-            .setUuidAndExoMediaDrmProvider(drmConfiguration.scheme, L3_EXO_MEDIA_DRM_PROVIDER)
+            .setUuidAndExoMediaDrmProvider(drmConfiguration.scheme, exoMediaDrmProvider)
             .setMultiSession(drmConfiguration.multiSession)
             .setPlayClearSamplesWithoutKeys(drmConfiguration.playClearContentWithoutKey)
             .setUseDrmSessionsForClearContent(
                 *Ints.toArray(drmConfiguration.forcedSessionTrackTypes),
             )
-            .build(httpDrmCallback)
+            .build(drmCallback)
         drmSessionManager.setMode(DefaultDrmSessionManager.MODE_PLAYBACK, drmConfiguration.keySetId)
         return drmSessionManager
     }
@@ -112,22 +150,27 @@ internal class WidevineDrmSessionManagerProvider(
             eventDispatcher: androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher = androidx.media3.exoplayer.drm.DrmSessionEventListener.EventDispatcher(),
             securityLevel: String? = null
         ): androidx.media3.exoplayer.drm.OfflineLicenseHelper {
-            if (securityLevel != "L3") {
-                return androidx.media3.exoplayer.drm.OfflineLicenseHelper.newWidevineInstance(
-                    licenseUri,
-                    false,
-                    dataSourceFactory,
-                    eventDispatcher
-                )
+            val exoMediaDrmProvider = if (securityLevel == "L3") {
+                L3_EXO_MEDIA_DRM_PROVIDER
+            } else {
+                FrameworkMediaDrm.DEFAULT_PROVIDER
             }
+
             val httpDrmCallback = HttpMediaDrmCallback(
                 licenseUri,
                 false,
                 dataSourceFactory
             )
+            val drmCallback: MediaDrmCallback = if (TPStreamsSDK.isLicensePayloadEncryptionEnabled()) {
+                val key = checkNotNull(TPStreamsSDK.licensePayloadEncryptionKey)
+                AesEncryptedDrmCallback(httpDrmCallback, LicensePayloadEncryptor(key))
+            } else {
+                httpDrmCallback
+            }
+
             val drmSessionManager = DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, L3_EXO_MEDIA_DRM_PROVIDER)
-                .build(httpDrmCallback)
+                .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, exoMediaDrmProvider)
+                .build(drmCallback)
             return androidx.media3.exoplayer.drm.OfflineLicenseHelper(drmSessionManager, eventDispatcher)
         }
     }
