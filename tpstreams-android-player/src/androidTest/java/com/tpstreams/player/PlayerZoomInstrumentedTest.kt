@@ -1,5 +1,8 @@
 package com.tpstreams.player
 
+import android.os.SystemClock
+import android.view.MotionEvent
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -218,6 +221,60 @@ class PlayerZoomInstrumentedTest {
 
                 assertFalse("Player zoom must be reset on fullscreen state change", playerView.isZoomed)
                 assertEquals(1.0f, playerView.currentZoomScale, 0.001f)
+            }
+        }
+    }
+
+    @Test
+    fun doubleTapZoom_animatesToTargetAndResetsOnSecondDoubleTap() {
+        ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
+            lateinit var playerView: TPStreamsPlayerView
+
+            scenario.onActivity { activity ->
+                playerView = TPStreamsPlayerView(activity)
+                activity.setContentView(
+                    playerView,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                )
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+            scenario.onActivity {
+                val now = SystemClock.uptimeMillis()
+                // Tap 1
+                playerView.dispatchTouchEvent(MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 500f, 500f, 0))
+                playerView.dispatchTouchEvent(MotionEvent.obtain(now, now + 50, MotionEvent.ACTION_UP, 500f, 500f, 0))
+
+                // Tap 2 (double tap)
+                playerView.dispatchTouchEvent(MotionEvent.obtain(now, now + 120, MotionEvent.ACTION_DOWN, 500f, 500f, 0))
+                playerView.dispatchTouchEvent(MotionEvent.obtain(now, now + 170, MotionEvent.ACTION_UP, 500f, 500f, 0))
+            }
+
+            // Wait for 250ms value animation to complete
+            SystemClock.sleep(400)
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+            scenario.onActivity {
+                assertTrue("Player should be zoomed in after double tap", playerView.isZoomed)
+                assertTrue("Scale should be greater than 1.0f after double tap", playerView.currentZoomScale > 1.05f)
+
+                // Now double tap again to reset
+                val now2 = SystemClock.uptimeMillis()
+                playerView.dispatchTouchEvent(MotionEvent.obtain(now2, now2, MotionEvent.ACTION_DOWN, 500f, 500f, 0))
+                playerView.dispatchTouchEvent(MotionEvent.obtain(now2, now2 + 50, MotionEvent.ACTION_UP, 500f, 500f, 0))
+                playerView.dispatchTouchEvent(MotionEvent.obtain(now2, now2 + 120, MotionEvent.ACTION_DOWN, 500f, 500f, 0))
+                playerView.dispatchTouchEvent(MotionEvent.obtain(now2, now2 + 170, MotionEvent.ACTION_UP, 500f, 500f, 0))
+            }
+
+            SystemClock.sleep(400)
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+            scenario.onActivity {
+                assertFalse("Player should not be zoomed after second double tap", playerView.isZoomed)
+                assertEquals(1.0f, playerView.currentZoomScale, 0.05f)
             }
         }
     }

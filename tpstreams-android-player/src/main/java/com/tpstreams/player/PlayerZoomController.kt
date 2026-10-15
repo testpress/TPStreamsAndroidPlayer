@@ -174,7 +174,7 @@ internal class PlayerZoomController(
         override fun onDoubleTap(e: MotionEvent): Boolean {
             if (!isGestureAllowed) return false
             playerView.hideController()
-            if (isZoomed) {
+            if (isZoomed || animator?.isRunning == true) {
                 resetZoom(animated = true)
                 return true
             } else {
@@ -237,18 +237,19 @@ internal class PlayerZoomController(
         }
         val frame = contentFrame ?: return false
 
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            animator?.cancel()
+            lastFocusX = ev.x
+            lastFocusY = ev.y
+        }
+
         val wasInteracting = isInteracting
         scaleDetector.onTouchEvent(ev)
-        gestureDetector.onTouchEvent(ev)
+        val gestureHandled = gestureDetector.onTouchEvent(ev)
 
-        var handled = isInteracting
+        var handled = isInteracting || gestureHandled
 
         when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                animator?.cancel()
-                lastFocusX = ev.x
-                lastFocusY = ev.y
-            }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (ev.pointerCount >= 2) {
                     lastFocusX = (ev.getX(0) + ev.getX(1)) / 2f
@@ -266,11 +267,12 @@ internal class PlayerZoomController(
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val wasInteractingAtEnd = isPanning || isScaling || wasInteracting
                 isPanning = false
                 isScaling = false
-                settleZoom()
-                scheduleHideZoomBadge()
-                if (wasInteracting) {
+                if (wasInteractingAtEnd) {
+                    settleZoom()
+                    scheduleHideZoomBadge()
                     handled = true
                 }
             }
