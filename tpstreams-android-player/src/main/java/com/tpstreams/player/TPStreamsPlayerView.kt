@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.util.AttributeSet
 import android.util.Log
+import android.view.MotionEvent
 import android.view.TextureView
 import android.view.View
 import android.view.WindowManager
@@ -43,6 +44,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val watermarkControllers = mutableListOf<BaseWatermarkController<*>>()
     private val errorViewController = PlayerErrorViewController(this)
     private val sheetManager = PlayerSheetManager(settingsPanel, captions, downloadActions) { getPlayer() }
+    private val zoomController = PlayerZoomController(this)
 
     private var playerControlView: TPStreamsPlayerControlView? = null
     private var orientationEventListener: OrientationListener? = null
@@ -127,6 +129,29 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     val downloadActionBottomSheet: DownloadActionBottomSheet get() = sheetManager.downloadActionBottomSheet
 
     init {
+        attrs?.let {
+            val typedArray = context.obtainStyledAttributes(it, R.styleable.TPStreamsPlayerView, defStyleAttr, 0)
+            try {
+                zoomController.isEnabled = typedArray.getBoolean(
+                    R.styleable.TPStreamsPlayerView_enable_pinch_to_zoom,
+                    zoomController.isEnabled
+                )
+                zoomController.maxScale = typedArray.getFloat(
+                    R.styleable.TPStreamsPlayerView_max_zoom_scale,
+                    zoomController.maxScale
+                )
+                zoomController.showZoomIndicator = typedArray.getBoolean(
+                    R.styleable.TPStreamsPlayerView_show_zoom_indicator,
+                    zoomController.showZoomIndicator
+                )
+                zoomController.zoomOnlyInFullscreen = typedArray.getBoolean(
+                    R.styleable.TPStreamsPlayerView_zoom_only_in_fullscreen,
+                    zoomController.zoomOnlyInFullscreen
+                )
+            } finally {
+                typedArray.recycle()
+            }
+        }
         onFinishInflate()
     }
 
@@ -208,6 +233,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         setupFullscreenButton()
         showFullscreenButton()
         setupControllerVisibilityListener()
+        zoomController.setup()
     }
 
     private fun cacheBufferingView() {
@@ -230,6 +256,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun setFullscreenButtonState(isFullscreen: Boolean) {
         playerControlView?.setFullscreenState(isFullscreen)
+        zoomController.resetZoom(animated = false)
     }
 
     fun showFullscreenButton() {
@@ -447,6 +474,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.removeListener(playbackStateListener)
         disableAutoFullscreenOnRotate()
         watermarkControllers.forEach { it.onViewDetached() }
+        zoomController.resetZoom(animated = false)
 
         // Always remove FLAG_SECURE on detach. In a Single-Activity architecture the Activity
         // is rarely finishing during normal navigation, so guarding on isFinishing would leak
@@ -624,6 +652,85 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         val activity = secureFlagActivity ?: return
         secureFlagActivity = null
         releaseSecureFlag(activity)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (isPinchToZoomEnabled) {
+            val handledByZoom = zoomController.handleTouchEvent(ev)
+            if (zoomController.isScaling || (zoomController.isZoomed && ev.pointerCount > 1)) {
+                parent?.requestDisallowInterceptTouchEvent(true)
+                return true
+            }
+            if (handledByZoom) {
+                parent?.requestDisallowInterceptTouchEvent(true)
+                if (zoomController.isPanning) {
+                    return true
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    /**
+     * Enables or disables YouTube-style pinch-to-zoom (up to 8x) and double-tap zoom gestures.
+     * Enabled by default.
+     */
+    var isPinchToZoomEnabled: Boolean
+        get() = zoomController.isEnabled
+        set(value) { zoomController.isEnabled = value }
+
+    /**
+     * The maximum scale factor allowed when zooming. Defaults to 8.0f.
+     */
+    var maxZoomScale: Float
+        get() = zoomController.maxScale
+        set(value) { zoomController.maxScale = value }
+
+    /**
+     * Whether to show the floating zoom indicator badge (e.g. "2.4x") while zooming.
+     * Defaults to true.
+     */
+    var showZoomIndicator: Boolean
+        get() = zoomController.showZoomIndicator
+        set(value) { zoomController.showZoomIndicator = value }
+
+    /**
+     * The current zoom scale factor (1.0f means unzoomed).
+     */
+    val currentZoomScale: Float
+        get() = zoomController.currentScale
+
+    /**
+     * True if the player view is currently zoomed in.
+     */
+    val isZoomed: Boolean
+        get() = zoomController.isZoomed
+
+    /**
+     * Resets zoom back to 1.0x (Fit) and centers the content.
+     */
+    fun resetZoom(animated: Boolean = true) {
+        zoomController.resetZoom(animated)
+    }
+
+    /**
+     * Returns true if the player is currently in fullscreen mode.
+     */
+    fun isInFullscreenMode(): Boolean = fullscreenMode.isInFullscreenMode()
+
+    /**
+     * When true, pinch-to-zoom is only active while in fullscreen mode.
+     * When false (default, matching YouTube), pinch-to-zoom works in both inline and fullscreen modes.
+     */
+    var zoomOnlyInFullscreen: Boolean
+        get() = zoomController.zoomOnlyInFullscreen
+        set(value) { zoomController.zoomOnlyInFullscreen = value }
+
+    /**
+     * Sets a listener to receive zoom scale and reset events.
+     */
+    fun setOnZoomChangeListener(listener: PlayerZoomController.OnZoomChangeListener?) {
+        zoomController.onZoomChangeListener = listener
     }
 }
 

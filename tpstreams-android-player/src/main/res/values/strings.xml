@@ -62,4 +62,8 @@
     <string name="network_diag_label_cdn">CDN</string>
     <string name="network_diag_label_proxy">Proxy</string>
     <string name="network_diag_proxy_unreachable">A network proxy is configured but unreachable. Check your proxy settings or disable it to continue.</string>
+
+    <!-- Zoom indicator -->
+    <string name="zoom_original">Original</string>
+    <string name="zoom_to_fill">Zoomed to fill</string>
 </resources>
