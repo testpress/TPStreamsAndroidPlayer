@@ -557,6 +557,5 @@ internal class PlayerZoomController(
         zoomBadge?.let { playerView.removeView(it) }
         zoomBadge = null
         contentFrame = null
-        onZoomChangeListener = null
     }
 }

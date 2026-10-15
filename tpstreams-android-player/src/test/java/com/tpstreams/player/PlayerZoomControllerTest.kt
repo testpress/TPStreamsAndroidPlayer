@@ -201,17 +201,18 @@ class PlayerZoomControllerTest {
     }
 
     @Test
-    fun `destroy clears listener and contentFrame`() {
-        zoomController.onZoomChangeListener = object : TPStreamsPlayerView.OnZoomChangeListener {
+    fun `destroy clears contentFrame and leaves listener intact`() {
+        val listener = object : TPStreamsPlayerView.OnZoomChangeListener {
             override fun onZoomChanged(scale: Float, translationX: Float, translationY: Float) {}
             override fun onZoomReset() {}
         }
+        zoomController.onZoomChangeListener = listener
         assertTrue(zoomController.onZoomChangeListener != null)
         assertTrue(zoomController.contentFrame != null)
 
         zoomController.destroy()
 
-        org.junit.Assert.assertNull(zoomController.onZoomChangeListener)
+        assertEquals(listener, zoomController.onZoomChangeListener)
         org.junit.Assert.assertNull(zoomController.contentFrame)
     }
 }

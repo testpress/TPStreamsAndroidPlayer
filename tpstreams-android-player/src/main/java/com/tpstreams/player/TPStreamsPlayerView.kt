@@ -159,6 +159,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         super.onAttachedToWindow()
         getPlayer()?.addListener(playbackStateListener)
         errorViewController.ensureErrorOverlaySetup()
+        zoomController.setup()
+        zoomController.onZoomChangeListener = externalZoomChangeListener
 
         // Re-apply FLAG_SECURE on re-attach — handles fullscreen transitions where the view is
         // temporarily detached from its parent and re-parented to the decor view.
@@ -171,8 +173,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 enableAutoFullscreenOnRotate()
             }
             watermarkControllers.forEach { it.onViewAttached() }
-            zoomController.setup()
-            zoomController.onZoomChangeListener = externalZoomChangeListener
             restoreRequestedFullscreenIfNeeded()
         }
     }

@@ -278,4 +278,57 @@ class PlayerZoomInstrumentedTest {
             }
         }
     }
+
+    @Test
+    fun detachAndReattach_preservesOnZoomChangeListener() {
+        ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
+            lateinit var playerView: TPStreamsPlayerView
+            lateinit var container: FrameLayout
+            var resetCalled = false
+            var changedScale = 0f
+
+            scenario.onActivity { activity ->
+                container = FrameLayout(activity)
+                activity.setContentView(container)
+
+                playerView = TPStreamsPlayerView(activity)
+                container.addView(playerView)
+
+                playerView.setOnZoomChangeListener(object : TPStreamsPlayerView.OnZoomChangeListener {
+                    override fun onZoomChanged(scale: Float, translationX: Float, translationY: Float) {
+                        changedScale = scale
+                    }
+
+                    override fun onZoomReset() {
+                        resetCalled = true
+                    }
+                })
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+            // Simulate fullscreen transition or layout re-parenting (detach then re-attach)
+            scenario.onActivity {
+                container.removeView(playerView)
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+            scenario.onActivity {
+                container.addView(playerView)
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
+            // Verify listener receives zoom events after re-attachment
+            scenario.onActivity {
+                val zoomField = TPStreamsPlayerView::class.java.getDeclaredField("zoomController")
+                zoomField.isAccessible = true
+                val zoomController = zoomField.get(playerView) as PlayerZoomController
+
+                zoomController.zoomTo(targetScale = 2.5f, focusX = 300f, focusY = 300f, animated = false)
+                assertEquals(2.5f, changedScale, 0.01f)
+
+                playerView.resetZoom(animated = false)
+                assertTrue("onZoomReset should be invoked after detach/re-attach cycle", resetCalled)
+            }
+        }
+    }
 }
