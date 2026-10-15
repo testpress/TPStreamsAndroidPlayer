@@ -534,6 +534,7 @@ class TPStreamsPlayer internal constructor(
                 initializedTimestampMs: Long,
                 initializationDurationMs: Long
             ) {
+                CodecManager.onDecoderInitialized()
                 val isHardware = DecoderInfoProvider.isDecoderHardware(decoderName)
                 decoderState = decoderState.copy(
                     audioDecoderName = decoderName,
@@ -880,9 +881,11 @@ class TPStreamsPlayer internal constructor(
         }
         playerScope.cancel()
         networkDiagnosticsManager.onRelease()
-        // Clear surface binding before releasing the player.
-        // Prevents codec crashes on MediaTek secure decoders (NO_MEMORY)
-        // where the codec retains a reference to a released surface.
+        // Flush and stop decoders gracefully before releasing the surface and player.
+        // Prevents codec crashes and timeouts on MediaTek secure decoders (NO_MEMORY)
+        // where the codec retains a reference to buffers or released surfaces.
+        exoPlayer.stop()
+        exoPlayer.clearMediaItems()
         exoPlayer.clearVideoSurface()
         exoPlayer.release()
         networkRecoveryHandler.stopMonitoring()
