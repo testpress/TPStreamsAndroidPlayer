@@ -19,9 +19,16 @@ class PlayerZoomControllerTest {
     private val contentFrame = mock(AspectRatioFrameLayout::class.java)
     private lateinit var zoomController: PlayerZoomController
 
+    private val resources = mock(android.content.res.Resources::class.java)
+    private val displayMetrics = android.util.DisplayMetrics().apply { density = 2.0f }
+
     @Before
     fun setUp() {
         `when`(playerView.context).thenReturn(context)
+        `when`(context.resources).thenReturn(resources)
+        `when`(resources.displayMetrics).thenReturn(displayMetrics)
+        `when`(context.getString(R.string.zoom_original)).thenReturn("Original")
+        `when`(context.getString(R.string.zoom_to_fill)).thenReturn("Zoomed to fill")
         `when`(playerView.width).thenReturn(1080)
         `when`(playerView.height).thenReturn(2400)
         `when`(contentFrame.width).thenReturn(1080)
@@ -80,7 +87,7 @@ class PlayerZoomControllerTest {
         var notifiedScale = 0f
         var notifiedTx = 0f
         var notifiedTy = 0f
-        zoomController.onZoomChangeListener = object : PlayerZoomController.OnZoomChangeListener {
+        zoomController.onZoomChangeListener = object : TPStreamsPlayerView.OnZoomChangeListener {
             override fun onZoomChanged(scale: Float, translationX: Float, translationY: Float) {
                 notifiedScale = scale
                 notifiedTx = translationX
@@ -103,7 +110,7 @@ class PlayerZoomControllerTest {
         assertTrue(zoomController.isZoomed)
 
         var resetNotified = false
-        zoomController.onZoomChangeListener = object : PlayerZoomController.OnZoomChangeListener {
+        zoomController.onZoomChangeListener = object : TPStreamsPlayerView.OnZoomChangeListener {
             override fun onZoomChanged(scale: Float, translationX: Float, translationY: Float) {}
             override fun onZoomReset() {
                 resetNotified = true
@@ -176,6 +183,36 @@ class PlayerZoomControllerTest {
         assertEquals("2.0x", zoomController.getZoomBadgeText(2.0f))
         assertEquals("5.5x", zoomController.getZoomBadgeText(5.5f))
         assertEquals("8.0x", zoomController.getZoomBadgeText(8.0f))
+    }
+
+    @Test
+    fun `isInteracting returns true when scaling or panning`() {
+        assertFalse(zoomController.isInteracting)
+
+        zoomController.isScaling = true
+        assertTrue(zoomController.isInteracting)
+
+        zoomController.isScaling = false
+        zoomController.isPanning = true
+        assertTrue(zoomController.isInteracting)
+
+        zoomController.isPanning = false
+        assertFalse(zoomController.isInteracting)
+    }
+
+    @Test
+    fun `destroy clears listener and contentFrame`() {
+        zoomController.onZoomChangeListener = object : TPStreamsPlayerView.OnZoomChangeListener {
+            override fun onZoomChanged(scale: Float, translationX: Float, translationY: Float) {}
+            override fun onZoomReset() {}
+        }
+        assertTrue(zoomController.onZoomChangeListener != null)
+        assertTrue(zoomController.contentFrame != null)
+
+        zoomController.destroy()
+
+        org.junit.Assert.assertNull(zoomController.onZoomChangeListener)
+        org.junit.Assert.assertNull(zoomController.contentFrame)
     }
 }
 

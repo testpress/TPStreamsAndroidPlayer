@@ -171,6 +171,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 enableAutoFullscreenOnRotate()
             }
             watermarkControllers.forEach { it.onViewAttached() }
+            zoomController.setup()
+            zoomController.onZoomChangeListener = externalZoomChangeListener
             restoreRequestedFullscreenIfNeeded()
         }
     }
@@ -475,6 +477,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         disableAutoFullscreenOnRotate()
         watermarkControllers.forEach { it.onViewDetached() }
         zoomController.resetZoom(animated = false)
+        zoomController.destroy()
 
         // Always remove FLAG_SECURE on detach. In a Single-Activity architecture the Activity
         // is rarely finishing during normal navigation, so guarding on isFinishing would leak
@@ -654,25 +657,45 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         releaseSecureFlag(activity)
     }
 
+    interface OnZoomChangeListener {
+        fun onZoomChanged(scale: Float, translationX: Float, translationY: Float)
+        fun onZoomReset()
+    }
+
+    private var externalZoomChangeListener: OnZoomChangeListener? = null
+    private var isZoomInterceptionActive = false
+
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            isZoomInterceptionActive = false
+        }
+
         if (isPinchToZoomEnabled) {
             val handledByZoom = zoomController.handleTouchEvent(ev)
-            if (zoomController.isScaling || (zoomController.isZoomed && ev.pointerCount > 1)) {
-                parent?.requestDisallowInterceptTouchEvent(true)
-                return true
+            val isInteracting = zoomController.isInteracting
+            val isMultiTouchZoom = zoomController.isZoomed && ev.pointerCount > 1
+
+            if (!isZoomInterceptionActive && (isInteracting || isMultiTouchZoom || handledByZoom)) {
+                // Synthesize ACTION_CANCEL so child views do not remain in a pressed state
+                val cancelEvent = MotionEvent.obtain(ev.downTime, ev.eventTime, MotionEvent.ACTION_CANCEL, ev.x, ev.y, 0)
+                super.dispatchTouchEvent(cancelEvent)
+                cancelEvent.recycle()
+                isZoomInterceptionActive = true
             }
-            if (handledByZoom) {
+
+            if (isZoomInterceptionActive || handledByZoom) {
                 parent?.requestDisallowInterceptTouchEvent(true)
-                if (zoomController.isPanning) {
-                    return true
+                if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    isZoomInterceptionActive = false
                 }
+                return true
             }
         }
         return super.dispatchTouchEvent(ev)
     }
 
     /**
-     * Enables or disables YouTube-style pinch-to-zoom (up to 8x) and double-tap zoom gestures.
+     * Enables or disables pinch-to-zoom (up to 8x) and double-tap zoom gestures.
      * Enabled by default.
      */
     var isPinchToZoomEnabled: Boolean
@@ -716,11 +739,11 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     /**
      * Returns true if the player is currently in fullscreen mode.
      */
-    fun isInFullscreenMode(): Boolean = fullscreenMode.isInFullscreenMode()
+    internal fun isInFullscreenMode(): Boolean = fullscreenMode.isInFullscreenMode()
 
     /**
      * When true, pinch-to-zoom is only active while in fullscreen mode.
-     * When false (default, matching YouTube), pinch-to-zoom works in both inline and fullscreen modes.
+     * When false (default), pinch-to-zoom works in both inline and fullscreen modes.
      */
     var zoomOnlyInFullscreen: Boolean
         get() = zoomController.zoomOnlyInFullscreen
@@ -729,7 +752,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     /**
      * Sets a listener to receive zoom scale and reset events.
      */
-    fun setOnZoomChangeListener(listener: PlayerZoomController.OnZoomChangeListener?) {
+    fun setOnZoomChangeListener(listener: OnZoomChangeListener?) {
+        this.externalZoomChangeListener = listener
         zoomController.onZoomChangeListener = listener
     }
 }

@@ -1,10 +1,13 @@
 package com.tpstreams.player
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.graphics.Color
 import android.graphics.Typeface
 import android.view.GestureDetector
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -12,29 +15,25 @@ import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.annotation.VisibleForTesting
-import androidx.core.animation.doOnEnd
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 
+typealias OnZoomChangeListener = TPStreamsPlayerView.OnZoomChangeListener
+
 /**
  * Manages pinch-to-zoom (up to 8x) and double-tap zoom gestures on [TPStreamsPlayerView].
  *
  * Applies scaling and translation transformations to the player's [AspectRatioFrameLayout]
- * (exo_content_frame), keeping video content, subtitles, and watermarks synchronized while
- * leaving player controls unaffected.
+ * (exo_content_frame), keeping video content synchronized while player controls and subtitles
+ * remain unaffected.
  */
 @UnstableApi
-class PlayerZoomController(
+internal class PlayerZoomController(
     private val playerView: TPStreamsPlayerView
 ) {
-
-    interface OnZoomChangeListener {
-        fun onZoomChanged(scale: Float, translationX: Float, translationY: Float)
-        fun onZoomReset()
-    }
 
     /**
      * Whether zoom gestures (pinch and double-tap) are enabled.
@@ -49,7 +48,7 @@ class PlayerZoomController(
 
     /**
      * When true, zoom gestures are only allowed while the player is in fullscreen mode.
-     * When false (default, matching YouTube), zoom gestures work in both inline and fullscreen modes.
+     * When false (default), zoom gestures work in both inline and fullscreen modes.
      */
     var zoomOnlyInFullscreen: Boolean = false
         set(value) {
@@ -84,7 +83,7 @@ class PlayerZoomController(
      */
     var showZoomIndicator: Boolean = true
 
-    var onZoomChangeListener: OnZoomChangeListener? = null
+    var onZoomChangeListener: TPStreamsPlayerView.OnZoomChangeListener? = null
 
     var currentScale: Float = 1.0f
         internal set
@@ -103,6 +102,9 @@ class PlayerZoomController(
 
     var isPanning: Boolean = false
         internal set
+
+    val isInteracting: Boolean
+        get() = isScaling || isPanning
 
     @get:VisibleForTesting
     internal var contentFrame: AspectRatioFrameLayout? = null
@@ -171,6 +173,7 @@ class PlayerZoomController(
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onDoubleTap(e: MotionEvent): Boolean {
             if (!isGestureAllowed) return false
+            playerView.hideController()
             if (isZoomed) {
                 resetZoom(animated = true)
                 return true
@@ -225,39 +228,6 @@ class PlayerZoomController(
 
     fun setup() {
         contentFrame = playerView.findViewById(androidx.media3.ui.R.id.exo_content_frame)
-        ensureSubtitleViewOutsideContentFrame()
-    }
-
-    internal fun ensureSubtitleViewOutsideContentFrame() {
-        val frame = contentFrame ?: return
-        try {
-            val subtitleView = playerView.findViewById<View>(androidx.media3.ui.R.id.exo_subtitles) ?: return
-            if (subtitleView.parent == frame) {
-                frame.removeView(subtitleView)
-                val overlay = playerView.findViewById<android.view.ViewGroup>(androidx.media3.ui.R.id.exo_overlay)
-                if (overlay != null) {
-                    overlay.addView(
-                        subtitleView,
-                        FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT
-                        )
-                    )
-                } else {
-                    val index = playerView.indexOfChild(frame)
-                    playerView.addView(
-                        subtitleView,
-                        index + 1,
-                        FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT
-                        )
-                    )
-                }
-            }
-        } catch (_: Exception) {
-            // Guard against mocked or headless test environments
-        }
     }
 
     fun handleTouchEvent(ev: MotionEvent): Boolean {
@@ -267,8 +237,11 @@ class PlayerZoomController(
         }
         val frame = contentFrame ?: return false
 
+        val wasInteracting = isInteracting
         scaleDetector.onTouchEvent(ev)
         gestureDetector.onTouchEvent(ev)
+
+        var handled = isInteracting
 
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -293,18 +266,17 @@ class PlayerZoomController(
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                val wasPanning = isPanning
                 isPanning = false
                 isScaling = false
                 settleZoom()
                 scheduleHideZoomBadge()
-                if (wasPanning) {
-                    return true
+                if (wasInteracting) {
+                    handled = true
                 }
             }
         }
 
-        return isScaling || isZoomed
+        return handled
     }
 
     data class TranslationBounds(
@@ -441,24 +413,33 @@ class PlayerZoomController(
         val startTx = currentTranslationX
         val startTy = currentTranslationY
 
+        var isCancelled = false
         animator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = durationMs
             interpolator = DecelerateInterpolator()
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationCancel(animation: Animator) {
+                    isCancelled = true
+                }
+
+                override fun onAnimationEnd(animation: Animator) {
+                    if (!isCancelled) {
+                        if (currentScale <= 1.01f) {
+                            currentScale = 1.0f
+                            currentTranslationX = 0f
+                            currentTranslationY = 0f
+                            applyTransformation()
+                            onZoomChangeListener?.onZoomReset()
+                        }
+                    }
+                }
+            })
             addUpdateListener { va ->
                 val fraction = va.animatedFraction
                 currentScale = startScale + (targetScale - startScale) * fraction
                 currentTranslationX = startTx + (targetTx - startTx) * fraction
                 currentTranslationY = startTy + (targetTy - startTy) * fraction
                 applyTransformation()
-            }
-            doOnEnd {
-                if (currentScale <= 1.01f) {
-                    currentScale = 1.0f
-                    currentTranslationX = 0f
-                    currentTranslationY = 0f
-                    applyTransformation()
-                    onZoomChangeListener?.onZoomReset()
-                }
             }
             start()
         }
@@ -480,37 +461,31 @@ class PlayerZoomController(
 
     private fun ensureZoomBadge() {
         if (zoomBadge != null || !showZoomIndicator) return
-        val context = playerView.context ?: return
-        val resources = context.resources ?: return
-        val metrics = resources.displayMetrics ?: return
-        try {
-            val badge = TextView(context).apply {
-                setBackgroundResource(R.drawable.tpstreams_zoom_badge_bg)
-                setTextColor(Color.WHITE)
-                textSize = 13f
-                setTypeface(typeface, Typeface.BOLD)
-                gravity = Gravity.CENTER
-                visibility = View.GONE
-                alpha = 0f
-                   isClickable = false
-                isFocusable = false
+        val context = playerView.context
+        val metrics = context.resources.displayMetrics
+        val badge = TextView(context).apply {
+            setBackgroundResource(R.drawable.tpstreams_zoom_badge_bg)
+            setTextColor(Color.WHITE)
+            textSize = 13f
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            alpha = 0f
+            isClickable = false
+            isFocusable = false
 
-                val density = metrics.density
-                val topMargin = (16 * density).toInt()
-                val lp = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                    this.topMargin = topMargin
-                }
-                layoutParams = lp
+            val density = metrics.density
+            val topMargin = (16 * density).toInt()
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                this.topMargin = topMargin
             }
-            playerView.addView(badge)
-            zoomBadge = badge
-        } catch (_: Exception) {
-            // Guard against headless test environments where resources or layouts are mocked
         }
+        playerView.addView(badge)
+        zoomBadge = badge
     }
 
     fun getZoomBadgeText(scale: Float): String {
@@ -519,20 +494,8 @@ class PlayerZoomController(
         val isNearFill = fillScale > 1.05f && abs(scale - fillScale) < (0.05f * fillScale)
 
         return when {
-            isNearOriginal -> {
-                try {
-                    playerView.context?.getString(R.string.zoom_original) ?: "Original"
-                } catch (_: Exception) {
-                    "Original"
-                }
-            }
-            isNearFill -> {
-                try {
-                    playerView.context?.getString(R.string.zoom_to_fill) ?: "Zoomed to fill"
-                } catch (_: Exception) {
-                    "Zoomed to fill"
-                }
-            }
+            isNearOriginal -> playerView.context.getString(R.string.zoom_original)
+            isNearFill -> playerView.context.getString(R.string.zoom_to_fill)
             else -> String.format(Locale.US, "%.1fx", scale)
         }
     }
@@ -549,9 +512,7 @@ class PlayerZoomController(
         }
 
         if (currentState != 0 && currentState != lastSnappedState) {
-            try {
-                playerView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            } catch (_: Exception) {}
+            playerView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
         }
         lastSnappedState = currentState
     }
