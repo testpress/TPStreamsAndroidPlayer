@@ -217,8 +217,14 @@ class PlayerReleaseTimeoutInstrumentedTest {
 
             // Wait to see if decoder is ever released
             val decoderReleased = decoderReleasedLatch.await(3, TimeUnit.SECONDS)
-            val decodersAfterRelease = CodecManager.getActiveDecoderCount()
             Log.i(TAG, "Decoder released event received: $decoderReleased")
+
+            // Wait briefly (up to 2s) for the background playback thread to finish releasing all decoders (audio & video)
+            val deadline = SystemClock.elapsedRealtime() + 2000
+            while (SystemClock.elapsedRealtime() < deadline && CodecManager.getActiveDecoderCount() > initialActiveDecoders) {
+                Thread.sleep(50)
+            }
+            val decodersAfterRelease = CodecManager.getActiveDecoderCount()
             Log.i(TAG, "Active decoders remaining after release: $decodersAfterRelease")
 
             // VERIFICATION:
