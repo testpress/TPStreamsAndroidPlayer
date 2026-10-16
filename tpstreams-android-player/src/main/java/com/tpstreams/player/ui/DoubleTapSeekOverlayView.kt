@@ -92,7 +92,7 @@ internal class DoubleTapSeekOverlayView @JvmOverloads constructor(
     /**
      * Immediately dismisses and cancels the seek overlay animation.
      */
-    fun hideSeek(animated: Boolean = true) {
+    fun hideSeek() {
         circleClipTapView.endAnimation()
         seekIndicatorView.stop()
         seekIndicatorView.visibility = View.INVISIBLE

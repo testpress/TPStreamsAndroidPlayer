@@ -230,4 +230,60 @@ class DoubleTapSeekControllerTest {
         assertEquals(0L, controller.accumulatedSeekMs)
         verify(player, never()).seekTo(anyLong())
     }
+
+    @Test
+    fun `onDetachedFromWindow resets all seeking state and hides overlay`() {
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
+
+        currentTime += 150L
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
+
+        assertTrue(controller.isSeeking)
+        assertEquals(DoubleTapSeekController.Zone.RIGHT, controller.activeSide)
+        assertEquals(10_000L, controller.accumulatedSeekMs)
+
+        controller.onDetachedFromWindow()
+
+        assertFalse(controller.isSeeking)
+        assertEquals(DoubleTapSeekController.Zone.NONE, controller.activeSide)
+        assertEquals(0L, controller.accumulatedSeekMs)
+        assertEquals(0L, controller.virtualTargetPositionMs)
+        verify(overlayView).hideSeek()
+        verify(player, never()).seekTo(anyLong())
+    }
+
+    @Test
+    fun `second finger down cancels pending single tap and prevents UP from triggering tap`() {
+        // First finger down on right side
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
+        // Second finger down (pinch-to-zoom starts)
+        val pointerDownHandled = controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_POINTER_DOWN, 850f, 260f))
+        assertFalse("ACTION_POINTER_DOWN should not be consumed so zoom can handle it", pointerDownHandled)
+
+        // Finger lifts (ACTION_UP)
+        val upHandled = controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
+        assertFalse("ACTION_UP after multi-touch should not be consumed as a tap", upHandled)
+        assertFalse(controller.isSeeking)
+    }
+
+    @Test
+    fun `second finger down during active seek finishes seek and dismisses overlay`() {
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
+
+        currentTime += 150L
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
+
+        assertTrue(controller.isSeeking)
+
+        // Second finger touches screen
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_POINTER_DOWN, 850f, 260f))
+
+        assertFalse(controller.isSeeking)
+        verify(player).seekTo(40_000L)
+        verify(overlayView).hideSeek()
+    }
 }

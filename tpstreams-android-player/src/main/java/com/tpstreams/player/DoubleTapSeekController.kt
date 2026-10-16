@@ -54,8 +54,7 @@ internal class DoubleTapSeekController(
     internal var overlayView: DoubleTapSeekOverlayView? = null
 
     private val handler: Handler by lazy {
-        val looper = Looper.getMainLooper() ?: Looper.myLooper()
-        Handler(looper ?: Looper.getMainLooper())
+        Handler(Looper.getMainLooper())
     }
     private val touchSlop: Int by lazy {
         try {
@@ -150,6 +149,15 @@ internal class DoubleTapSeekController(
                 downY = ev.y
                 isDragging = false
                 return true
+            }
+
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                isDragging = true
+                cancelPendingSingleTap()
+                if (isSeeking) {
+                    finishSeeking()
+                }
+                return false
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -334,7 +342,7 @@ internal class DoubleTapSeekController(
         accumulatedSeekMs = 0L
         virtualTargetPositionMs = 0L
         lastTapZone = Zone.NONE
-        overlayView?.hideSeek(animated = true)
+        overlayView?.hideSeek()
     }
 
     private fun cancelSeeking() {
@@ -345,7 +353,7 @@ internal class DoubleTapSeekController(
         accumulatedSeekMs = 0L
         virtualTargetPositionMs = 0L
         lastTapZone = Zone.NONE
-        overlayView?.hideSeek(animated = false)
+        overlayView?.hideSeek()
     }
 
     private fun cancelPendingSingleTap() {
@@ -363,8 +371,6 @@ internal class DoubleTapSeekController(
 
     fun onDetachedFromWindow() {
         cancelPendingSingleTap()
-        dismissRunnable?.let { handler.removeCallbacks(it) }
-        dismissRunnable = null
-        isSeeking = false
+        cancelSeeking()
     }
 }
