@@ -94,8 +94,12 @@ internal class PlayerZoomController(
     var currentTranslationY: Float = 0.0f
         internal set
 
+    companion object {
+        const val SCALE_EPSILON = 0.01f
+    }
+
     val isZoomed: Boolean
-        get() = currentScale > 1.01f || abs(currentTranslationX) > 1f || abs(currentTranslationY) > 1f
+        get() = currentScale > (1.0f + SCALE_EPSILON) || abs(currentTranslationX) > 1f || abs(currentTranslationY) > 1f
 
     var isScaling: Boolean = false
         internal set
@@ -124,7 +128,6 @@ internal class PlayerZoomController(
             playerView.hideController()
             lastFocusX = detector.focusX
             lastFocusY = detector.focusY
-            updateZoomBadge(currentScale)
             return true
         }
 
@@ -210,6 +213,7 @@ internal class PlayerZoomController(
 
     fun setup() {
         contentFrame = playerView.findViewById(androidx.media3.ui.R.id.exo_content_frame)
+        ensureZoomBadge()
     }
 
     fun handleTouchEvent(ev: MotionEvent): Boolean {
@@ -353,7 +357,12 @@ internal class PlayerZoomController(
 
     fun resetZoom(animated: Boolean = true) {
         animator?.cancel()
-        if (animated && (currentScale != 1.0f || currentTranslationX != 0f || currentTranslationY != 0f)) {
+        val isAlreadyAtRest = currentScale == 1.0f && currentTranslationX == 0f && currentTranslationY == 0f
+        if (isAlreadyAtRest) {
+            scheduleHideZoomBadge(0L)
+            return
+        }
+        if (animated) {
             animateTo(1.0f, 0f, 0f, 250L)
         } else {
             currentScale = 1.0f
@@ -408,7 +417,7 @@ internal class PlayerZoomController(
 
                 override fun onAnimationEnd(animation: Animator) {
                     if (!isCancelled) {
-                        if (currentScale <= 1.01f) {
+                        if (currentScale <= (1.0f + SCALE_EPSILON)) {
                             currentScale = 1.0f
                             currentTranslationX = 0f
                             currentTranslationY = 0f
@@ -474,8 +483,8 @@ internal class PlayerZoomController(
 
     fun getZoomBadgeText(scale: Float): String {
         val fillScale = calculateFillScale()
-        val isNearOriginal = scale <= 1.05f
-        val isNearFill = fillScale > 1.05f && abs(scale - fillScale) < (0.05f * fillScale)
+        val isNearOriginal = scale <= (1.0f + SCALE_EPSILON)
+        val isNearFill = fillScale > (1.0f + SCALE_EPSILON) && abs(scale - fillScale) < (0.05f * fillScale)
 
         return when {
             isNearOriginal -> playerView.context.getString(R.string.zoom_original)
@@ -486,8 +495,8 @@ internal class PlayerZoomController(
 
     private fun triggerHapticFeedbackIfNeeded(scale: Float) {
         val fillScale = calculateFillScale()
-        val isNearOriginal = scale in 0.95f..1.05f
-        val isNearFill = fillScale > 1.05f && abs(scale - fillScale) < (0.05f * fillScale)
+        val isNearOriginal = scale <= (1.0f + SCALE_EPSILON)
+        val isNearFill = fillScale > (1.0f + SCALE_EPSILON) && abs(scale - fillScale) < (0.05f * fillScale)
 
         val currentState = when {
             isNearOriginal -> 1

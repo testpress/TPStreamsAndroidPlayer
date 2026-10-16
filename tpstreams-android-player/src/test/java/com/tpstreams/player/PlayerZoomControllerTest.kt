@@ -172,8 +172,7 @@ class PlayerZoomControllerTest {
     fun `getZoomBadgeText shows Original at 1x, Zoomed to fill at fill scale, and multiplier otherwise`() {
         // at or near 1.0x shows Original
         assertEquals("Original", zoomController.getZoomBadgeText(1.0f))
-        assertEquals("Original", zoomController.getZoomBadgeText(1.02f))
-        assertEquals("Original", zoomController.getZoomBadgeText(1.05f))
+        assertEquals("Original", zoomController.getZoomBadgeText(1.01f))
 
         // near fillScale (3.947x) shows Zoomed to fill
         val fillScale = zoomController.calculateFillScale()
@@ -183,6 +182,26 @@ class PlayerZoomControllerTest {
         assertEquals("2.0x", zoomController.getZoomBadgeText(2.0f))
         assertEquals("5.5x", zoomController.getZoomBadgeText(5.5f))
         assertEquals("8.0x", zoomController.getZoomBadgeText(8.0f))
+    }
+
+    @Test
+    fun `resetZoom when already at rest does not notify listener`() {
+        var resetNotified = false
+        var changedNotified = false
+        zoomController.onZoomChangeListener = object : TPStreamsPlayerView.OnZoomChangeListener {
+            override fun onZoomChanged(scale: Float, translationX: Float, translationY: Float) {
+                changedNotified = true
+            }
+
+            override fun onZoomReset() {
+                resetNotified = true
+            }
+        }
+
+        zoomController.resetZoom(animated = false)
+
+        assertFalse(resetNotified)
+        assertFalse(changedNotified)
     }
 
     @Test

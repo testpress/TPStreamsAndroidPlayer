@@ -139,7 +139,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 zoomController.maxScale = typedArray.getFloat(
                     R.styleable.TPStreamsPlayerView_max_zoom_scale,
                     zoomController.maxScale
-                )
+                ).coerceAtLeast(1.0f)
                 zoomController.showZoomIndicator = typedArray.getBoolean(
                     R.styleable.TPStreamsPlayerView_show_zoom_indicator,
                     zoomController.showZoomIndicator
@@ -160,7 +160,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         getPlayer()?.addListener(playbackStateListener)
         errorViewController.ensureErrorOverlaySetup()
         zoomController.setup()
-        zoomController.onZoomChangeListener = externalZoomChangeListener
 
         // Re-apply FLAG_SECURE on re-attach — handles fullscreen transitions where the view is
         // temporarily detached from its parent and re-parented to the decor view.
@@ -662,7 +661,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         fun onZoomReset()
     }
 
-    private var externalZoomChangeListener: OnZoomChangeListener? = null
     private var isZoomInterceptionActive = false
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -753,7 +751,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
      * Sets a listener to receive zoom scale and reset events.
      */
     fun setOnZoomChangeListener(listener: OnZoomChangeListener?) {
-        this.externalZoomChangeListener = listener
         zoomController.onZoomChangeListener = listener
     }
 }
