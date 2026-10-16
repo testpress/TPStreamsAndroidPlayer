@@ -45,6 +45,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val errorViewController = PlayerErrorViewController(this)
     private val sheetManager = PlayerSheetManager(settingsPanel, captions, downloadActions) { getPlayer() }
     private val zoomController = PlayerZoomController(this)
+    private val doubleTapSeekController = DoubleTapSeekController(this)
 
     private var playerControlView: TPStreamsPlayerControlView? = null
     private var orientationEventListener: OrientationListener? = null
@@ -148,6 +149,17 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                     R.styleable.TPStreamsPlayerView_zoom_only_in_fullscreen,
                     zoomController.zoomOnlyInFullscreen
                 )
+                doubleTapSeekController.isEnabled = typedArray.getBoolean(
+                    R.styleable.TPStreamsPlayerView_enable_double_tap_to_seek,
+                    doubleTapSeekController.isEnabled
+                )
+                val seekInc = typedArray.getInt(
+                    R.styleable.TPStreamsPlayerView_double_tap_seek_increment_ms,
+                    -1
+                )
+                if (seekInc > 0) {
+                    doubleTapSeekController.seekIncrementMs = seekInc.toLong()
+                }
             } finally {
                 typedArray.recycle()
             }
@@ -235,6 +247,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         showFullscreenButton()
         setupControllerVisibilityListener()
         zoomController.setup()
+        doubleTapSeekController.setup()
     }
 
     private fun cacheBufferingView() {
@@ -477,6 +490,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         watermarkControllers.forEach { it.onViewDetached() }
         zoomController.resetZoom(animated = false)
         zoomController.destroy()
+        doubleTapSeekController.onDetachedFromWindow()
 
         // Always remove FLAG_SECURE on detach. In a Single-Activity architecture the Activity
         // is rarely finishing during normal navigation, so guarding on isFinishing would leak
@@ -689,7 +703,22 @@ class TPStreamsPlayerView @JvmOverloads constructor(
                 return true
             }
         }
+
+        if (isDoubleTapToSeekEnabled && doubleTapSeekController.isSeeking) {
+            if (doubleTapSeekController.handleTouchEvent(ev)) {
+                return true
+            }
+        }
+
         return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (isDoubleTapToSeekEnabled) {
+            val handled = doubleTapSeekController.handleTouchEvent(ev)
+            if (handled) return true
+        }
+        return super.onTouchEvent(ev)
     }
 
     /**
@@ -753,5 +782,28 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     fun setOnZoomChangeListener(listener: OnZoomChangeListener?) {
         zoomController.onZoomChangeListener = listener
     }
+
+    /**
+     * Enables or disables double-tap to seek (10s back on left, 10s forward on right).
+     * Enabled by default.
+     */
+    var isDoubleTapToSeekEnabled: Boolean
+        get() = doubleTapSeekController.isEnabled
+        set(value) { doubleTapSeekController.isEnabled = value }
+
+    /**
+     * The seek increment in milliseconds for double-tap seek. Defaults to 10,000ms (10 seconds).
+     */
+    var doubleTapSeekIncrementMs: Long
+        get() = doubleTapSeekController.seekIncrementMs
+        set(value) { doubleTapSeekController.seekIncrementMs = value }
+
+    /**
+     * Whether to show the visual ripple & chevron overlay during double-tap seeking.
+     * Defaults to true.
+     */
+    var showDoubleTapSeekOverlay: Boolean
+        get() = doubleTapSeekController.showSeekOverlay
+        set(value) { doubleTapSeekController.showSeekOverlay = value }
 }
 

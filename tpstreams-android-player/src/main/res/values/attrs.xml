@@ -5,5 +5,7 @@
         <attr name="max_zoom_scale" format="float" />
         <attr name="show_zoom_indicator" format="boolean" />
         <attr name="zoom_only_in_fullscreen" format="boolean" />
+        <attr name="enable_double_tap_to_seek" format="boolean" />
+        <attr name="double_tap_seek_increment_ms" format="integer" />
     </declare-styleable>
 </resources>
