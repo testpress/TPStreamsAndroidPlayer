@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="TPStreamsPlayerView">
+        <attr name="enable_pinch_to_zoom" format="boolean" />
+        <attr name="max_zoom_scale" format="float" />
+        <attr name="show_zoom_indicator" format="boolean" />
+        <attr name="zoom_only_in_fullscreen" format="boolean" />
+    </declare-styleable>
+</resources>
