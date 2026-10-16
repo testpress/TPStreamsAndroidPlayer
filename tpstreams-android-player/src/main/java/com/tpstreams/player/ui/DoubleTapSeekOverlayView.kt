@@ -16,8 +16,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.VisibleForTesting
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.animation.doOnEnd
 import androidx.core.animation.doOnStart
+import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import com.tpstreams.player.R
 
@@ -291,6 +293,15 @@ internal class DoubleTapSeekIndicatorView @JvmOverloads constructor(
         icon1 = findViewById(R.id.icon_1)
         icon2 = findViewById(R.id.icon_2)
         icon3 = findViewById(R.id.icon_3)
+
+        // Ensure drawables are explicitly loaded in non-AppCompat contexts (such as Flutter's FlutterActivity)
+        val triangleDrawable = AppCompatResources.getDrawable(context, R.drawable.ic_play_triangle)
+            ?: ContextCompat.getDrawable(context, R.drawable.ic_play_triangle)
+        if (triangleDrawable != null) {
+            icon1.setImageDrawable(triangleDrawable.constantState?.newDrawable()?.mutate() ?: triangleDrawable)
+            icon2.setImageDrawable(triangleDrawable.constantState?.newDrawable()?.mutate() ?: triangleDrawable)
+            icon3.setImageDrawable(triangleDrawable.constantState?.newDrawable()?.mutate() ?: triangleDrawable)
+        }
 
         resetIcons()
     }
