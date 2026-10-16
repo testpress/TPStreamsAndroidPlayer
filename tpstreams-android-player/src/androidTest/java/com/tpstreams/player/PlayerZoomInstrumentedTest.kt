@@ -226,7 +226,7 @@ class PlayerZoomInstrumentedTest {
     }
 
     @Test
-    fun doubleTapZoom_animatesToTargetAndResetsOnSecondDoubleTap() {
+    fun doubleTap_doesNotTriggerZoom() {
         ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
             lateinit var playerView: TPStreamsPlayerView
 
@@ -253,28 +253,12 @@ class PlayerZoomInstrumentedTest {
                 playerView.dispatchTouchEvent(MotionEvent.obtain(now, now + 170, MotionEvent.ACTION_UP, 500f, 500f, 0))
             }
 
-            // Wait for 250ms value animation to complete
-            SystemClock.sleep(400)
+            SystemClock.sleep(300)
             InstrumentationRegistry.getInstrumentation().waitForIdleSync()
 
             scenario.onActivity {
-                assertTrue("Player should be zoomed in after double tap", playerView.isZoomed)
-                assertTrue("Scale should be greater than 1.0f after double tap", playerView.currentZoomScale > 1.05f)
-
-                // Now double tap again to reset
-                val now2 = SystemClock.uptimeMillis()
-                playerView.dispatchTouchEvent(MotionEvent.obtain(now2, now2, MotionEvent.ACTION_DOWN, 500f, 500f, 0))
-                playerView.dispatchTouchEvent(MotionEvent.obtain(now2, now2 + 50, MotionEvent.ACTION_UP, 500f, 500f, 0))
-                playerView.dispatchTouchEvent(MotionEvent.obtain(now2, now2 + 120, MotionEvent.ACTION_DOWN, 500f, 500f, 0))
-                playerView.dispatchTouchEvent(MotionEvent.obtain(now2, now2 + 170, MotionEvent.ACTION_UP, 500f, 500f, 0))
-            }
-
-            SystemClock.sleep(400)
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-
-            scenario.onActivity {
-                assertFalse("Player should not be zoomed after second double tap", playerView.isZoomed)
-                assertEquals(1.0f, playerView.currentZoomScale, 0.05f)
+                assertFalse("Double tap must not trigger zoom", playerView.isZoomed)
+                assertEquals(1.0f, playerView.currentZoomScale, 0.001f)
             }
         }
     }

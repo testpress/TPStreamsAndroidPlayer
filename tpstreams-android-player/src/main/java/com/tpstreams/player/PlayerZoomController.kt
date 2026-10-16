@@ -24,7 +24,7 @@ import kotlin.math.max
 typealias OnZoomChangeListener = TPStreamsPlayerView.OnZoomChangeListener
 
 /**
- * Manages pinch-to-zoom (up to 8x) and double-tap zoom gestures on [TPStreamsPlayerView].
+ * Manages pinch-to-zoom (up to 8x) gestures on [TPStreamsPlayerView].
  *
  * Applies scaling and translation transformations to the player's [AspectRatioFrameLayout]
  * (exo_content_frame), keeping video content synchronized while player controls and subtitles
@@ -36,7 +36,7 @@ internal class PlayerZoomController(
 ) {
 
     /**
-     * Whether zoom gestures (pinch and double-tap) are enabled.
+     * Whether pinch-to-zoom and pan gestures are enabled.
      */
     var isEnabled: Boolean = true
         set(value) {
@@ -171,24 +171,6 @@ internal class PlayerZoomController(
     }
 
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDoubleTap(e: MotionEvent): Boolean {
-            if (!isGestureAllowed) return false
-            playerView.hideController()
-            if (isZoomed || animator?.isRunning == true) {
-                resetZoom(animated = true)
-                return true
-            } else {
-                val fillScale = calculateFillScale()
-                val target = if (fillScale > 1.05f) {
-                    fillScale.coerceAtMost(maxScale)
-                } else {
-                    2.0f.coerceAtMost(maxScale)
-                }
-                zoomTo(target, e.x, e.y, animated = true)
-                return true
-            }
-        }
-
         override fun onScroll(
             e1: MotionEvent?,
             e2: MotionEvent,

@@ -695,7 +695,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     /**
-     * Enables or disables pinch-to-zoom (up to 8x) and double-tap zoom gestures.
+     * Enables or disables pinch-to-zoom (up to 8x) gestures.
      * Enabled by default.
      */
     var isPinchToZoomEnabled: Boolean
