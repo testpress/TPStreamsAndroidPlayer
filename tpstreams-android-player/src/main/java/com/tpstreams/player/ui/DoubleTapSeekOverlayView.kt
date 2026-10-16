@@ -14,8 +14,8 @@ import com.tpstreams.player.R
  * YouTube-style visual overlay for double-tap seek feedback.
  *
  * Utilizes [CircleClipTapView] for the curved Bezier arc clipping and dynamic expanding
- * tap ripple from the exact touch coordinate, and [SecondsView] for the animated 3-triangle
- * wave and accumulated seconds text.
+ * tap ripple from the exact touch coordinate, and [DoubleTapSeekIndicatorView] for the animated
+ * 3-triangle wave and accumulated seconds text.
  */
 @UnstableApi
 internal class DoubleTapSeekOverlayView @JvmOverloads constructor(
@@ -25,7 +25,7 @@ internal class DoubleTapSeekOverlayView @JvmOverloads constructor(
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
     private val circleClipTapView: CircleClipTapView
-    private val secondsView: SecondsView
+    private val seekIndicatorView: DoubleTapSeekIndicatorView
 
     var onAnimationEndListener: (() -> Unit)? = null
 
@@ -33,11 +33,11 @@ internal class DoubleTapSeekOverlayView @JvmOverloads constructor(
         LayoutInflater.from(context).inflate(R.layout.double_tap_seek_overlay, this, true)
 
         circleClipTapView = findViewById(R.id.circle_clip_tap_view)
-        secondsView = findViewById(R.id.seconds_view)
+        seekIndicatorView = findViewById(R.id.seek_indicator_view)
 
         circleClipTapView.performAtEnd = {
-            secondsView.stop()
-            secondsView.visibility = View.INVISIBLE
+            seekIndicatorView.stop()
+            seekIndicatorView.visibility = View.INVISIBLE
             visibility = View.INVISIBLE
             onAnimationEndListener?.invoke()
         }
@@ -52,30 +52,30 @@ internal class DoubleTapSeekOverlayView @JvmOverloads constructor(
      */
     fun showSeek(isForward: Boolean, accumulatedSeconds: Int, touchX: Float, touchY: Float) {
         visibility = View.VISIBLE
-        secondsView.visibility = View.VISIBLE
+        seekIndicatorView.visibility = View.VISIBLE
 
-        secondsView.isForward = isForward
-        secondsView.seconds = accumulatedSeconds
+        seekIndicatorView.isForward = isForward
+        seekIndicatorView.seconds = accumulatedSeconds
 
-        updateSecondsViewPosition(isForward)
+        updateSeekIndicatorPosition(isForward)
 
         circleClipTapView.resetAnimation {
             circleClipTapView.updatePosition(touchX, touchY)
         }
 
-        secondsView.start()
+        seekIndicatorView.start()
     }
 
-    private fun updateSecondsViewPosition(isForward: Boolean) {
+    private fun updateSeekIndicatorPosition(isForward: Boolean) {
         val halfWidth = if (width > 0) (width * 0.5f).toInt() else LayoutParams.WRAP_CONTENT
 
-        val lp = (secondsView.layoutParams as? LayoutParams) ?: LayoutParams(
+        val lp = (seekIndicatorView.layoutParams as? LayoutParams) ?: LayoutParams(
             halfWidth,
             LayoutParams.WRAP_CONTENT
         )
         lp.width = halfWidth
         lp.gravity = if (isForward) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.START or Gravity.CENTER_VERTICAL
-        secondsView.layoutParams = lp
+        seekIndicatorView.layoutParams = lp
     }
 
     /**
@@ -83,8 +83,8 @@ internal class DoubleTapSeekOverlayView @JvmOverloads constructor(
      */
     fun hideSeek(animated: Boolean = true) {
         circleClipTapView.endAnimation()
-        secondsView.stop()
-        secondsView.visibility = View.INVISIBLE
+        seekIndicatorView.stop()
+        seekIndicatorView.visibility = View.INVISIBLE
         visibility = View.INVISIBLE
     }
 
@@ -92,8 +92,8 @@ internal class DoubleTapSeekOverlayView @JvmOverloads constructor(
     internal fun isOverlayVisible(): Boolean = visibility == View.VISIBLE
 
     @VisibleForTesting
-    internal fun getSeconds(): Int = secondsView.seconds
+    internal fun getSeconds(): Int = seekIndicatorView.seconds
 
     @VisibleForTesting
-    internal fun isForward(): Boolean = secondsView.isForward
+    internal fun isForward(): Boolean = seekIndicatorView.isForward
 }

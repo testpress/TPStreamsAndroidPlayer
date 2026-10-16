@@ -9,8 +9,8 @@
         android:clickable="false"
         android:focusable="false" />
 
-    <com.tpstreams.player.ui.SecondsView
-        android:id="@+id/seconds_view"
+    <com.tpstreams.player.ui.DoubleTapSeekIndicatorView
+        android:id="@+id/seek_indicator_view"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="start|center_vertical"

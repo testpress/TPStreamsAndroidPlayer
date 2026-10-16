@@ -250,7 +250,6 @@ internal class DoubleTapSeekController(
 
         val isForward = zone == Zone.RIGHT
         virtualTargetPositionMs = calculateInitialTargetPosition(isForward)
-        player.seekTo(virtualTargetPositionMs)
 
         // Hide controller so it does not interfere with the seek animation
         playerView.hideController()
@@ -273,7 +272,6 @@ internal class DoubleTapSeekController(
         accumulatedSeekMs += seekIncrementMs
         val isForward = zone == Zone.RIGHT
         virtualTargetPositionMs = calculateAccumulatedTargetPosition(isForward)
-        player.seekTo(virtualTargetPositionMs)
 
         if (showSeekOverlay) {
             overlayView?.showSeek(isForward, (accumulatedSeekMs / 1000L).toInt(), touchX, touchY)
@@ -319,9 +317,18 @@ internal class DoubleTapSeekController(
         handler.postDelayed(dismissRunnable!!, ACCUMULATION_TIMEOUT_MS)
     }
 
-    private fun finishSeeking() {
+    @VisibleForTesting
+    internal fun finishSeeking() {
         dismissRunnable?.let { handler.removeCallbacks(it) }
         dismissRunnable = null
+
+        if (isSeeking && accumulatedSeekMs > 0L) {
+            val player = playerView.getPlayer()
+            if (player != null && player.isCurrentMediaItemSeekable) {
+                player.seekTo(virtualTargetPositionMs)
+            }
+        }
+
         isSeeking = false
         activeSide = Zone.NONE
         accumulatedSeekMs = 0L
@@ -331,7 +338,13 @@ internal class DoubleTapSeekController(
     }
 
     private fun cancelSeeking() {
-        finishSeeking()
+        dismissRunnable?.let { handler.removeCallbacks(it) }
+        dismissRunnable = null
+        isSeeking = false
+        activeSide = Zone.NONE
+        accumulatedSeekMs = 0L
+        virtualTargetPositionMs = 0L
+        lastTapZone = Zone.NONE
         overlayView?.hideSeek(animated = false)
     }
 

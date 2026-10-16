@@ -9,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
@@ -64,7 +65,7 @@ class DoubleTapSeekControllerTest {
     }
 
     @Test
-    fun `double-tap on right half fast-forwards by seekIncrementMs`() {
+    fun `double-tap on right half updates UI immediately and commits seek on finish`() {
         // Tap 1 on right side (x = 800)
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
@@ -81,13 +82,19 @@ class DoubleTapSeekControllerTest {
         assertEquals(10_000L, controller.accumulatedSeekMs)
         assertEquals(40_000L, controller.virtualTargetPositionMs)
 
-        verify(player).seekTo(40_000L)
+        // UI updates immediately
         verify(playerView).hideController()
         verify(overlayView).showSeek(true, 10, 800f, 250f)
+        // SeekTo is debounced until tapping stops
+        verify(player, never()).seekTo(anyLong())
+
+        // Finish tapping (timeout elapses)
+        controller.finishSeeking()
+        verify(player).seekTo(40_000L)
     }
 
     @Test
-    fun `double-tap on left half rewinds by seekIncrementMs`() {
+    fun `double-tap on left half updates UI immediately and commits rewind on finish`() {
         // Tap 1 on left side (x = 200)
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 200f, 250f))
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 200f, 250f))
@@ -102,13 +109,16 @@ class DoubleTapSeekControllerTest {
         assertEquals(10_000L, controller.accumulatedSeekMs)
         assertEquals(20_000L, controller.virtualTargetPositionMs)
 
-        verify(player).seekTo(20_000L)
         verify(overlayView).showSeek(false, 10, 200f, 250f)
+        verify(player, never()).seekTo(anyLong())
+
+        controller.finishSeeking()
+        verify(player).seekTo(20_000L)
     }
 
     @Test
-    fun `rapid third tap accumulates seek amount to 20 seconds`() {
-        // Double tap right
+    fun `rapid multi-tap debounces seek and commits only once directly to final position`() {
+        // Double tap right (+10s)
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
 
@@ -118,7 +128,7 @@ class DoubleTapSeekControllerTest {
 
         assertEquals(10_000L, controller.accumulatedSeekMs)
 
-        // Tap 3 within accumulation window
+        // Tap 3 within accumulation window (+20s)
         currentTime += 200L
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
@@ -126,8 +136,21 @@ class DoubleTapSeekControllerTest {
         assertEquals(20_000L, controller.accumulatedSeekMs)
         assertEquals(50_000L, controller.virtualTargetPositionMs)
 
-        verify(player).seekTo(50_000L)
-        verify(overlayView).showSeek(true, 20, 800f, 250f)
+        // Tap 4 within accumulation window (+30s)
+        currentTime += 200L
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
+        controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
+
+        assertEquals(30_000L, controller.accumulatedSeekMs)
+        assertEquals(60_000L, controller.virtualTargetPositionMs)
+
+        // No intermediate seekTo calls made while tapping
+        verify(player, never()).seekTo(anyLong())
+        verify(overlayView).showSeek(true, 30, 800f, 250f)
+
+        // Tapping ceases -> single seekTo call to final 60s
+        controller.finishSeeking()
+        verify(player).seekTo(60_000L)
     }
 
     @Test
@@ -142,6 +165,7 @@ class DoubleTapSeekControllerTest {
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 200f, 250f))
 
         assertEquals(0L, controller.virtualTargetPositionMs)
+        controller.finishSeeking()
         verify(player).seekTo(0L)
     }
 
@@ -157,6 +181,7 @@ class DoubleTapSeekControllerTest {
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
 
         assertEquals(120_000L, controller.virtualTargetPositionMs)
+        controller.finishSeeking()
         verify(player).seekTo(120_000L)
     }
 
@@ -171,7 +196,7 @@ class DoubleTapSeekControllerTest {
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 500f, 250f))
 
         assertFalse("Center tap should not trigger seek", controller.isSeeking)
-        verify(player, never()).seekTo(org.mockito.ArgumentMatchers.anyLong())
+        verify(player, never()).seekTo(anyLong())
     }
 
     @Test
@@ -186,11 +211,11 @@ class DoubleTapSeekControllerTest {
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
 
         assertFalse("Non-seekable stream must not trigger seek", controller.isSeeking)
-        verify(player, never()).seekTo(org.mockito.ArgumentMatchers.anyLong())
+        verify(player, never()).seekTo(anyLong())
     }
 
     @Test
-    fun `disabling controller cancels seeking`() {
+    fun `disabling controller cancels seeking without committing seek`() {
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_DOWN, 800f, 250f))
         controller.handleTouchEvent(mockMotionEvent(MotionEvent.ACTION_UP, 800f, 250f))
 
@@ -203,5 +228,6 @@ class DoubleTapSeekControllerTest {
         controller.isEnabled = false
         assertFalse(controller.isSeeking)
         assertEquals(0L, controller.accumulatedSeekMs)
+        verify(player, never()).seekTo(anyLong())
     }
 }

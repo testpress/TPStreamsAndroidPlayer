@@ -16,10 +16,10 @@ import com.tpstreams.player.R
 
 /**
  * Layout group that displays and animates the 3 play triangles and seconds text indicator
- * during double-tap seeking, identical to YouTube's UI.
+ * during double-tap seeking.
  */
 @UnstableApi
-internal class SecondsView @JvmOverloads constructor(
+internal class DoubleTapSeekIndicatorView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
