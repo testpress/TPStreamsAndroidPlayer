@@ -57,6 +57,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import com.tpstreams.player.analytics.TPStreamsAnalyticsTracker
 import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
@@ -73,7 +74,8 @@ class TPStreamsPlayer internal constructor(
     val startInFullscreen: Boolean = false,
     val downloadMetadata: Map<String, String>? = null,
     val offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
-    val userId: String? = null
+    val userId: String? = null,
+    val enableAnalytics: Boolean = true
 ) : Player by exoPlayer {
 
     private val playbackHistory = PlaybackHistoryManager()
@@ -436,6 +438,23 @@ class TPStreamsPlayer internal constructor(
     private val resumePlaybackManager: ResumePlaybackManager? =
         userId?.let { ResumePlaybackManager(this, assetId, it) }
 
+    internal val analyticsTracker: TPStreamsAnalyticsTracker? =
+        if (enableAnalytics && assetId.isNotBlank() && TPStreamsSDK.provider == TPStreamsSDK.Provider.TPStreams) {
+            runCatching {
+                TPStreamsAnalyticsTracker(
+                    context = context,
+                    orgId = TPStreamsSDK.requireOrgId(),
+                    assetId = assetId,
+                    accessToken = accessToken.takeIf { it.isNotBlank() }
+                )
+            }.getOrElse {
+                Log.w("TPStreamsPlayer", "Analytics initialization failed; continuing playback", it)
+                null
+            }
+        } else {
+            null
+        }
+
     fun retry() {
         if (released) return
         networkDiagnosticsManager.onManualRetry()
@@ -667,11 +686,13 @@ class TPStreamsPlayer internal constructor(
                 } else if (playbackState == Player.STATE_ENDED) {
                     resumePlaybackManager?.onVideoEnded()
                 }
+                analyticsTracker?.onPlaybackStateChanged(playbackState)
             }
             
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 Log.d("TPStreamsPlayer", "Play when ready changed: $playWhenReady, reason=$reason")
                 lifecycleManager.onPlaybackStateChanged(playWhenReady)
+                analyticsTracker?.onPlayWhenReadyChanged(playWhenReady)
             }
             
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -681,6 +702,7 @@ class TPStreamsPlayer internal constructor(
                 } else {
                     resumePlaybackManager?.onPaused()
                 }
+                analyticsTracker?.onIsPlayingChanged(isPlaying)
             }
             
             override fun onPlayerError(error: PlaybackException) {
@@ -751,6 +773,7 @@ class TPStreamsPlayer internal constructor(
             ) {
                 if (discontinuityReason == Player.DISCONTINUITY_REASON_SEEK) {
                     resumePlaybackManager?.onSeeked()
+                    analyticsTracker?.onSeek()
                 }
             }
         })
@@ -764,6 +787,11 @@ class TPStreamsPlayer internal constructor(
             }
             throw error
         }
+
+        lifecycleManager.onAppBackgrounded = {
+            analyticsTracker?.onAppBackgrounded()
+        }
+        analyticsTracker?.start()
 
         Handler(Looper.getMainLooper()).post {
             if (!released) {
@@ -875,6 +903,7 @@ class TPStreamsPlayer internal constructor(
         debugLog("Surface DETACH (Player Released)")
         debugLog("Player RELEASE - assetId: $assetId")
         resumePlaybackManager?.onRelease()
+        analyticsTracker?.onRelease()
         synchronized(TPStreamsPlayer::class.java) {
             activePlayerCount--
             debugLog("Active Player COUNT: $activePlayerCount")
@@ -1006,7 +1035,8 @@ class TPStreamsPlayer internal constructor(
             offlineLicenseExpireTime: Long = DownloadConstants.FIFTEEN_DAYS_IN_SECONDS,
             seekBackIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
             seekForwardIncrementMs: Long = DEFAULT_SEEK_INCREMENT_MS,
-            userId: String? = null
+            userId: String? = null,
+            enableAnalytics: Boolean = true
         ): TPStreamsPlayer {
             val (exo, trackSelector) = createExoPlayer(context, seekBackIncrementMs, seekForwardIncrementMs)
             return TPStreamsPlayer(
@@ -1022,7 +1052,8 @@ class TPStreamsPlayer internal constructor(
                 startInFullscreen,
                 downloadMetadata,
                 offlineLicenseExpireTime,
-                userId)
+                userId,
+                enableAnalytics)
         }
     }
 

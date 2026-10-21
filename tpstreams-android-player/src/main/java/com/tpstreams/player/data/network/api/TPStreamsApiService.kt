@@ -7,8 +7,13 @@ import org.json.JSONObject
 import java.util.Locale
 
 class TPStreamsApiService : BaseApiService() {
+
+    private companion object {
+        const val BASE_URL = "https://app.tpstreams.com"
+    }
+
     override fun assetInfoUrl(orgId: String, assetId: String, accessToken: String): String {
-        val baseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/"
+        val baseUrl = "$BASE_URL/api/v1/$orgId/assets/$assetId/"
         return if (accessToken.isNotBlank()) "$baseUrl?access_token=$accessToken" else baseUrl
     }
 
@@ -19,7 +24,7 @@ class TPStreamsApiService : BaseApiService() {
         download: Boolean,
         licenseDurationSeconds: Long?
     ): String {
-        val baseUrl = "https://app.tpstreams.com/api/v1/$orgId/assets/$assetId/drm_license/"
+        val baseUrl = "$BASE_URL/api/v1/$orgId/assets/$assetId/drm_license/"
         val withToken = if (accessToken.isNotBlank()) "$baseUrl?access_token=$accessToken" else baseUrl
         if (!download) return withToken
         val duration = licenseDurationSeconds ?: 0L
@@ -147,4 +152,16 @@ class TPStreamsApiService : BaseApiService() {
         return videoObj.optString("preview_thumbnail_url")
             .ifEmpty { videoObj.optJSONArray("thumbnails")?.optString(0) ?: "" }
     }
+
+    fun analyticsPresignedUrlsUrl(
+        orgId: String,
+        assetId: String,
+        visitorId: String,
+        sessionId: String,
+        accessToken: String? = null
+    ): String {
+        val baseUrl = "$BASE_URL/api/v1/$orgId/assets/$assetId/presigned_urls/?visitorId=$visitorId&sessionId=$sessionId"
+        return if (!accessToken.isNullOrBlank()) "$baseUrl&access_token=$accessToken" else baseUrl
+    }
+
 }

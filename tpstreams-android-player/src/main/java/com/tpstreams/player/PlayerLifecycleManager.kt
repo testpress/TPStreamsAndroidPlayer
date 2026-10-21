@@ -69,7 +69,8 @@ open class PlayerLifecycleManager(
         setInTransition(false)
     }
     
-    // Lifecycle observer methods
+    var onAppBackgrounded: (() -> Unit)? = null
+
     override fun onStart(owner: LifecycleOwner) {
         isAppInForeground = true
     }
@@ -81,6 +82,7 @@ open class PlayerLifecycleManager(
         // lifecycle owners that deliver onStop without onPause, but never overwrite the
         // intent already captured by onPause.
         if (!pauseHandledInOnPause) {
+            onAppBackgrounded?.invoke()
             wasPlayingBeforePause = player?.playWhenReady ?: false
             player?.pause()
         }
@@ -92,6 +94,7 @@ open class PlayerLifecycleManager(
         // Pause immediately when the app leaves the foreground. Capture playWhenReady before
         // pausing because it represents user intent even when the player is buffering.
         isAppInForeground = false
+        onAppBackgrounded?.invoke()
         wasPlayingBeforePause = player?.playWhenReady ?: false
         player?.pause()
         pauseHandledInOnPause = true
