@@ -73,14 +73,7 @@ class TPStreamsAnalyticsTracker(
     fun start() {
         trackerScope.launch {
             try {
-                val previousDuration = uploader.start()
-                if (previousDuration != null && previousDuration > 0) {
-                    synchronized(lock) {
-                        if (cumulativeDurationMs == 0L) {
-                            cumulativeDurationMs = previousDuration * 1000L
-                        }
-                    }
-                }
+                uploader.start()
             } catch (e: Exception) {
                 Log.e(TAG, "Error initializing analytics", e)
             } finally {

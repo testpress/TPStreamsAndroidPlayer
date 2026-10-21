@@ -6,6 +6,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources
+import com.tpstreams.player.BuildConfig
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -46,7 +47,7 @@ class AnalyticsUserAgentTest {
         assertTrue(ua.contains("Android"))
         assertTrue(ua.contains("Mobile"))
         assertTrue(ua.startsWith("Mozilla/5.0 (Linux; Android"))
-        assertTrue(ua.endsWith("TestApp/2.3.4"))
+        assertTrue(ua.endsWith("TPStreamsAndroidPlayer/${BuildConfig.SDK_VERSION}"))
     }
 
     @Test
@@ -56,7 +57,8 @@ class AnalyticsUserAgentTest {
 
         assertTrue(ua.contains("Android"))
         assertTrue(!ua.contains(" Mobile Safari/537.36"))
-        assertTrue(ua.endsWith("TestApp/2.3.4"))
+        assertTrue(ua.contains("Tablet"))
+        assertTrue(ua.endsWith("TPStreamsAndroidPlayer/${BuildConfig.SDK_VERSION}"))
     }
 
     @Test

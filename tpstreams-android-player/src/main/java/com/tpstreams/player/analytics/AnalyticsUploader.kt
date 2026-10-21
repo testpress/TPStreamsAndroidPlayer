@@ -16,7 +16,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 interface AnalyticsUploader {
-    suspend fun start(): Long?
+    suspend fun start()
     suspend fun upload(durationSeconds: Long): Boolean
 }
 
@@ -60,9 +60,10 @@ class PresignedUrlAnalyticsUploader(
     var lastUploadedDuration: Long = -1L
         internal set
 
-    override suspend fun start(): Long? = withContext(Dispatchers.IO) {
-        val success = fetchPresignedUrls()
-        null
+    override suspend fun start() {
+        withContext(Dispatchers.IO) {
+            fetchPresignedUrls()
+        }
     }
 
     suspend fun fetchPresignedUrls(): Boolean = withContext(Dispatchers.IO) {

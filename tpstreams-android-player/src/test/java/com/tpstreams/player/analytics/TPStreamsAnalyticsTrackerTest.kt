@@ -29,7 +29,7 @@ class TPStreamsAnalyticsTrackerTest {
     private var mockCurrentTimeMs = 1000L
 
     private val testUploader = object : AnalyticsUploader {
-        override suspend fun start(): Long? = null
+        override suspend fun start() {}
 
         override suspend fun upload(durationSeconds: Long): Boolean {
             synchronized(uploadedDurations) {

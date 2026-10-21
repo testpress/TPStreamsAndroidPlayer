@@ -265,6 +265,15 @@ class TPStreamsPlayer internal constructor(
     internal interface ViewListener : Listener
 
     private var isPrepared = false
+    private var analyticsStarted = false
+
+    private fun onMediaPrepared(offline: Boolean) {
+        isPrepared = true
+        if (!offline && !analyticsStarted) {
+            analyticsStarted = true
+            analyticsTracker?.start()
+        }
+    }
     private var requestedPlay = false
     private var hasSeekedToStartAt = false
     private var defaultCaptionsApplied = false
@@ -330,7 +339,7 @@ class TPStreamsPlayer internal constructor(
         exoPlayer = exoPlayer,
         playerScope = playerScope,
         drmHandler = drmHandler,
-        onMediaPrepared = { isPrepared = true },
+        onMediaPrepared = { onMediaPrepared(offline = true) },
         shouldPlayOnPrepared = { shouldAutoPlay || requestedPlay },
         logDebug = { debugLog(it) }
     )
@@ -372,7 +381,7 @@ class TPStreamsPlayer internal constructor(
         textTrackManager = textTrackManager,
         downloadPlaybackHandler = downloadPlaybackHandler,
         networkDiagnosticsManager = networkDiagnosticsManager,
-        onMediaPrepared = { isPrepared = true },
+        onMediaPrepared = { onMediaPrepared(offline = false) },
         shouldPlayOnPrepared = { shouldAutoPlay || requestedPlay },
         onLiveStreamStatusChanged = { onLiveStreamStatusChanged?.invoke(it) },
         onAssetFetchError = ::reportAssetFetchError,
@@ -791,8 +800,6 @@ class TPStreamsPlayer internal constructor(
         lifecycleManager.onAppBackgrounded = {
             analyticsTracker?.onAppBackgrounded()
         }
-        analyticsTracker?.start()
-
         Handler(Looper.getMainLooper()).post {
             if (!released) {
                 lifecycleManager.startObserving()

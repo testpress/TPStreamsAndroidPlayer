@@ -119,8 +119,7 @@ class PresignedUrlAnalyticsUploaderTest {
             client = client
         )
 
-        val duration = uploader.start()
-        assertEquals(null, duration)
+        uploader.start()
         assertEquals(1, requestCount)
     }
 
