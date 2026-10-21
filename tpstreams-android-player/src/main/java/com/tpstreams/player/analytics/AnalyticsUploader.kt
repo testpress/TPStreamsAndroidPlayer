@@ -15,7 +15,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-interface AnalyticsUploader {
+internal interface AnalyticsUploader {
     suspend fun start()
     suspend fun upload(durationSeconds: Long): Boolean
 }
@@ -32,7 +32,7 @@ internal object AnalyticsDateUtil {
     }
 }
 
-class PresignedUrlAnalyticsUploader(
+internal class PresignedUrlAnalyticsUploader(
     val orgId: String,
     val assetId: String,
     val visitorId: String,

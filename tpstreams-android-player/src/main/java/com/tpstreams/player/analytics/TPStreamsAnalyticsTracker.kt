@@ -18,7 +18,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 
-class TPStreamsAnalyticsTracker(
+internal class TPStreamsAnalyticsTracker(
     context: Context,
     val orgId: String,
     val assetId: String,

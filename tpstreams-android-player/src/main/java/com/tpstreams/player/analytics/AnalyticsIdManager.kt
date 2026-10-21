@@ -3,7 +3,7 @@ package com.tpstreams.player.analytics
 import android.content.Context
 import java.security.SecureRandom
 
-object AnalyticsIdManager {
+internal object AnalyticsIdManager {
     private const val PREFS_NAME = "tpstreams_analytics"
     private const val KEY_VISITOR_ID = "tpstreams_visitor_id"
     const val VISITOR_ID_LENGTH = 32

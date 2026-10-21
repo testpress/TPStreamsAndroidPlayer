@@ -5,7 +5,7 @@ import android.content.res.Configuration
 import android.os.Build
 import com.tpstreams.player.BuildConfig
 
-object AnalyticsUserAgent {
+internal object AnalyticsUserAgent {
     fun build(context: Context): String {
         val isTablet = try {
             (context.resources.configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) >= Configuration.SCREENLAYOUT_SIZE_LARGE
