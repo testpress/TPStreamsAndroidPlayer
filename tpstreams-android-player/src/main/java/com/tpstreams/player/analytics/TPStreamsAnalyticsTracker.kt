@@ -54,6 +54,8 @@ internal class TPStreamsAnalyticsTracker(
     private val initializedDeferred = CompletableDeferred<Unit>()
     private var heartbeatJob: Job? = null
     private var highestUploadedDurationSeconds = -1L
+    private var started = false
+    private var released = false
 
     private var cumulativeDurationMs: Long = 0L
     private var lastPlayingStartTimeMs: Long = 0L
@@ -71,6 +73,12 @@ internal class TPStreamsAnalyticsTracker(
         }
 
     fun start() {
+        synchronized(lock) {
+            if (started || released) {
+                return
+            }
+            started = true
+        }
         trackerScope.launch {
             try {
                 uploader.start()
@@ -84,6 +92,9 @@ internal class TPStreamsAnalyticsTracker(
 
     fun onIsPlayingChanged(playing: Boolean) {
         synchronized(lock) {
+            if (!started || released) {
+                return
+            }
             if (playing) {
                 if (!isPlaying) {
                     isPlaying = true
@@ -153,12 +164,26 @@ internal class TPStreamsAnalyticsTracker(
     }
 
     fun onRelease() {
+        val shouldFlush: Boolean
         synchronized(lock) {
+            if (released) {
+                return
+            }
+            released = true
             if (isPlaying) {
                 stopPlayingTimerInternal()
             }
             stopHeartbeat()
+            shouldFlush = started
         }
+
+        if (!shouldFlush) {
+            if (ownsScope) {
+                trackerScope.cancel()
+            }
+            return
+        }
+
         val duration = cumulativeDurationSeconds
         trackerScope.launch(NonCancellable) {
             initializedDeferred.await()
@@ -200,15 +225,21 @@ internal class TPStreamsAnalyticsTracker(
     }
 
     private fun triggerUpload() {
+        if (!canTriggerUpload()) {
+            return
+        }
         val duration = cumulativeDurationSeconds
         trackerScope.launch {
+            if (!canTriggerUpload()) {
+                return@launch
+            }
             initializedDeferred.await()
             uploadIfNewer(duration)
         }
     }
 
     private suspend fun uploadIfNewer(durationSeconds: Long) {
-        if (durationSeconds <= 0L) {
+        if (!isStarted() || durationSeconds <= 0L) {
             return
         }
 
@@ -225,5 +256,13 @@ internal class TPStreamsAnalyticsTracker(
                 highestUploadedDurationSeconds = durationSeconds
             }
         }
+    }
+
+    private fun isStarted(): Boolean = synchronized(lock) {
+        started
+    }
+
+    private fun canTriggerUpload(): Boolean = synchronized(lock) {
+        started && !released
     }
 }

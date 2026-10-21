@@ -189,6 +189,19 @@ class TPStreamsAnalyticsTrackerTest {
     }
 
     @Test
+    fun `onRelease before start does not wait or upload`() = runBlocking {
+        val tracker = createTracker(this)
+
+        tracker.onRelease()
+        tracker.onPlayWhenReadyChanged(false)
+        delay(50)
+
+        synchronized(uploadedDurations) {
+            assertTrue(uploadedDurations.isEmpty())
+        }
+    }
+
+    @Test
     fun `TPStreamsPlayer only initializes analyticsTracker when provider is TPStreams`() {
         TPStreamsSDK.init("org_tp", TPStreamsSDK.Provider.TPStreams)
         val exoPlayer = mock(ExoPlayer::class.java)
