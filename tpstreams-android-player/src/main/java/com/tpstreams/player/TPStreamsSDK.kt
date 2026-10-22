@@ -25,6 +25,9 @@ object TPStreamsSDK {
     internal var allowFallbackToL3: Boolean = false
         private set
 
+    var provider: Provider = Provider.TPStreams
+        internal set
+
     @JvmStatic
     @JvmOverloads
     fun init(
@@ -38,6 +41,7 @@ object TPStreamsSDK {
             throw IllegalArgumentException("authToken must be null for TPStreams provider")
         }
 
+        this.provider = provider
         apiService = when (provider) {
             Provider.TPStreams -> TPStreamsApiService()
             Provider.TestPress -> TestPressApiService()

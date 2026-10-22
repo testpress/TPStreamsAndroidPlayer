@@ -20,3 +20,4 @@ abstract class BaseApiService {
 
     abstract fun parseAsset(json: JSONObject): AssetInfo
 }
+
