@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.20] - 2026-10-22
+
+### Added
+
+- Add TPStreams playback analytics for native Android players, including visitor and session identity, playback duration tracking, heartbeat updates, and lifecycle-triggered reporting.
+
+### Fixed
+
+- Keep analytics requests provider-specific and exclude TestPress and offline playback from the TPStreams analytics flow.
+- Prevent analytics failures from affecting video playback.
+- Serialize analytics uploads, avoid duplicate or regressing duration updates, and preserve the final release upload.
+
 ## [1.2.19] - 2026-10-16
 
 ### Fixed
