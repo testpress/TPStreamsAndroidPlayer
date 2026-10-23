@@ -629,6 +629,10 @@ class TPStreamsPlayer internal constructor(
 
             override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
                 debugLog("First Frame Rendered")
+                Log.d(
+                    "TPSTREAMS_SHIELDED_METRICS",
+                    "PLAYBACK_TIMING stage=first_frame render_time_ms=$renderTimeMs",
+                )
             }
 
             override fun onAudioInputFormatChanged(
