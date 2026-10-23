@@ -448,7 +448,7 @@ class TPStreamsPlayer internal constructor(
         userId?.let { ResumePlaybackManager(this, assetId, it) }
 
     internal val analyticsTracker: TPStreamsAnalyticsTracker? =
-        if (enableAnalytics && assetId.isNotBlank() && TPStreamsSDK.provider == TPStreamsSDK.Provider.TPStreams) {
+        if (shouldInitializeAnalyticsTracker(enableAnalytics, assetId, TPStreamsSDK.provider)) {
             runCatching {
                 TPStreamsAnalyticsTracker(
                     context = context,
@@ -971,6 +971,13 @@ class TPStreamsPlayer internal constructor(
     }
 
     companion object {
+        internal fun shouldInitializeAnalyticsTracker(
+            enableAnalytics: Boolean,
+            assetId: String,
+            provider: TPStreamsSDK.Provider,
+        ): Boolean =
+            enableAnalytics && assetId.isNotBlank() && provider == TPStreamsSDK.Provider.TPStreams
+
         private var activePlayerCount = 0
         internal const val DEBUG_TAG = "PLAYBACK_ERROR_DEBUG"
         private const val DEFAULT_SEEK_INCREMENT_MS = 10000L

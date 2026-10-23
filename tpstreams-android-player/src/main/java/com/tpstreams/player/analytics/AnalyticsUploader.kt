@@ -9,7 +9,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -85,10 +84,12 @@ internal class PresignedUrlAnalyticsUploader(
                     return@withContext false
                 }
                 val bodyString = it.body?.string() ?: return@withContext false
-                val json = JSONObject(bodyString)
-                presignedPutUrl = json.optString("presigned_put_url").takeIf { u -> u.isNotBlank() }
-                ipAddress = json.optString("ip_address").takeIf { ip -> ip.isNotBlank() }
-                location = json.optString("location").takeIf { loc -> loc.isNotBlank() }
+                presignedPutUrl = readJsonString(bodyString, "presigned_put_url")
+                    ?.takeIf(String::isNotBlank)
+                ipAddress = readJsonString(bodyString, "ip_address")
+                    ?.takeIf(String::isNotBlank)
+                location = readJsonString(bodyString, "location")
+                    ?.takeIf(String::isNotBlank)
                 presignedPutUrl != null
             }
         } catch (e: Exception) {
@@ -108,21 +109,11 @@ internal class PresignedUrlAnalyticsUploader(
         }
 
         val timestamp = AnalyticsDateUtil.formatUtcIsoTimestamp()
-        val payload = JSONObject().apply {
-            put("assetId", assetId)
-            put("organization", orgId)
-            put("visitor_id", visitorId)
-            put("session_id", sessionId)
-            put("duration", durationSeconds)
-            put("user_agent", userAgent)
-            put("time_stamp", timestamp)
-            put("ip_address", ipAddress ?: "")
-            put("location", location ?: "")
-        }
+        val payload = buildAnalyticsPayload(durationSeconds, timestamp)
 
         val request = Request.Builder()
             .url(putUrl)
-            .put(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .put(payload.toRequestBody(JSON_MEDIA_TYPE))
             .header("Content-Type", "application/json")
             .build()
 
@@ -145,6 +136,90 @@ internal class PresignedUrlAnalyticsUploader(
             }
         } catch (e: Exception) {
             false
+        }
+    }
+
+    private fun buildAnalyticsPayload(durationSeconds: Long, timestamp: String): String = buildString {
+        append('{')
+        appendJsonField("assetId", assetId)
+        append(',')
+        appendJsonField("organization", orgId)
+        append(',')
+        appendJsonField("visitor_id", visitorId)
+        append(',')
+        appendJsonField("session_id", sessionId)
+        append(",\"duration\":").append(durationSeconds)
+        append(',')
+        appendJsonField("user_agent", userAgent)
+        append(',')
+        appendJsonField("time_stamp", timestamp)
+        append(',')
+        appendJsonField("ip_address", ipAddress ?: "")
+        append(',')
+        appendJsonField("location", location ?: "")
+        append('}')
+    }
+
+    private fun StringBuilder.appendJsonField(name: String, value: String) {
+        append(jsonString(name)).append(':').append(jsonString(value))
+    }
+
+    private fun jsonString(value: String): String = buildString {
+        append('"')
+        value.forEach { character ->
+            when (character) {
+                '"' -> append("\\\"")
+                '\\' -> append("\\\\")
+                '\b' -> append("\\b")
+                '\u000C' -> append("\\f")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                in '\u0000'..'\u001F' -> append("\\u%04x".format(character.code))
+                else -> append(character)
+            }
+        }
+        append('"')
+    }
+
+    private fun readJsonString(json: String, key: String): String? {
+        val escapedKey = Regex.escape(key)
+        val match = Regex("\\\"$escapedKey\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"")
+            .find(json)
+            ?: return null
+        return unescapeJsonString(match.groupValues[1])
+    }
+
+    private fun unescapeJsonString(value: String): String = buildString {
+        var index = 0
+        while (index < value.length) {
+            val character = value[index]
+            if (character != '\\' || index + 1 >= value.length) {
+                append(character)
+                index++
+                continue
+            }
+
+            when (val escaped = value[index + 1]) {
+                '"' -> append('"')
+                '\\' -> append('\\')
+                '/' -> append('/')
+                'b' -> append('\b')
+                'f' -> append('\u000C')
+                'n' -> append('\n')
+                'r' -> append('\r')
+                't' -> append('\t')
+                'u' -> {
+                    if (index + 5 < value.length) {
+                        value.substring(index + 2, index + 6).toIntOrNull(16)?.let(::append)
+                        index += 4
+                    } else {
+                        append('\\').append(escaped)
+                    }
+                }
+                else -> append('\\').append(escaped)
+            }
+            index += 2
         }
     }
 }

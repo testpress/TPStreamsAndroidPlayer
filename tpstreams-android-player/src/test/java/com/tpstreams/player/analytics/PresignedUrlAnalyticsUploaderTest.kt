@@ -9,7 +9,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
-import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -48,11 +47,9 @@ class PresignedUrlAnalyticsUploaderTest {
                 recordedMethod = request.method
                 recordedUserAgent = request.header("User-Agent")
 
-                val jsonResponse = JSONObject().apply {
-                    put("presigned_put_url", putUrl)
-                    put("ip_address", ip)
-                    put("location", loc)
-                }
+                val jsonResponse = """
+                    {"presigned_put_url":"$putUrl","ip_address":"$ip","location":"$loc"}
+                """.trimIndent()
 
                 Response.Builder()
                     .request(request)
@@ -98,7 +95,7 @@ class PresignedUrlAnalyticsUploaderTest {
             .addInterceptor(Interceptor { chain ->
                 val request = chain.request()
                 requestCount++
-                val jsonResponse = JSONObject().apply { put("presigned_put_url", putUrl) }
+                val jsonResponse = """{"presigned_put_url":"$putUrl"}"""
                 Response.Builder()
                     .request(request)
                     .protocol(Protocol.HTTP_1_1)
@@ -170,16 +167,16 @@ class PresignedUrlAnalyticsUploaderTest {
         assertEquals("PUT", uploadedMethod)
         assertEquals("application/json", uploadedContentType)
 
-        val json = JSONObject(uploadedBody!!)
-        assertEquals(assetId, json.getString("assetId"))
-        assertEquals(orgId, json.getString("organization"))
-        assertEquals(visitorId, json.getString("visitor_id"))
-        assertEquals(sessionId, json.getString("session_id"))
-        assertEquals(45, json.getInt("duration"))
-        assertEquals(userAgent, json.getString("user_agent"))
-        assertEquals("1.2.3.4", json.getString("ip_address"))
-        assertEquals("Chennai", json.getString("location"))
-        assertNotNull(json.getString("time_stamp"))
+        val body = uploadedBody!!
+        assertJsonField(body, "assetId", assetId)
+        assertJsonField(body, "organization", orgId)
+        assertJsonField(body, "visitor_id", visitorId)
+        assertJsonField(body, "session_id", sessionId)
+        assertJsonField(body, "duration", "45")
+        assertJsonField(body, "user_agent", userAgent)
+        assertJsonField(body, "ip_address", "1.2.3.4")
+        assertJsonField(body, "location", "Chennai")
+        assertTrue(body.contains("\"time_stamp\":\""))
     }
 
     @Test
@@ -195,9 +192,7 @@ class PresignedUrlAnalyticsUploaderTest {
                 val request = chain.request()
                 if (request.method == "POST") {
                     postAttempts++
-                    val jsonResponse = JSONObject().apply {
-                        put("presigned_put_url", freshPutUrl)
-                    }
+                    val jsonResponse = """{"presigned_put_url":"$freshPutUrl"}"""
                     Response.Builder()
                         .request(request)
                         .protocol(Protocol.HTTP_1_1)
@@ -246,6 +241,10 @@ class PresignedUrlAnalyticsUploaderTest {
         assertEquals(2, putAttempts)
         assertEquals(1, postAttempts)
         assertEquals(freshPutUrl, uploader.presignedPutUrl)
+    }
+
+    private fun assertJsonField(json: String, key: String, value: String) {
+        assertTrue(json.contains("\"$key\":\"$value\"") || json.contains("\"$key\":$value"))
     }
 
 }

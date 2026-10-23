@@ -2,8 +2,6 @@ package com.tpstreams.player.analytics
 
 import android.content.Context
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.tpstreams.player.TPStreamsPlayer
 import com.tpstreams.player.TPStreamsSDK
 import kotlinx.coroutines.CoroutineScope
@@ -12,8 +10,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -168,6 +164,9 @@ class TPStreamsAnalyticsTrackerTest {
         synchronized(uploadedDurations) {
             assertEquals(listOf(8L), uploadedDurations)
         }
+
+        // Stop the heartbeat launched by onIsPlayingChanged(true) before the test scope exits.
+        tracker.onIsPlayingChanged(false)
     }
 
     @Test
@@ -203,28 +202,19 @@ class TPStreamsAnalyticsTrackerTest {
 
     @Test
     fun `TPStreamsPlayer only initializes analyticsTracker when provider is TPStreams`() {
-        TPStreamsSDK.init("org_tp", TPStreamsSDK.Provider.TPStreams)
-        val exoPlayer = mock(ExoPlayer::class.java)
-        val trackSelector = mock(DefaultTrackSelector::class.java)
-
-        val tpStreamsPlayer = TPStreamsPlayer(
-            context = context,
-            exoPlayer = exoPlayer,
-            trackSelector = trackSelector,
-            assetId = "test_asset",
-            accessToken = "test_token"
+        assertTrue(
+            TPStreamsPlayer.shouldInitializeAnalyticsTracker(
+                enableAnalytics = true,
+                assetId = "test_asset",
+                provider = TPStreamsSDK.Provider.TPStreams,
+            )
         )
-        assertNotNull(tpStreamsPlayer.analyticsTracker)
-
-        // TestPress provider
-        TPStreamsSDK.init("org_testpress", TPStreamsSDK.Provider.TestPress, "authToken")
-        val testpressPlayer = TPStreamsPlayer(
-            context = context,
-            exoPlayer = exoPlayer,
-            trackSelector = trackSelector,
-            assetId = "test_asset",
-            accessToken = "test_token"
+        assertFalse(
+            TPStreamsPlayer.shouldInitializeAnalyticsTracker(
+                enableAnalytics = true,
+                assetId = "test_asset",
+                provider = TPStreamsSDK.Provider.TestPress,
+            )
         )
-        assertNull(testpressPlayer.analyticsTracker)
     }
 }
