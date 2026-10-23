@@ -1,12 +1,9 @@
 package com.tpstreams.player
 
-import android.os.Handler
-import android.os.Looper
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -21,17 +18,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 class PlayerCoreControlsInstrumentedTest {
 
     companion object {
-        private const val DEFAULT_ORG_ID = "9q94nm"
-        private const val DEFAULT_ASSET_ID = "4Zs4MNd5Ksj"
-        private const val DEFAULT_ACCESS_TOKEN = "3d9838f3-db51-4fc3-8472-075ab5e40b64"
     }
 
     @Test
     fun corePlayer_controlsTracksAndRelease_areSafeAcrossAsyncBoundaries() {
-        val args = InstrumentationRegistry.getArguments()
-        val orgId = args.getString("orgId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ORG_ID
-        val assetId = args.getString("assetId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_ID
-        val token = args.getString("accessToken")?.takeIf { it.isNotBlank() } ?: DEFAULT_ACCESS_TOKEN
+        val orgId = PlayerViewTestSupport.instrumentationArgumentOrDefault("orgId", PlayerViewTestSupport.DEFAULT_ORG_ID)
+        val assetId = PlayerViewTestSupport.instrumentationArgumentOrDefault("assetId", PlayerViewTestSupport.DEFAULT_NON_DRM_ASSET_ID)
+        val token = PlayerViewTestSupport.instrumentationArgumentOrDefault("accessToken", PlayerViewTestSupport.DEFAULT_ACCESS_TOKEN)
         val ready = CountDownLatch(1)
         val error = AtomicBoolean(false)
         var player: TPStreamsPlayer? = null
@@ -67,7 +60,6 @@ class PlayerCoreControlsInstrumentedTest {
                 assertTrue("Player should be playing after the asynchronous play command", player!!.isPlaying)
                 player!!.pause()
             }
-            Handler(Looper.getMainLooper()).postDelayed({ }, 100)
             Thread.sleep(250)
             scenario.onActivity {
                 assertFalse("Player should be paused after the asynchronous pause command", player!!.isPlaying)

@@ -6,8 +6,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -25,22 +25,20 @@ import java.util.concurrent.atomic.AtomicBoolean
 class PlayerViewTextureDrmGuardInstrumentedTest {
 
     companion object {
-        private const val DEFAULT_ORG_ID = "9q94nm"
-        private const val DEFAULT_ASSET_ID = "7xbZeQzR36h"
-        private const val DEFAULT_ACCESS_TOKEN = "3d9838f3-db51-4fc3-8472-075ab5e40b64"
     }
 
     @Test
     fun l1DrmOnTextureView_isStoppedInsteadOfRenderingBlackVideo() {
-        val args = InstrumentationRegistry.getArguments()
-        val orgId = args.getString("orgId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ORG_ID
-        val assetId = args.getString("drmAssetId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_ID
-        val accessToken = args.getString("drmAccessToken")?.takeIf { it.isNotBlank() } ?: DEFAULT_ACCESS_TOKEN
+        val orgId = PlayerViewTestSupport.instrumentationArgumentOrDefault("orgId", PlayerViewTestSupport.DEFAULT_ORG_ID)
+        val assetId = PlayerViewTestSupport.instrumentationArgumentOrDefault("drmAssetId", PlayerViewTestSupport.DEFAULT_DRM_ASSET_ID)
+        val accessToken = PlayerViewTestSupport.instrumentationArgumentOrDefault("drmAccessToken", PlayerViewTestSupport.DEFAULT_ACCESS_TOKEN)
 
         ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
             var player: TPStreamsPlayer? = null
             val tracksChanged = CountDownLatch(1)
             val isPlaying = AtomicBoolean(true)
+            val playbackState = java.util.concurrent.atomic.AtomicInteger(Player.STATE_IDLE)
+            var nativeLevel: String? = null
 
             try {
                 scenario.onActivity { activity ->
@@ -60,20 +58,26 @@ class PlayerViewTextureDrmGuardInstrumentedTest {
                         shouldAutoPlay = true
                     )
                     player = createdPlayer
-                    assumeTrue(
-                        "This guard test requires a native L1 device",
-                        createdPlayer.getNativeWidevineLevel() == "L1"
-                    )
+                    nativeLevel = createdPlayer.getNativeWidevineLevel()
                     createdPlayer.addListener(object : Player.Listener {
                         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                             tracksChanged.countDown()
+                        }
+
+                        override fun onPlaybackStateChanged(state: Int) {
+                            playbackState.set(state)
                         }
                     })
                     playerView.player = createdPlayer
                     createdPlayer.play()
                 }
 
+                assumeTrue("This guard test requires a native L1 device; detected=$nativeLevel", nativeLevel == "L1")
                 assertTrue("DRM tracks must be reported before guard evaluation", tracksChanged.await(30, TimeUnit.SECONDS))
+                assertTrue(
+                    "The configured asset must be recognized as DRM before testing the TextureView guard",
+                    scenarioOnActivity(scenario) { player!!.isDrmContent }
+                )
                 val deadline = SystemClock.elapsedRealtime() + 5_000L
                 while (SystemClock.elapsedRealtime() < deadline) {
                     scenario.onActivity {
@@ -83,9 +87,24 @@ class PlayerViewTextureDrmGuardInstrumentedTest {
                     SystemClock.sleep(100L)
                 }
                 assertFalse("L1 DRM TextureView playback must not remain active", isPlaying.get())
+                assertEquals(
+                    "L1 DRM TextureView guard must stop the player in STATE_IDLE",
+                    Player.STATE_IDLE,
+                    playbackState.get()
+                )
             } finally {
                 scenario.onActivity { player?.release() }
             }
         }
+    }
+
+    private fun <T> scenarioOnActivity(
+        scenario: ActivityScenario<FullscreenTestActivity>,
+        block: FullscreenTestActivity.() -> T,
+    ): T {
+        var result: T? = null
+        scenario.onActivity { result = block(it) }
+        @Suppress("UNCHECKED_CAST")
+        return result as T
     }
 }

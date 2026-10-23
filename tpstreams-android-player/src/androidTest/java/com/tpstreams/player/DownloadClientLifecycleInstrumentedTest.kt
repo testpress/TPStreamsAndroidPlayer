@@ -3,10 +3,11 @@ package com.tpstreams.player
 import androidx.media3.common.util.UnstableApi
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.tpstreams.player.download.DownloadClient
 import com.tpstreams.player.download.DownloadItem
-import org.junit.Assume.assumeFalse
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CopyOnWriteArrayList
@@ -24,25 +25,25 @@ import java.util.concurrent.atomic.AtomicReference
 class DownloadClientLifecycleInstrumentedTest {
 
     companion object {
-        private const val DEFAULT_ORG_ID = "9q94nm"
-        private const val DEFAULT_ASSET_ID = "4Zs4MNd5Ksj"
-        private const val DEFAULT_ACCESS_TOKEN = "3d9838f3-db51-4fc3-8472-075ab5e40b64"
-        private const val DEFAULT_RESOLUTION = "360p"
     }
 
     @Test
     fun downloadPauseResumeAndRemove_emitConsistentLifecycle() {
-        val args = InstrumentationRegistry.getArguments()
-        val orgId = args.getString("orgId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ORG_ID
-        val assetId = args.getString("downloadAssetId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_ID
-        val accessToken = args.getString("downloadAccessToken")?.takeIf { it.isNotBlank() } ?: DEFAULT_ACCESS_TOKEN
-        val resolution = args.getString("downloadResolution")?.takeIf { it.isNotBlank() } ?: DEFAULT_RESOLUTION
+        val orgId = PlayerViewTestSupport.instrumentationArgumentOrDefault("orgId", PlayerViewTestSupport.DEFAULT_ORG_ID)
+        val assetId = PlayerViewTestSupport.instrumentationArgumentOrDefault("downloadAssetId", PlayerViewTestSupport.DEFAULT_NON_DRM_ASSET_ID)
+        val accessToken = PlayerViewTestSupport.instrumentationArgumentOrDefault("downloadAccessToken", PlayerViewTestSupport.DEFAULT_ACCESS_TOKEN)
+        val resolution = PlayerViewTestSupport.instrumentationArgumentOrDefault("downloadResolution", PlayerViewTestSupport.DEFAULT_DOWNLOAD_RESOLUTION)
 
         ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
             val started = CountDownLatch(1)
             val failed = AtomicReference<Exception>()
             val events = CopyOnWriteArrayList<String>()
+            val deletedCount = java.util.concurrent.atomic.AtomicInteger(0)
             var client: DownloadClient? = null
+            var initialCleanupExpected = false
+            var initialCleanupBaseline = 0
+            var cleanupExpected = false
+            var cleanupBaseline = 0
             val listener = object : DownloadClient.Listener {
                 override fun onDownloadsChanged() = Unit
 
@@ -72,6 +73,7 @@ class DownloadClientLifecycleInstrumentedTest {
 
                 override fun onDownloadDeleted(assetId: String) {
                     events.add("deleted")
+                    deletedCount.incrementAndGet()
                 }
             }
 
@@ -79,13 +81,39 @@ class DownloadClientLifecycleInstrumentedTest {
                 scenario.onActivity { activity ->
                     TPStreamsSDK.init(orgId, TPStreamsSDK.Provider.TPStreams, allowFallbackToL3 = true)
                     client = DownloadClient.getInstance(activity)
-                    client!!.removeDownload(assetId)
                     client!!.addListener(listener)
+                    initialCleanupExpected = client!!.getDownload(assetId) != null
+                    initialCleanupBaseline = deletedCount.get()
+                    if (initialCleanupExpected) {
+                        client!!.removeDownload(assetId)
+                    }
+                }
+                if (initialCleanupExpected) {
+                    assertTrue("A previous download must emit deleted before lifecycle setup", waitUntil(20_000) {
+                        deletedCount.get() > initialCleanupBaseline
+                    })
+                }
+                scenario.onActivity { activity ->
                     client!!.startDownload(activity, assetId, accessToken, resolution)
                 }
 
-                started.await(45, TimeUnit.SECONDS)
-                assumeFalse("Download setup failed: ${failed.get()}", failed.get() != null)
+                assertTrue(
+                    "Download did not emit started within 45 seconds. Events=$events, error=${failed.get()}",
+                    started.await(45, TimeUnit.SECONDS)
+                )
+                assertFalse("Download emitted a failure callback: ${failed.get()}", failed.get() != null)
+                assertTrue("Download lifecycle must emit a started event. Events=$events", events.contains("started"))
+
+                scenario.onActivity {
+                    client!!.pauseDownload(assetId)
+                }
+                assertTrue("Download should enter paused state after pauseDownload", waitUntil(10_000) { client!!.isPaused(assetId) })
+
+                scenario.onActivity { client!!.resumeDownload(assetId) }
+                assertTrue(
+                    "Download should leave paused state after resumeDownload",
+                    waitUntil(10_000) { !client!!.isPaused(assetId) }
+                )
 
                 // Rapid commands intentionally exercise DownloadManager state races.
                 scenario.onActivity {
@@ -95,16 +123,33 @@ class DownloadClientLifecycleInstrumentedTest {
                     client!!.resumeDownload(assetId)
                 }
 
-                Thread.sleep(2_000)
                 val item = client!!.getAllDownloadItems().firstOrNull { it.assetId == assetId }
-                assumeFalse("Download was not created by the configured backend", item == null)
+                assertNotNull("Download item should exist after start/pause/resume operations", item)
+                assertFalse("Download lifecycle emitted an error: ${failed.get()}", failed.get() != null)
             } finally {
                 scenario.onActivity {
-                    client?.removeListener(listener)
-                    client?.removeDownload(assetId)
+                    cleanupExpected = client?.getDownload(assetId) != null
+                    cleanupBaseline = deletedCount.get()
+                    if (cleanupExpected) client?.removeDownload(assetId)
                 }
+                if (cleanupExpected) {
+                    assertTrue(
+                        "Download cleanup did not emit deleted before test exit. Events=$events",
+                        waitUntil(20_000) { deletedCount.get() > cleanupBaseline }
+                    )
+                }
+                scenario.onActivity { client?.removeListener(listener) }
             }
         }
+    }
+
+    private fun waitUntil(timeoutMs: Long, condition: () -> Boolean): Boolean {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
+        while (System.nanoTime() < deadline) {
+            if (condition()) return true
+            Thread.sleep(100)
+        }
+        return condition()
     }
 
 }

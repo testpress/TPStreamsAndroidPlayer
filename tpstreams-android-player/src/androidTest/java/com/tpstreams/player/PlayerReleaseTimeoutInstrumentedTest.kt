@@ -16,7 +16,6 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.download.DownloadController
 import com.tpstreams.player.util.CodecManager
@@ -54,9 +53,6 @@ class PlayerReleaseTimeoutInstrumentedTest {
 
     companion object {
         private const val TAG = "PlayerReleaseLeakTest"
-        private const val DEFAULT_ORG_ID = "9q94nm"
-        private const val DEFAULT_ASSET_ID = "7xbZeQzR36h" // DRM sample video
-        private const val DEFAULT_ACCESS_TOKEN = "3d9838f3-db51-4fc3-8472-075ab5e40b64"
     }
 
     private fun createPlayerWithReleaseTimeout(
@@ -117,10 +113,9 @@ class PlayerReleaseTimeoutInstrumentedTest {
      */
     @Test
     fun testReleaseTimeout_causesHardwareDecoderLeak() {
-        val args = InstrumentationRegistry.getArguments()
-        val orgId = args.getString("orgId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ORG_ID
-        val assetId = args.getString("assetId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_ID
-        val accessToken = args.getString("accessToken")?.takeIf { it.isNotBlank() } ?: DEFAULT_ACCESS_TOKEN
+        val orgId = PlayerViewTestSupport.instrumentationArgumentOrDefault("orgId", PlayerViewTestSupport.DEFAULT_ORG_ID)
+        val assetId = PlayerViewTestSupport.instrumentationArgumentOrDefault("assetId", PlayerViewTestSupport.DEFAULT_DRM_ASSET_ID)
+        val accessToken = PlayerViewTestSupport.instrumentationArgumentOrDefault("accessToken", PlayerViewTestSupport.DEFAULT_ACCESS_TOKEN)
 
         ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
             var player: TPStreamsPlayer? = null
@@ -249,10 +244,9 @@ class PlayerReleaseTimeoutInstrumentedTest {
      */
     @Test
     fun testSuccessivePlaybacks_decoderAccumulationOnTimeout() {
-        val args = InstrumentationRegistry.getArguments()
-        val orgId = args.getString("orgId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ORG_ID
-        val assetId = args.getString("assetId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_ID
-        val accessToken = args.getString("accessToken")?.takeIf { it.isNotBlank() } ?: DEFAULT_ACCESS_TOKEN
+        val orgId = PlayerViewTestSupport.instrumentationArgumentOrDefault("orgId", PlayerViewTestSupport.DEFAULT_ORG_ID)
+        val assetId = PlayerViewTestSupport.instrumentationArgumentOrDefault("assetId", PlayerViewTestSupport.DEFAULT_DRM_ASSET_ID)
+        val accessToken = PlayerViewTestSupport.instrumentationArgumentOrDefault("accessToken", PlayerViewTestSupport.DEFAULT_ACCESS_TOKEN)
 
         ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
             val initialDecoders = CodecManager.getActiveDecoderCount()

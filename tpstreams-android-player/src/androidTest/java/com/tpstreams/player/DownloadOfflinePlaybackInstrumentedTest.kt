@@ -5,10 +5,11 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.tpstreams.player.download.DownloadClient
+import com.tpstreams.player.download.DownloadController
 import com.tpstreams.player.download.DownloadItem
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,19 +22,14 @@ import java.util.concurrent.atomic.AtomicReference
 class DownloadOfflinePlaybackInstrumentedTest {
 
     companion object {
-        private const val DEFAULT_ORG_ID = "9q94nm"
-        private const val DEFAULT_ASSET_ID = "4Zs4MNd5Ksj"
-        private const val DEFAULT_ACCESS_TOKEN = "3d9838f3-db51-4fc3-8472-075ab5e40b64"
-        private const val DEFAULT_RESOLUTION = "360p"
     }
 
     @Test
     fun completedDownload_isPlayableThroughThePlayerView() {
-        val args = InstrumentationRegistry.getArguments()
-        val orgId = args.getString("orgId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ORG_ID
-        val assetId = args.getString("downloadAssetId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_ID
-        val accessToken = args.getString("downloadAccessToken")?.takeIf { it.isNotBlank() } ?: DEFAULT_ACCESS_TOKEN
-        val resolution = args.getString("downloadResolution")?.takeIf { it.isNotBlank() } ?: DEFAULT_RESOLUTION
+        val orgId = PlayerViewTestSupport.instrumentationArgumentOrDefault("orgId", PlayerViewTestSupport.DEFAULT_ORG_ID)
+        val assetId = PlayerViewTestSupport.instrumentationArgumentOrDefault("downloadAssetId", PlayerViewTestSupport.DEFAULT_NON_DRM_ASSET_ID)
+        val accessToken = PlayerViewTestSupport.instrumentationArgumentOrDefault("downloadAccessToken", PlayerViewTestSupport.DEFAULT_ACCESS_TOKEN)
+        val resolution = PlayerViewTestSupport.instrumentationArgumentOrDefault("downloadResolution", PlayerViewTestSupport.DEFAULT_DOWNLOAD_RESOLUTION)
 
         ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
             var client: DownloadClient? = null
@@ -42,6 +38,10 @@ class DownloadOfflinePlaybackInstrumentedTest {
             val firstFrame = CountDownLatch(1)
             val failure = AtomicReference<Throwable>()
             val playbackState = AtomicReference(Player.STATE_IDLE)
+            val deletedCount = java.util.concurrent.atomic.AtomicInteger(0)
+            var initialCleanupExpected = false
+            var initialCleanupBaseline = 0
+            var cleanupBaseline = 0
 
             val listener = object : DownloadClient.Listener {
                 override fun onDownloadsChanged() = Unit
@@ -57,23 +57,42 @@ class DownloadOfflinePlaybackInstrumentedTest {
                         completed.countDown()
                     }
                 }
-                override fun onDownloadDeleted(assetId: String) = Unit
+                override fun onDownloadDeleted(deletedAssetId: String) {
+                    if (deletedAssetId == assetId) deletedCount.incrementAndGet()
+                }
             }
 
             try {
                 scenario.onActivity { activity ->
                     TPStreamsSDK.init(orgId, TPStreamsSDK.Provider.TPStreams, allowFallbackToL3 = true)
                     client = DownloadClient.getInstance(activity)
-                    client!!.removeDownload(assetId)
                     client!!.addListener(listener)
+                    initialCleanupExpected = client!!.getDownload(assetId) != null
+                    initialCleanupBaseline = deletedCount.get()
+                    if (initialCleanupExpected) client!!.removeDownload(assetId)
+                }
+                if (initialCleanupExpected) {
+                    assertTrue("A previous download must emit deleted before offline setup", waitUntil(20_000) {
+                        deletedCount.get() > initialCleanupBaseline
+                    })
+                }
+                scenario.onActivity { activity ->
                     client!!.startDownload(activity, assetId, accessToken, resolution)
                 }
 
                 assertTrue("Download must complete within the device test timeout", completed.await(180, TimeUnit.SECONDS))
-                assertEquals(null, failure.get())
+                assertNull("Download emitted an error before completion: ${failure.get()}", failure.get())
                 assertEquals(
+                    "Download must be in STATE_COMPLETED before offline playback starts",
                     androidx.media3.exoplayer.offline.Download.STATE_COMPLETED,
                     client!!.getDownload(assetId)?.state
+                )
+
+                val completedDownload = client!!.getDownload(assetId)
+                assertTrue("Completed download metadata must be available", completedDownload != null)
+                assertTrue(
+                    "Completed download must have cached media bytes before offline playback",
+                    DownloadController.downloadCache.getCachedSpans(completedDownload!!.request.uri.toString()).isNotEmpty()
                 )
 
                 scenario.onActivity { activity ->
@@ -103,9 +122,14 @@ class DownloadOfflinePlaybackInstrumentedTest {
                 }
 
                 assertTrue("Completed offline media must render a frame", firstFrame.await(30, TimeUnit.SECONDS))
-                assertEquals(null, failure.get())
+                assertNull("Offline playback emitted an ExoPlayer error: ${failure.get()}", failure.get())
                 scenario.onActivity {
                     playbackState.set(player!!.playbackState)
+                    assertEquals(
+                        "Offline player should use the downloaded media item",
+                        assetId,
+                        player!!.currentMediaItem?.mediaId
+                    )
                 }
                 assertTrue(
                     "Offline player must reach an active playback state",
@@ -114,10 +138,23 @@ class DownloadOfflinePlaybackInstrumentedTest {
             } finally {
                 scenario.onActivity { player?.release() }
                 scenario.onActivity {
-                    client?.removeListener(listener)
+                    cleanupBaseline = deletedCount.get()
                     client?.removeDownload(assetId)
                 }
+                assertTrue("Offline download cleanup did not emit deletion before test exit", waitUntil(20_000) {
+                    deletedCount.get() > cleanupBaseline
+                })
+                scenario.onActivity { client?.removeListener(listener) }
             }
         }
+    }
+
+    private fun waitUntil(timeoutMs: Long, condition: () -> Boolean): Boolean {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
+        while (System.nanoTime() < deadline) {
+            if (condition()) return true
+            Thread.sleep(100)
+        }
+        return condition()
     }
 }

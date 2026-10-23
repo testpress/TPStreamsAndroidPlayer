@@ -8,7 +8,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -67,11 +66,9 @@ class PlayerBottomSheetInteractionInstrumentedTest {
 
     @Test
     fun selectingResolutionFromAdvancedSheet_changesActualVideoHeight() {
-        val args = InstrumentationRegistry.getArguments()
-        val orgId = args.getString("orgId")?.takeIf { it.isNotBlank() } ?: "9q94nm"
-        val assetId = args.getString("assetId")?.takeIf { it.isNotBlank() } ?: "4Zs4MNd5Ksj"
-        val token = args.getString("accessToken")?.takeIf { it.isNotBlank() }
-            ?: "3d9838f3-db51-4fc3-8472-075ab5e40b64"
+        val orgId = PlayerViewTestSupport.instrumentationArgumentOrDefault("orgId", PlayerViewTestSupport.DEFAULT_ORG_ID)
+        val assetId = PlayerViewTestSupport.instrumentationArgumentOrDefault("assetId", PlayerViewTestSupport.DEFAULT_NON_DRM_ASSET_ID)
+        val token = PlayerViewTestSupport.instrumentationArgumentOrDefault("accessToken", PlayerViewTestSupport.DEFAULT_ACCESS_TOKEN)
         val ready = CountDownLatch(1)
         var player: TPStreamsPlayer? = null
 

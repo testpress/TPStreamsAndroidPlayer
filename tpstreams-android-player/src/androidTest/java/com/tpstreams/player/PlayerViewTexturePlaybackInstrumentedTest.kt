@@ -5,10 +5,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
@@ -24,20 +23,17 @@ import java.util.concurrent.atomic.AtomicReference
 class PlayerViewTexturePlaybackInstrumentedTest {
 
     companion object {
-        private const val DEFAULT_ORG_ID = "9q94nm"
-        private const val DEFAULT_ASSET_ID = "4Zs4MNd5Ksj"
-        private const val DEFAULT_ACCESS_TOKEN = "3d9838f3-db51-4fc3-8472-075ab5e40b64"
     }
 
     @Test
     fun textureViewPlayback_supportsPlayPauseSeekAndFullscreen() {
-        val args = InstrumentationRegistry.getArguments()
-        val orgId = args.getString("orgId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ORG_ID
-        val assetId = args.getString("assetId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_ID
-        val accessToken = args.getString("accessToken")?.takeIf { it.isNotBlank() } ?: DEFAULT_ACCESS_TOKEN
+        val orgId = PlayerViewTestSupport.instrumentationArgumentOrDefault("orgId", PlayerViewTestSupport.DEFAULT_ORG_ID)
+        val assetId = PlayerViewTestSupport.instrumentationArgumentOrDefault("assetId", PlayerViewTestSupport.DEFAULT_NON_DRM_ASSET_ID)
+        val accessToken = PlayerViewTestSupport.instrumentationArgumentOrDefault("accessToken", PlayerViewTestSupport.DEFAULT_ACCESS_TOKEN)
 
         ActivityScenario.launch(FullscreenTestActivity::class.java).use { scenario ->
             val firstFrame = CountDownLatch(1)
+            val seeked = CountDownLatch(1)
             val playerRef = AtomicReference<TPStreamsPlayer>()
             val viewRef = AtomicReference<TPStreamsPlayerView>()
             val rootRef = AtomicReference<FrameLayout>()
@@ -70,19 +66,27 @@ class PlayerViewTexturePlaybackInstrumentedTest {
                             failureRef.set(error)
                             firstFrame.countDown()
                         }
+
+                        override fun onPositionDiscontinuity(
+                            oldPosition: Player.PositionInfo,
+                            newPosition: Player.PositionInfo,
+                            reason: Int,
+                        ) {
+                            if (reason == Player.DISCONTINUITY_REASON_SEEK) seeked.countDown()
+                        }
                     })
                     playerView.player = player
                     player.play()
                 }
 
                 assertTrue("TextureView playback must render a frame", firstFrame.await(30, TimeUnit.SECONDS))
-                assumeFalse("Playback failed: ${failureRef.get()}", failureRef.get() != null)
+                assertNull("TextureView playback reported an error: ${failureRef.get()}", failureRef.get())
 
                 val paused = CountDownLatch(1)
                 scenario.onActivity {
                     val player = playerRef.get()
                     val view = viewRef.get()
-                    assertTrue(view.videoSurfaceView is android.view.TextureView)
+                    assertTrue("Texture playback test must be using TextureView", view.videoSurfaceView is android.view.TextureView)
                     player.addListener(object : Player.Listener {
                         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                             if (!playWhenReady) paused.countDown()
@@ -90,7 +94,7 @@ class PlayerViewTexturePlaybackInstrumentedTest {
                     })
                     player.pause()
                 }
-                assertTrue("TextureView player must pause", paused.await(5, TimeUnit.SECONDS))
+                assertTrue("TextureView player did not report pause within 5 seconds", paused.await(5, TimeUnit.SECONDS))
 
                 scenario.onActivity { activity ->
                     val player = playerRef.get()
@@ -99,18 +103,22 @@ class PlayerViewTexturePlaybackInstrumentedTest {
                     val resolutions = player.getAvailableVideoResolutions()
                     if (resolutions.isNotEmpty()) {
                         player.setMaxResolution(resolutions.maxOrNull()!!)
+                        assertTrue("Player should expose at least one available video resolution", player.getAvailableVideoResolutions().isNotEmpty())
                     }
                     val textTracks = player.getAvailableTextTracks()
                     if (textTracks.isNotEmpty()) {
                         player.setTextTrackByLanguage(textTracks.first().first)
+                        assertEquals("Selected text track should become active", textTracks.first().first, player.getActiveTextTrack()?.first)
                         player.setTextTrackByLanguage(null)
+                        assertEquals("Text track should be disabled after clearing the selection", null, player.getActiveTextTrack())
                     }
                     player.play()
                     view.toggleFullscreen()
-                    assertEquals(activity.window.decorView, view.parent)
+                    assertEquals("TextureView should move to the decor during fullscreen", activity.window.decorView, view.parent)
                     view.toggleFullscreen()
-                    assertEquals(rootRef.get(), view.parent)
+                    assertEquals("TextureView should return to its original parent after fullscreen", rootRef.get(), view.parent)
                 }
+                assertTrue("Seek request must produce a seek discontinuity within 5 seconds", seeked.await(5, TimeUnit.SECONDS))
             } finally {
                 scenario.onActivity { playerRef.get()?.release() }
             }
