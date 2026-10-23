@@ -31,14 +31,13 @@ import java.util.concurrent.atomic.AtomicInteger
  * preserve the Activity instance, Player instance, and hardware decoder without
  * recreation, decoder re-initialization, or surface detachment timeouts.
  *
- * By default, this test runs against the sample Widevine DRM video (assetId: 7xbZeQzR36h).
- * Custom or non-DRM assets can be passed via instrumentation arguments (e.g. non-DRM sample 4Zs4MNd5Ksj):
+ * Supply the asset and short-lived access token through CI instrumentation arguments:
  * ```
  * ./gradlew :tpstreams-android-player:connectedDebugAndroidTest \
  *   -Pandroid.testInstrumentationRunnerArguments.class=com.tpstreams.player.PlayerFullscreenLifecycleInstrumentedTest \
- *   -Pandroid.testInstrumentationRunnerArguments.orgId=9q94nm \
- *   -Pandroid.testInstrumentationRunnerArguments.assetId=4Zs4MNd5Ksj \
- *   -Pandroid.testInstrumentationRunnerArguments.accessToken=c4f36a4f-3859-4b24-aca8-189b7e8cfeb0
+ *   -Pandroid.testInstrumentationRunnerArguments.orgId=<org-id> \
+ *   -Pandroid.testInstrumentationRunnerArguments.assetId=<asset-id> \
+ *   -Pandroid.testInstrumentationRunnerArguments.accessToken=<short-lived-token>
  * ```
  */
 @OptIn(UnstableApi::class)
@@ -47,17 +46,13 @@ class PlayerFullscreenLifecycleInstrumentedTest {
 
     companion object {
         private const val TAG = "PlayerFullscreenLifecycle"
-        private const val DEFAULT_ORG_ID = "9q94nm"
-        private const val DEFAULT_ASSET_ID = "7xbZeQzR36h" // DRM sample video
-        private const val DEFAULT_ACCESS_TOKEN = "3d9838f3-db51-4fc3-8472-075ab5e40b64"
     }
 
     @Test
     fun fullscreenAndOrientationCycles_preservesActivityAndDecoderWithoutErrors() {
-        val args = InstrumentationRegistry.getArguments()
-        val orgId = args.getString("orgId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ORG_ID
-        val assetId = args.getString("assetId")?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_ID
-        val accessToken = args.getString("accessToken")?.takeIf { it.isNotBlank() } ?: DEFAULT_ACCESS_TOKEN
+        val orgId = PlayerViewTestSupport.instrumentationArgumentOrDefault("orgId", PlayerViewTestSupport.DEFAULT_ORG_ID)
+        val assetId = PlayerViewTestSupport.instrumentationArgumentOrDefault("assetId", PlayerViewTestSupport.DEFAULT_DRM_ASSET_ID)
+        val accessToken = PlayerViewTestSupport.instrumentationArgumentOrDefault("accessToken", PlayerViewTestSupport.DEFAULT_ACCESS_TOKEN)
 
         val instrumentation = InstrumentationRegistry.getInstrumentation()
 
