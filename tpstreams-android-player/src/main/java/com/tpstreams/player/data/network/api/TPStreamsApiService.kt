@@ -1,5 +1,6 @@
 package com.tpstreams.player.data.network.api
 
+import android.net.Uri
 import com.tpstreams.player.constants.LiveStreamEndedException
 import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.data.network.model.AssetInfo
@@ -9,7 +10,7 @@ import java.util.Locale
 class TPStreamsApiService : BaseApiService() {
 
     private companion object {
-        const val BASE_URL = "https://app.tpstreams.com"
+        const val BASE_URL = "https://cyber-interests-schedules-aimed.trycloudflare.com"
     }
 
     override fun assetInfoUrl(orgId: String, assetId: String, accessToken: String): String {
@@ -30,6 +31,22 @@ class TPStreamsApiService : BaseApiService() {
         val duration = licenseDurationSeconds ?: 0L
         val separator = if (withToken.contains("?")) "&" else "?"
         return "$withToken${separator}download=true&license_duration_seconds=$duration"
+    }
+
+    override fun shieldedManifestKeyUrl(
+        orgId: String,
+        assetId: String,
+        accessToken: String,
+        clientPublicKey: String,
+    ): String {
+        val baseUrl = "$BASE_URL/api/v1/$orgId/assets/$assetId/manifest_key/"
+        return Uri.parse(baseUrl).buildUpon()
+            .appendQueryParameter("client_public_key", clientPublicKey)
+            .apply {
+                if (accessToken.isNotBlank()) appendQueryParameter("access_token", accessToken)
+            }
+            .build()
+            .toString()
     }
 
     override fun parseAsset(json: JSONObject): AssetInfo {
@@ -86,7 +103,8 @@ class TPStreamsApiService : BaseApiService() {
             isLiveStream = false,
             durationSeconds = videoObj.optDouble("duration", 0.0),
             title = title,
-            isAes = isAes
+            isAes = isAes,
+            shieldedManifestUrl = getShieldedManifestUrl(videoObj)
         )
     }
 
@@ -123,7 +141,8 @@ class TPStreamsApiService : BaseApiService() {
             isLiveStream = false,
             durationSeconds = videoObj.optDouble("duration", 0.0),
             title = title,
-            isAes = isAes
+            isAes = isAes,
+            shieldedManifestUrl = getShieldedManifestUrl(videoObj)
         )
     }
 
@@ -151,6 +170,14 @@ class TPStreamsApiService : BaseApiService() {
     private fun getThumbnail(videoObj: JSONObject): String {
         return videoObj.optString("preview_thumbnail_url")
             .ifEmpty { videoObj.optJSONArray("thumbnails")?.optString(0) ?: "" }
+    }
+
+    private fun getShieldedManifestUrl(videoObj: JSONObject): String? {
+        if (!videoObj.has("shielded_manifest_url") || videoObj.isNull("shielded_manifest_url")) {
+            return null
+        }
+        return videoObj.optString("shielded_manifest_url")
+            .takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
     }
 
     fun analyticsPresignedUrlsUrl(
