@@ -96,9 +96,12 @@ class PlayerViewTexturePlaybackInstrumentedTest {
                 }
                 assertTrue("TextureView player did not report pause within 5 seconds", paused.await(5, TimeUnit.SECONDS))
 
-                scenario.onActivity { activity ->
+                val selectedLanguageRef = AtomicReference<String?>()
+                val selectedTrackLatchRef = AtomicReference<CountDownLatch?>()
+                val clearedTrackLatchRef = AtomicReference<CountDownLatch?>()
+
+                scenario.onActivity {
                     val player = playerRef.get()
-                    val view = viewRef.get()
                     player.seekTo(1_000L)
                     val resolutions = player.getAvailableVideoResolutions()
                     if (resolutions.isNotEmpty()) {
@@ -107,11 +110,54 @@ class PlayerViewTexturePlaybackInstrumentedTest {
                     }
                     val textTracks = player.getAvailableTextTracks()
                     if (textTracks.isNotEmpty()) {
-                        player.setTextTrackByLanguage(textTracks.first().first)
-                        assertEquals("Selected text track should become active", textTracks.first().first, player.getActiveTextTrack()?.first)
-                        player.setTextTrackByLanguage(null)
-                        assertEquals("Text track should be disabled after clearing the selection", null, player.getActiveTextTrack())
+                        val selectedLanguage = textTracks.first().first
+                        val selected = CountDownLatch(1)
+                        val cleared = CountDownLatch(1)
+                        selectedLanguageRef.set(selectedLanguage)
+                        selectedTrackLatchRef.set(selected)
+                        clearedTrackLatchRef.set(cleared)
+                        player.addListener(object : Player.Listener {
+                            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                                when {
+                                    player.getActiveTextTrack()?.first == selectedLanguage -> selected.countDown()
+                                    player.getActiveTextTrack() == null -> cleared.countDown()
+                                }
+                            }
+                        })
+
+                        player.setTextTrackByLanguage(selectedLanguage)
                     }
+                }
+
+                selectedLanguageRef.get()?.let { selectedLanguage ->
+                    assertTrue(
+                        "Text track '$selectedLanguage' was requested but did not become active within 5 seconds",
+                        selectedTrackLatchRef.get()!!.await(5, TimeUnit.SECONDS)
+                    )
+                    scenario.onActivity { player ->
+                        assertEquals(
+                            "Selected text track '$selectedLanguage' should become active after track selection completes",
+                            selectedLanguage,
+                            playerRef.get().getActiveTextTrack()?.first
+                        )
+                        playerRef.get().setTextTrackByLanguage(null)
+                    }
+                    assertTrue(
+                        "Text track '$selectedLanguage' was cleared but remained active after 5 seconds",
+                        clearedTrackLatchRef.get()!!.await(5, TimeUnit.SECONDS)
+                    )
+                    scenario.onActivity {
+                        assertEquals(
+                            "Text track '$selectedLanguage' should be disabled after clearing the selection",
+                            null,
+                            playerRef.get().getActiveTextTrack()
+                        )
+                    }
+                }
+
+                scenario.onActivity { activity ->
+                    val player = playerRef.get()
+                    val view = viewRef.get()
                     player.play()
                     view.toggleFullscreen()
                     assertEquals("TextureView should move to the decor during fullscreen", activity.window.decorView, view.parent)
