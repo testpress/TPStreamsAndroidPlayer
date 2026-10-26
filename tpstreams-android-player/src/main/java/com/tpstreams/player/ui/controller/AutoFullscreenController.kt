@@ -9,14 +9,12 @@ import com.tpstreams.player.ui.host.FullscreenHost
 internal class AutoFullscreenController(
     private val host: FullscreenHost,
     private val fullscreenMode: FullscreenMode,
-    context: Context,
+    private val context: Context,
     private val onLiveStreamStateChanged: (Boolean) -> Unit
 ) {
     private var orientationEventListener: OrientationListener? = null
     private var autoFullscreenOnRotateEnabled = true
     private var autoFullscreenEnabled = false
-    private val orientationContext = context
-
     val isCurrentlyLandscape: Boolean
         get() = orientationEventListener?.isCurrentlyLandscape == true
 
@@ -35,7 +33,7 @@ internal class AutoFullscreenController(
 
     fun enable() {
         disable()
-        orientationEventListener = OrientationListener(orientationContext).apply {
+        orientationEventListener = OrientationListener(context).apply {
             onPortraitDetected = {
                 host.currentPlayer?.suppressAutoFullscreenUntilPortrait = false
             }

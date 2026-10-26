@@ -1,5 +1,7 @@
 package com.tpstreams.player
 
+import com.tpstreams.player.ui.controller.FullscreenMode
+import com.tpstreams.player.ui.lifecycle.PlayerLifecycleManager
 import android.content.pm.ActivityInfo
 import android.view.ViewGroup
 import android.view.Window
@@ -29,6 +31,8 @@ class FullscreenModeTest {
         `when`(activity.requestedOrientation).thenReturn(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
         `when`(activity.onBackPressedDispatcher)
             .thenReturn(mock(OnBackPressedDispatcher::class.java))
+        `when`(view.hostedView).thenReturn(view)
+        `when`(view.currentPlayer).thenReturn(player)
         `when`(player.lifecycleManager).thenReturn(PlayerLifecycleManager(null))
         `when`(view.getPlayer()).thenReturn(player)
         `when`(view.parent).thenReturn(originalParent)

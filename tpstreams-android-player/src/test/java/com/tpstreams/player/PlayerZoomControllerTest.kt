@@ -3,6 +3,7 @@ package com.tpstreams.player
 import android.content.Context
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
+import com.tpstreams.player.ui.controller.PlayerZoomController
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

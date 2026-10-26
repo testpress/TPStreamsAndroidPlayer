@@ -33,7 +33,11 @@ internal class PlaybackStateUiController(
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
-                Player.STATE_IDLE, Player.STATE_BUFFERING -> showLoading()
+                Player.STATE_IDLE -> showLoading()
+                Player.STATE_BUFFERING -> {
+                    hideError()
+                    showLoading()
+                }
                 Player.STATE_READY -> {
                     hideLoading()
                     hideError()
@@ -106,7 +110,11 @@ internal class PlaybackStateUiController(
 
     fun render(player: Player) {
         when (player.playbackState) {
-            Player.STATE_IDLE, Player.STATE_BUFFERING -> showLoading()
+            Player.STATE_IDLE -> showLoading()
+            Player.STATE_BUFFERING -> {
+                hideError()
+                showLoading()
+            }
             Player.STATE_READY -> {
                 hideLoading()
                 hideError()

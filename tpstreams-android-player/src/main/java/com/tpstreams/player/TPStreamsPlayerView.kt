@@ -3,7 +3,6 @@ package com.tpstreams.player
 import android.content.Context
 import android.content.res.Configuration
 import android.util.AttributeSet
-import android.util.Log
 import android.view.MotionEvent
 import android.view.TextureView
 import android.view.View
@@ -414,8 +413,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     companion object {
-        private const val TAG = "TPStreamsPlayerView"
-
         /**
          * Returns an [AttributeSet] that configures [PlayerView] to render video using [TextureView].
          * Pass this as the [attrs] parameter when instantiating [TPStreamsPlayerView] in Flutter

@@ -18,6 +18,14 @@ A powerful Android SDK for seamless integration with TPStreams video platform, f
 - Kotlin 1.9.0+
 - Android Studio Arctic Fox or higher
 
+## Major Release Package Changes
+
+This major release reorganizes internal player implementation classes into dedicated `ui` packages.
+The bottom-sheet classes are now under `com.tpstreams.player.ui.bottomsheet`, and
+`PlayerLifecycleManager` is now under `com.tpstreams.player.ui.lifecycle`.
+The previous root-package imports are no longer available. Applications using these implementation
+classes directly must update their imports before upgrading.
+
 ## Installation
 
 Add the following to your `settings.gradle.kts`:
