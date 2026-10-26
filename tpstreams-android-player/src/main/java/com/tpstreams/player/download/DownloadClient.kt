@@ -15,7 +15,7 @@ import com.tpstreams.player.TPStreamsSDK
 import com.tpstreams.player.data.AssetRepository
 import com.tpstreams.player.data.network.model.AssetInfo
 import com.tpstreams.player.constants.PlaybackError
-import com.tpstreams.player.DownloadOptionsBottomSheet
+import com.tpstreams.player.ui.bottomsheet.DownloadOptionsBottomSheet
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.C
 import androidx.media3.common.util.Util

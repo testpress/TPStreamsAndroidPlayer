@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.bottomsheet
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -11,6 +11,7 @@ import androidx.media3.common.util.UnstableApi
 import com.tpstreams.player.download.DownloadClient
 import androidx.media3.exoplayer.offline.Download
 import android.widget.ImageView
+import com.tpstreams.player.R
 
 @UnstableApi
 class DownloadActionBottomSheet : BaseBottomSheet() {

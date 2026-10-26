@@ -1,5 +1,7 @@
 package com.tpstreams.player
 
+import com.tpstreams.player.ui.controller.FullscreenMode
+
 import android.content.pm.ActivityInfo
 import android.widget.FrameLayout
 import androidx.core.view.WindowCompat

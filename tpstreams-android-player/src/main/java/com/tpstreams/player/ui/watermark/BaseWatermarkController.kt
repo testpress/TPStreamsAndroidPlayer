@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.watermark
 
 import android.util.Log
 import android.view.View
@@ -6,6 +6,8 @@ import android.widget.FrameLayout
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
+import com.tpstreams.player.BaseWatermarkConfig
+import com.tpstreams.player.TPStreamsPlayerView
 
 @UnstableApi
 internal abstract class BaseWatermarkController<T : BaseWatermarkConfig>(protected val parent: TPStreamsPlayerView) {

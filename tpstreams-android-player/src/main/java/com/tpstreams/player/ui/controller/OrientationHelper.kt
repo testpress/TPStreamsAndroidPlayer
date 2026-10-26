@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.controller
 
 import android.content.Context
 import android.content.pm.ActivityInfo
