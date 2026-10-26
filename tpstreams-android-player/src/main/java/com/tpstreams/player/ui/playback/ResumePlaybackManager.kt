@@ -1,6 +1,7 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.playback
 
 import androidx.media3.common.Player
+import com.tpstreams.player.TPStreamsSDK
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable

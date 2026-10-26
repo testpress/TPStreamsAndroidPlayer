@@ -3,11 +3,9 @@ package com.tpstreams.player
 import android.content.Context
 import android.content.res.Configuration
 import android.util.AttributeSet
-import android.util.Log
 import android.view.MotionEvent
 import android.view.TextureView
 import android.view.View
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -16,16 +14,45 @@ import com.tpstreams.player.constants.NetworkDiagnostics
 import com.tpstreams.player.constants.PlaybackError
 import com.tpstreams.player.ui.PlayerErrorViewController
 import com.tpstreams.player.ui.PlayerSheetManager
-
-import android.util.Xml
-import org.xmlpull.v1.XmlPullParser
+import com.tpstreams.player.ui.controller.Captions
+import com.tpstreams.player.ui.controller.DoubleTapSeekController
+import com.tpstreams.player.ui.controller.DownloadActions
+import com.tpstreams.player.ui.config.PlayerViewAttributes
+import com.tpstreams.player.ui.config.TextureViewSupport
+import com.tpstreams.player.ui.controller.AutoFullscreenController
+import com.tpstreams.player.ui.controller.DrmSurfaceGuard
+import com.tpstreams.player.ui.controller.FullscreenMode
+import com.tpstreams.player.ui.controller.PlaybackStateUiController
+import com.tpstreams.player.ui.controller.SecureFlagManager
+import com.tpstreams.player.ui.controller.PlayerZoomController
+import com.tpstreams.player.ui.controller.SettingsPanel
+import com.tpstreams.player.ui.controller.TouchGestureCoordinator
+import com.tpstreams.player.ui.bottomsheet.AdvancedResolutionBottomSheet
+import com.tpstreams.player.ui.bottomsheet.CaptionsBottomSheet
+import com.tpstreams.player.ui.bottomsheet.DownloadActionBottomSheet
+import com.tpstreams.player.ui.bottomsheet.DownloadOptionsBottomSheet
+import com.tpstreams.player.ui.bottomsheet.PlaybackSpeedBottomSheet
+import com.tpstreams.player.ui.bottomsheet.PlayerSettingsBottomSheet
+import com.tpstreams.player.ui.bottomsheet.QualityOptionsBottomSheet
+import com.tpstreams.player.ui.host.ContextAccess
+import com.tpstreams.player.ui.host.FullscreenHost
+import com.tpstreams.player.ui.lifecycle.PlayerLifecycleManager
+import com.tpstreams.player.ui.watermark.BaseWatermarkController
+import com.tpstreams.player.ui.watermark.ImageWatermarkController
+import com.tpstreams.player.ui.watermark.TextWatermarkController
 
 @UnstableApi
 class TPStreamsPlayerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
-) : PlayerView(context, attrs, defStyleAttr) {
+) : PlayerView(context, attrs, defStyleAttr), FullscreenHost {
+
+    override val hostedView: View
+        get() = this
+
+    override val currentPlayer: TPStreamsPlayer?
+        get() = getPlayer()
 
     /**
      * True when this view is actively using [TextureView] as its video rendering surface.
@@ -46,17 +73,41 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val sheetManager = PlayerSheetManager(settingsPanel, captions, downloadActions) { getPlayer() }
     private val zoomController = PlayerZoomController(this)
     private val doubleTapSeekController = DoubleTapSeekController(this)
+    private val touchGestureCoordinator = TouchGestureCoordinator(this, zoomController, doubleTapSeekController)
+    private val secureFlagManager = SecureFlagManager()
+    private val autoFullscreenController = AutoFullscreenController(
+        host = this,
+        fullscreenMode = fullscreenMode,
+        context = context,
+        onLiveStreamStateChanged = ::updateLiveStreamUI
+    )
+    private val drmSurfaceGuard = DrmSurfaceGuard(
+        isTextureView = { isTextureViewMode },
+        getPlayer = ::getPlayer,
+        showError = ::showErrorMessage
+    )
+    private val playbackStateUiController = PlaybackStateUiController(
+        view = this,
+        settingsPanel = settingsPanel,
+        captions = captions,
+        drmSurfaceGuard = drmSurfaceGuard,
+        showLoading = ::showLoading,
+        hideLoading = ::hideLoading,
+        showError = ::showErrorMessage,
+        hideError = ::hideErrorMessage,
+        showDiagnostics = ::showNetworkDiagnostics,
+        showDiagnosing = ::showDiagnosingState,
+        updateLiveUi = ::updateLiveStreamUI,
+        notifyWatermarkState = ::notifyWatermarkPlayerState
+    )
 
     private var playerControlView: TPStreamsPlayerControlView? = null
-    private var orientationEventListener: OrientationListener? = null
-    private var autoFullscreenOnRotateEnabled = true
-    private var autoFullscreenEnabled = false
     /**
      * The lifecycle manager is owned by [TPStreamsPlayer] and accessed here as a computed
      * property. This ensures the manager survives [setPlayer] surface-swap round-trips
      * (e.g. fullscreen transitions) without being recreated and losing its state.
      */
-    val lifecycleManager: PlayerLifecycleManager?
+    override val lifecycleManager: PlayerLifecycleManager?
         get() = getPlayer()?.lifecycleManager
 
     private var bufferingView: View? = null
@@ -64,61 +115,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     private val liveBadge: View? by lazy { findViewById(R.id.live_badge) }
     private val durationView: View? by lazy { findViewById(androidx.media3.ui.R.id.exo_duration) }
     private val separatorView: View? by lazy { findViewById(R.id.exo_time_separator) }
-
-    private val playbackStateListener = object : Player.Listener {
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            this@TPStreamsPlayerView.keepScreenOn = isPlaying
-            if (isPlaying) hideErrorMessage()
-            notifyWatermarkPlayerState()
-        }
-
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            when (playbackState) {
-                Player.STATE_IDLE -> showLoading()
-                Player.STATE_BUFFERING -> showLoading()
-                Player.STATE_READY -> {
-                    hideLoading()
-                    hideErrorMessage()
-                }
-                Player.STATE_ENDED -> hideLoading()
-            }
-            notifyWatermarkPlayerState()
-        }
-
-        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {}
-    }
-
-    private val tracksStateListener = object : Player.Listener {
-        override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-            if (checkAndHandleTextureViewL1Drm()) return
-            settingsPanel.updateAvailableResolutions()
-            captions.updateAvailableCaptions()
-        }
-
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            if (playbackState == Player.STATE_READY) {
-                captions.updateAvailableCaptions()
-            }
-        }
-    }
-
-    private val viewPlayerListener = object : TPStreamsPlayer.ViewListener {
-        override fun onError(error: PlaybackError, message: String) {
-            hideLoading()
-            post { showErrorMessage(message) }
-        }
-
-        override fun onNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
-            post {
-                hideLoading()
-                showNetworkDiagnostics(error, diagnostics)
-            }
-        }
-
-        override fun onNetworkDiagnosticsStarted() {
-            post { showDiagnosingState() }
-        }
-    }
 
     // Bottom sheets (delegated to sheetManager for backward compatibility)
     val settingsBottomSheet: PlayerSettingsBottomSheet get() = sheetManager.settingsBottomSheet
@@ -130,110 +126,38 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     val downloadActionBottomSheet: DownloadActionBottomSheet get() = sheetManager.downloadActionBottomSheet
 
     init {
-        attrs?.let {
-            val typedArray = context.obtainStyledAttributes(it, R.styleable.TPStreamsPlayerView, defStyleAttr, 0)
-            try {
-                zoomController.isEnabled = typedArray.getBoolean(
-                    R.styleable.TPStreamsPlayerView_enable_pinch_to_zoom,
-                    zoomController.isEnabled
-                )
-                zoomController.maxScale = typedArray.getFloat(
-                    R.styleable.TPStreamsPlayerView_max_zoom_scale,
-                    zoomController.maxScale
-                ).coerceAtLeast(1.0f)
-                zoomController.showZoomIndicator = typedArray.getBoolean(
-                    R.styleable.TPStreamsPlayerView_show_zoom_indicator,
-                    zoomController.showZoomIndicator
-                )
-                zoomController.zoomOnlyInFullscreen = typedArray.getBoolean(
-                    R.styleable.TPStreamsPlayerView_zoom_only_in_fullscreen,
-                    zoomController.zoomOnlyInFullscreen
-                )
-                doubleTapSeekController.isEnabled = typedArray.getBoolean(
-                    R.styleable.TPStreamsPlayerView_enable_double_tap_to_seek,
-                    doubleTapSeekController.isEnabled
-                )
-                val seekInc = typedArray.getInt(
-                    R.styleable.TPStreamsPlayerView_double_tap_seek_increment_ms,
-                    -1
-                )
-                if (seekInc > 0) {
-                    doubleTapSeekController.seekIncrementMs = seekInc.toLong()
-                }
-            } finally {
-                typedArray.recycle()
-            }
+        PlayerViewAttributes.from(context, attrs, defStyleAttr)?.let { attributes ->
+            zoomController.isEnabled = attributes.pinchToZoomEnabled
+            zoomController.maxScale = attributes.maxZoomScale
+            zoomController.showZoomIndicator = attributes.showZoomIndicator
+            zoomController.zoomOnlyInFullscreen = attributes.zoomOnlyInFullscreen
+            doubleTapSeekController.isEnabled = attributes.doubleTapToSeekEnabled
+            attributes.doubleTapSeekIncrementMs?.let { doubleTapSeekController.seekIncrementMs = it }
         }
         onFinishInflate()
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        getPlayer()?.addListener(playbackStateListener)
+        playbackStateUiController.attachPlaybackListener(getPlayer())
         errorViewController.ensureErrorOverlaySetup()
         zoomController.setup()
 
         // Re-apply FLAG_SECURE on re-attach — handles fullscreen transitions where the view is
         // temporarily detached from its parent and re-parented to the decor view.
         if (getPlayer() != null) {
-            applySecureFlag()
+            getActivity()?.let(secureFlagManager::apply)
         }
 
         post {
-            if (autoFullscreenOnRotateEnabled) {
-                enableAutoFullscreenOnRotate()
-            }
+            autoFullscreenController.onAttached()
             watermarkControllers.forEach { it.onViewAttached() }
-            restoreRequestedFullscreenIfNeeded()
+            autoFullscreenController.restoreRequestedFullscreenIfNeeded()
         }
-    }
-
-    private fun restoreRequestedFullscreenIfNeeded() {
-        val player = getPlayer() ?: return
-
-        if (
-            player.isFullscreenRequested &&
-            !fullscreenMode.isInFullscreenMode() &&
-            !fullscreenMode.isInTransition() &&
-            isAttachedToWindow
-        ) {
-            fullscreenMode.enterFullscreen()
-        }
-    }
-
-    /**
-     * Checks if TextureView mode is active on an L1-capable device with a DRM-protected stream.
-     * When detected, halts playback permanently and displays an error message to prevent
-     * a silent black screen and UI shuddering.
-     *
-     * @return true if incompatible DRM+TextureView combination is detected and handled.
-     */
-    private fun checkAndHandleTextureViewL1Drm(): Boolean {
-        if (!isTextureViewMode) return false
-        val player = getPlayer() ?: return false
-        val isL1Device = com.tpstreams.player.util.WidevinePlaybackLevelResolver
-            .getNativeWidevineLevel() == "L1"
-        if (isL1Device && player.isDrmContent) {
-            Log.w(
-                TAG,
-                "TPStreamsPlayerView is in TextureView mode on a Widevine L1 device " +
-                "with DRM-protected content. Playback halted to prevent black screen and UI shuddering."
-            )
-            player.stop()
-            showErrorMessage("DRM protected content cannot be played in Performance mode on this device.")
-            return true
-        }
-        return false
     }
 
     fun setAutoFullscreenOnRotateEnabled(enabled: Boolean) {
-        if (autoFullscreenOnRotateEnabled == enabled) return
-        autoFullscreenOnRotateEnabled = enabled
-        if (enabled) {
-            enableAutoFullscreenOnRotate()
-        } else {
-            disableAutoFullscreenOnRotate()
-        }
+        autoFullscreenController.setEnabled(enabled)
     }
 
     override fun onFinishInflate() {
@@ -281,7 +205,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         if (!fullscreenMode.isInFullscreenMode()) {
             fullscreenMode.enterFullscreen()
         } else {
-            val isPhysicallyLandscape = orientationEventListener?.isCurrentlyLandscape == true
+            val isPhysicallyLandscape = autoFullscreenController.isCurrentlyLandscape
             fullscreenMode.exitFullscreen(suppressAutoReentry = isPhysicallyLandscape)
         }
 
@@ -294,82 +218,16 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     fun enableAutoFullscreenOnRotate() {
-        disableAutoFullscreenOnRotate()
-
-        orientationEventListener = OrientationListener(context).apply {
-            onPortraitDetected = {
-                getPlayer()?.suppressAutoFullscreenUntilPortrait = false
-            }
-            setOnChangeListener { isLandscape ->
-                post {
-                    if (isLandscape) {
-                        if (
-                            !fullscreenMode.isInFullscreenMode() &&
-                            getPlayer()?.suppressAutoFullscreenUntilPortrait != true
-                        ) {
-                            fullscreenMode.enterFullscreen()
-                        }
-                    } else {
-                        getPlayer()?.suppressAutoFullscreenUntilPortrait = false
-                        if (fullscreenMode.isInFullscreenMode()) {
-                            fullscreenMode.exitFullscreen(suppressAutoReentry = false)
-                        }
-                    }
-                }
-            }
-            start()
-        }
-
-        autoFullscreenEnabled = true
+        autoFullscreenController.enable()
     }
 
     fun disableAutoFullscreenOnRotate() {
-        orientationEventListener?.stop()
-        orientationEventListener = null
-        autoFullscreenEnabled = false
+        autoFullscreenController.disable()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-
-        if (autoFullscreenOnRotateEnabled && !autoFullscreenEnabled) {
-            // Use playWhenReady (not isPlaying) to capture the player's intent. isPlaying is
-            // false during STATE_BUFFERING — which happens right after surface reattach inside a
-            // fullscreen transition — causing the inner post to incorrectly pause the player
-            // once it recovers from buffering.
-            val wasPlayingBefore = player?.playWhenReady ?: false
-
-            lifecycleManager?.setInTransition(true)
-            post {
-                when (newConfig.orientation) {
-                    Configuration.ORIENTATION_LANDSCAPE -> {
-                        if (getPlayer()?.suppressAutoFullscreenUntilPortrait != true) {
-                            setFullscreenButtonState(true)
-                            fullscreenMode.enterFullscreen()
-                        }
-                    }
-                    Configuration.ORIENTATION_PORTRAIT -> {
-                        getPlayer()?.suppressAutoFullscreenUntilPortrait = false
-                        setFullscreenButtonState(false)
-                        fullscreenMode.exitFullscreen(suppressAutoReentry = false)
-                    }
-                }
-
-                post {
-                    if (wasPlayingBefore && player?.isPlaying == false) {
-                        player?.play()
-                    } else if (!wasPlayingBefore && player?.isPlaying == true) {
-                        player?.pause()
-                    }
-                    lifecycleManager?.setInTransition(false)
-
-                    val tpPlayer = getPlayer()
-                    if (tpPlayer != null) {
-                        updateLiveStreamUI(tpPlayer.isLiveStream)
-                    }
-                }
-            }
-        }
+        autoFullscreenController.onConfigurationChanged(newConfig)
     }
 
     override fun setPlayer(player: Player?) {
@@ -395,14 +253,9 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         // Clean up previous player
         val previousPlayer = getPlayer()
         if (previousPlayer is TPStreamsPlayer) {
-            val message = "[${previousPlayer.playbackSessionId}] Surface DETACH"
-            Log.d(TPStreamsPlayer.DEBUG_TAG, message)
-            previousPlayer.recordPlaybackLog(message)
-            previousPlayer.removeListener(viewPlayerListener)
-            previousPlayer.onLiveStreamStatusChanged = null
-            previousPlayer.removeListener(tracksStateListener)
+            previousPlayer.onSurfaceDetached()
         }
-        previousPlayer?.removeListener(playbackStateListener)
+        playbackStateUiController.unbind(previousPlayer)
 
         super.setPlayer(player)
 
@@ -410,45 +263,21 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         settingsPanel.applyResolutionPreference()
 
         if (player is TPStreamsPlayer) {
-            val message = "[${player.playbackSessionId}] Surface ATTACH"
-            Log.d(TPStreamsPlayer.DEBUG_TAG, message)
-            player.recordPlaybackLog(message)
+            player.onSurfaceAttached()
         }
 
 
 
         if (player == null) {
             // Explicitly clear FLAG_SECURE when the player is released.
-            removeSecureFlag()
+            secureFlagManager.remove()
         }
         if (player != null) {
             // Apply FLAG_SECURE for all playback to block screen recording and screenshots.
-            applySecureFlag()
-            when (player.playbackState) {
-                Player.STATE_IDLE -> showLoading()
-                Player.STATE_BUFFERING -> {
-                    showLoading()
-                    hideErrorMessage()
-                }
-                Player.STATE_READY -> {
-                    hideLoading()
-                    hideErrorMessage()
-                }
-                Player.STATE_ENDED -> hideLoading()
-            }
-            player.addListener(playbackStateListener)
-
+            getActivity()?.let(secureFlagManager::apply)
+            playbackStateUiController.bind(player)
             if (player is TPStreamsPlayer) {
-                player.addListener(tracksStateListener)
-                player.addListener(viewPlayerListener)
-                captions.updateAvailableCaptions()
-
-                player.onLiveStreamStatusChanged = { isLiveStream ->
-                    updateLiveStreamUI(isLiveStream)
-                }
-                updateLiveStreamUI(player.isLiveStream)
-
-                restoreRequestedFullscreenIfNeeded()
+                autoFullscreenController.restoreRequestedFullscreenIfNeeded()
             }
         } else {
             hideErrorMessage()
@@ -485,8 +314,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        getPlayer()?.removeListener(playbackStateListener)
-        disableAutoFullscreenOnRotate()
+        playbackStateUiController.detachPlaybackListener(getPlayer())
+        autoFullscreenController.onDetached()
         watermarkControllers.forEach { it.onViewDetached() }
         zoomController.resetZoom(animated = false)
         zoomController.destroy()
@@ -496,7 +325,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         // is rarely finishing during normal navigation, so guarding on isFinishing would leak
         // the flag to unrelated screens. onAttachedToWindow() re-applies it when the view is
         // re-attached for fullscreen transitions.
-        removeSecureFlag()
+        secureFlagManager.remove()
     }
 
     /**
@@ -512,7 +341,7 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         return super.getPlayer() as? TPStreamsPlayer
     }
 
-    fun getActivity() = contextAccess.getActivity()
+    override fun getActivity() = contextAccess.getActivity()
 
     private fun showErrorMessage(message: String) {
         errorViewController.showErrorMessage(message)
@@ -584,8 +413,6 @@ class TPStreamsPlayerView @JvmOverloads constructor(
     }
 
     companion object {
-        private const val TAG = "TPStreamsPlayerView"
-
         /**
          * Returns an [AttributeSet] that configures [PlayerView] to render video using [TextureView].
          * Pass this as the [attrs] parameter when instantiating [TPStreamsPlayerView] in Flutter
@@ -599,75 +426,8 @@ class TPStreamsPlayerView @JvmOverloads constructor(
          * For L1 DRM playback, use the default constructor with `attrs = null` (SurfaceView).
          */
         fun attributeSetForTextureView(context: Context): AttributeSet? {
-            return try {
-                val parser = context.resources.getLayout(R.layout.tpstreams_player_view_attrs)
-                var state = 0
-                while (state != XmlPullParser.START_TAG && state != XmlPullParser.END_DOCUMENT) {
-                    state = parser.next()
-                }
-                Xml.asAttributeSet(parser)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse TextureView AttributeSet; falling back to SurfaceView", e)
-                null
-            }
+            return TextureViewSupport.attributeSet(context)
         }
-
-        /**
-         * Tracks how many player views are active per Activity.
-         *
-         * FLAG_SECURE is a window-level flag shared by all views in an Activity. Using a simple
-         * per-view boolean to track it causes two bugs in multi-view or Single-Activity scenarios:
-         *   1. One view's removeSecureFlag() clears the flag while another view still needs it
-         *      (regression — video content becomes screenshot/recording-capable).
-         *   2. When a view is detached during navigation without the Activity finishing, the
-         *      flag stays on unrelated screens (regression — screenshots blocked everywhere).
-         *
-         * Solution: ref-count acquisitions per Activity. FLAG_SECURE is set when count rises to 1
-         * and cleared only when it drops back to 0. WeakHashMap ensures finished Activities
-         * are not leaked.
-         *
-         * FLAG_SECURE is applied for all playback (DRM and non-DRM) to uniformly prevent
-         * screen recording and screenshots while a player is on screen.
-         */
-        private val activePlayerViewCountByActivity = java.util.WeakHashMap<androidx.fragment.app.FragmentActivity, Int>()
-
-        private fun acquireSecureFlag(activity: androidx.fragment.app.FragmentActivity) {
-            val count = (activePlayerViewCountByActivity[activity] ?: 0) + 1
-            activePlayerViewCountByActivity[activity] = count
-            if (count == 1) {
-                activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                Log.d(TAG, "FLAG_SECURE set (active player views: 1)")
-            } else {
-                Log.d(TAG, "FLAG_SECURE already set (active player views: $count)")
-            }
-        }
-
-        private fun releaseSecureFlag(activity: androidx.fragment.app.FragmentActivity) {
-            val count = ((activePlayerViewCountByActivity[activity] ?: 0) - 1).coerceAtLeast(0)
-            if (count == 0) {
-                activePlayerViewCountByActivity.remove(activity)
-                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                Log.d(TAG, "FLAG_SECURE cleared (no active player views)")
-            } else {
-                activePlayerViewCountByActivity[activity] = count
-                Log.d(TAG, "FLAG_SECURE kept (active player views: $count)")
-            }
-        }
-    }
-
-    private var secureFlagActivity: androidx.fragment.app.FragmentActivity? = null
-
-    private fun applySecureFlag() {
-        if (secureFlagActivity != null) return
-        val activity = getActivity() ?: return
-        secureFlagActivity = activity
-        acquireSecureFlag(activity)
-    }
-
-    private fun removeSecureFlag() {
-        val activity = secureFlagActivity ?: return
-        secureFlagActivity = null
-        releaseSecureFlag(activity)
     }
 
     interface OnZoomChangeListener {
@@ -675,49 +435,17 @@ class TPStreamsPlayerView @JvmOverloads constructor(
         fun onZoomReset()
     }
 
-    private var isZoomInterceptionActive = false
-
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
-            isZoomInterceptionActive = false
-        }
-
-        if (isPinchToZoomEnabled) {
-            val handledByZoom = zoomController.handleTouchEvent(ev)
-            val isInteracting = zoomController.isInteracting
-            val isMultiTouchZoom = zoomController.isZoomed && ev.pointerCount > 1
-
-            if (!isZoomInterceptionActive && (isInteracting || isMultiTouchZoom || handledByZoom)) {
-                // Synthesize ACTION_CANCEL so child views do not remain in a pressed state
-                val cancelEvent = MotionEvent.obtain(ev.downTime, ev.eventTime, MotionEvent.ACTION_CANCEL, ev.x, ev.y, 0)
-                super.dispatchTouchEvent(cancelEvent)
-                cancelEvent.recycle()
-                isZoomInterceptionActive = true
-            }
-
-            if (isZoomInterceptionActive || handledByZoom) {
-                parent?.requestDisallowInterceptTouchEvent(true)
-                if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
-                    isZoomInterceptionActive = false
-                }
-                return true
-            }
-        }
-
-        if (isDoubleTapToSeekEnabled && doubleTapSeekController.isSeeking) {
-            if (doubleTapSeekController.handleTouchEvent(ev)) {
-                return true
-            }
-        }
-
+        if (touchGestureCoordinator.dispatchTouchEvent(ev, ::dispatchCancelToChildren)) return true
         return super.dispatchTouchEvent(ev)
     }
 
+    private fun dispatchCancelToChildren(ev: MotionEvent) {
+        super.dispatchTouchEvent(ev)
+    }
+
     override fun onTouchEvent(ev: MotionEvent): Boolean {
-        if (isDoubleTapToSeekEnabled) {
-            val handled = doubleTapSeekController.handleTouchEvent(ev)
-            if (handled) return true
-        }
+        if (touchGestureCoordinator.onTouchEvent(ev)) return true
         return super.onTouchEvent(ev)
     }
 

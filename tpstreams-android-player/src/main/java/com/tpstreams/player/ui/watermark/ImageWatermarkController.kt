@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.watermark
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -7,6 +7,8 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.media3.common.util.UnstableApi
+import com.tpstreams.player.ImageWatermarkConfig
+import com.tpstreams.player.TPStreamsPlayerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

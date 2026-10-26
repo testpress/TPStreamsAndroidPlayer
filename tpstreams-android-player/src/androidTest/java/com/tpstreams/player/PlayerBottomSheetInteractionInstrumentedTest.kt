@@ -1,5 +1,10 @@
 package com.tpstreams.player
 
+import com.tpstreams.player.ui.bottomsheet.AdvancedResolutionBottomSheet
+import com.tpstreams.player.ui.bottomsheet.PlayerSettingsBottomSheet
+import com.tpstreams.player.ui.bottomsheet.PlaybackSpeedBottomSheet
+import com.tpstreams.player.ui.bottomsheet.QualityOptionsBottomSheet
+
 import android.view.View
 import android.widget.SeekBar
 import androidx.fragment.app.DialogFragment
