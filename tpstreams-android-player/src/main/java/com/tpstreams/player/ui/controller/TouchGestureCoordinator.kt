@@ -2,8 +2,10 @@ package com.tpstreams.player.ui.controller
 
 import android.view.MotionEvent
 import android.view.View
+import androidx.media3.common.util.UnstableApi
 
 /** Coordinates zoom and double-tap gesture ownership before child controls receive touches. */
+@UnstableApi
 internal class TouchGestureCoordinator(
     private val host: View,
     private val zoomController: PlayerZoomController,

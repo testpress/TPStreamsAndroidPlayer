@@ -2,10 +2,12 @@ package com.tpstreams.player.ui.controller
 
 import android.content.Context
 import android.content.res.Configuration
+import androidx.media3.common.util.UnstableApi
 import com.tpstreams.player.TPStreamsPlayer
 import com.tpstreams.player.ui.host.FullscreenHost
 
 /** Owns automatic fullscreen behavior and playback preservation across rotations. */
+@UnstableApi
 internal class AutoFullscreenController(
     private val host: FullscreenHost,
     private val fullscreenMode: FullscreenMode,
