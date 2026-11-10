@@ -49,7 +49,11 @@ internal class TokenManager(
 
             val response = httpClient.newCall(requestBuilder.build()).execute()
             val isValid = response.isSuccessful
-            Log.d(TAG, "Token validation result: ${if (isValid) "valid" else "invalid"}")
+            Log.d(
+                TAG,
+                "Token validation: asset=$targetAssetId, status=${response.code}, " +
+                    "result=${if (isValid) "valid" else "invalid"}"
+            )
             isValid
         } catch (e: Exception) {
             Log.e(TAG, "Error checking token validity: ${e.message}")
@@ -102,7 +106,11 @@ internal class TokenManager(
             download = true,
             licenseDurationSeconds = offlineLicenseExpireTime
         )
-        Log.d(TAG, "Built license URL: $licenseUrl")
+        Log.d(
+            TAG,
+            "Built offline license request: asset=$assetId, durationSeconds=$offlineLicenseExpireTime, " +
+                "url=${licenseUrl.substringBefore('?')}"
+        )
         licenseUrl
     }
 

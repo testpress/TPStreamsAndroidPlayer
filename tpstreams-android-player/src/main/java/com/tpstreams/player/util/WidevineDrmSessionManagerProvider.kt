@@ -56,6 +56,12 @@ internal class WidevineDrmSessionManagerProvider(
         }
 
         if (!shouldUseL3) {
+            Log.d(
+                TAG,
+                "Creating DRM session manager: securityLevel=L1/default, " +
+                    "offline=${drmConfiguration.keySetId != null}, " +
+                    "licenseUrl=${safeUrl(drmConfiguration.licenseUri?.toString())}"
+            )
             return defaultProvider.get(mediaItem)
         }
 
@@ -64,6 +70,12 @@ internal class WidevineDrmSessionManagerProvider(
                 l3DrmConfiguration = drmConfiguration
                 l3Manager = createL3Manager(drmConfiguration)
             }
+            Log.d(
+                TAG,
+                "Creating DRM session manager: securityLevel=L3, " +
+                    "offline=${drmConfiguration.keySetId != null}, " +
+                    "licenseUrl=${safeUrl(drmConfiguration.licenseUri?.toString())}"
+            )
             return checkNotNull(l3Manager)
         }
     }
@@ -92,6 +104,9 @@ internal class WidevineDrmSessionManagerProvider(
 
     companion object {
         private const val TAG = "WidevineDrmSessionMgr"
+
+        private fun safeUrl(url: String?): String =
+            url?.substringBefore('?')?.substringBefore('#') ?: "none"
 
         internal val L3_EXO_MEDIA_DRM_PROVIDER = ExoMediaDrm.Provider { uuid ->
             try {

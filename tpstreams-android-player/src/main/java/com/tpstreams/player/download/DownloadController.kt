@@ -29,6 +29,7 @@ import androidx.media3.exoplayer.drm.DrmSessionEventListener
 import com.tpstreams.player.R
 import com.tpstreams.player.util.WidevinePlaybackLevelResolver
 import com.tpstreams.player.util.WidevineDrmSessionManagerProvider
+import com.tpstreams.player.util.DrmHttpDataSourceFactory
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Format
 import androidx.media3.common.C
@@ -37,8 +38,10 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.concurrent.ExecutorService
+import java.security.MessageDigest
 import org.json.JSONObject
 import android.net.Uri
+import android.os.SystemClock
 import android.database.sqlite.SQLiteOpenHelper
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.annotation.VisibleForTesting
@@ -123,11 +126,12 @@ object DownloadController {
             databaseProvider
         )
         
-        val baseDataSourceFactory = DefaultHttpDataSource.Factory()
+        val baseHttpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(30000)
             .setReadTimeoutMs(30000)
             .setAllowCrossProtocolRedirects(true)
             .setUserAgent(Util.getUserAgent(appContext, "TPStreams Player"))
+        val baseDataSourceFactory = DrmHttpDataSourceFactory(baseHttpDataSourceFactory)
 
         val tokenCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -608,8 +612,21 @@ object DownloadController {
                         )
                         
                         try {
+                            val requestStartedAt = SystemClock.elapsedRealtime()
+                            Log.d(
+                                TAG,
+                                "Offline license request started: asset=$assetId, " +
+                                    "securityLevel=${storedLevel ?: "default"}, url=${licenseUri.substringBefore('?')}"
+                            )
                             val keySetId = licenseHelper.downloadLicense(drmFormat)
-                            Log.d(TAG, "Successfully downloaded fresh license with KeySetId: $keySetId")
+                            val requestDurationMs = SystemClock.elapsedRealtime() - requestStartedAt
+                            Log.d(
+                                TAG,
+                                "Fresh offline license downloaded: asset=$assetId, " +
+                                    "durationMs=$requestDurationMs, " +
+                                    "keySetIdLength=${keySetId?.size ?: 0}, " +
+                                    "keySetIdHash=${keySetId?.let(::keySetIdHash) ?: "none"}"
+                            )
 
                             val newDownloadRequest = cloneDownloadRequestWithNewKeys(
                                 download.request,
@@ -723,6 +740,11 @@ object DownloadController {
         return mediaItem.localConfiguration?.drmConfiguration != null
     }
 
+    private fun keySetIdHash(keySetId: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(keySetId)
+            .take(8)
+            .joinToString("") { "%02x".format(it) }
+
     private fun findDrmFormat(helper: DownloadHelper): Format? {
         val trackGroups = helper.getTrackGroups(0)
     
@@ -761,8 +783,20 @@ object DownloadController {
 
         return licenseHelper.run {
             try {
+                val requestStartedAt = SystemClock.elapsedRealtime()
+                Log.d(
+                    "DRM",
+                    "Offline license request started: asset=${baseRequest.id}, " +
+                        "securityLevel=$actualLevel, url=${licenseUri.substringBefore('?')}"
+                )
                 val keySetId = downloadLicense(drmFormat)
-                Log.d("DRM", "DRM download started with the KeySetId: ${keySetId?.contentToString()}")
+                val requestDurationMs = SystemClock.elapsedRealtime() - requestStartedAt
+                Log.d(
+                    "DRM",
+                    "DRM download license received: asset=${baseRequest.id}, durationMs=$requestDurationMs, " +
+                        "keySetIdLength=${keySetId?.size ?: 0}, " +
+                        "keySetIdHash=${keySetId?.let(::keySetIdHash) ?: "none"}"
+                )
 
                 val updatedData = updateDrmSecurityLevelInData(baseRequest.data, actualLevel)
 

@@ -45,6 +45,11 @@ internal class DrmHandler(
     fun onLicenseResolved(url: String?) {
         licenseUrl = url
         fallbackAttempted = false
+        Log.d(
+            TAG,
+            "License resolved: asset=$assetId, url=${safeUrl(url)}, " +
+                "downloaded=${isDownloadedAsset()}, nativeLevel=$nativeSecurityLevel"
+        )
     }
 
     fun resetFallbackAttempt() {
@@ -52,6 +57,7 @@ internal class DrmHandler(
     }
 
     fun handleError(error: PlaybackException): Boolean {
+        logDrmFailure(error)
         if (handleExpiredOfflineLicense(error)) return true
         if (handleL3Fallback(error)) return true
         return false
@@ -64,12 +70,45 @@ internal class DrmHandler(
 
     private fun handleExpiredOfflineLicense(error: PlaybackException): Boolean {
         if (error.errorCode != PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED) return false
-        if (!isDownloadedAsset()) return false
+        if (!isDownloadedAsset()) {
+            Log.d(TAG, "Offline-license recovery skipped: asset is not downloaded ($assetId)")
+            return false
+        }
 
-        Log.d(TAG, "DRM license expired for downloaded asset: $assetId — triggering renewal")
+        Log.w(
+            TAG,
+            "Offline-license recovery triggered: asset=$assetId, " +
+                "error=${error.errorCodeName}(${error.errorCode}), " +
+                "securityLevel=$nativeSecurityLevel"
+        )
         onRenewOfflineLicense()
         return true
     }
+
+    private fun logDrmFailure(error: PlaybackException) {
+        val drmConfiguration = exoPlayer.currentMediaItem?.localConfiguration?.drmConfiguration
+        val keySetId = drmConfiguration?.keySetId
+        Log.e(
+            TAG,
+            "DRM failure: asset=$assetId, error=${error.errorCodeName}(${error.errorCode}), " +
+                "downloaded=${isDownloadedAsset()}, securityLevel=$nativeSecurityLevel, " +
+                "keySetIdPresent=${keySetId != null}, keySetIdLength=${keySetId?.size ?: 0}, " +
+                "licenseUrl=${safeUrl(licenseUrl)}"
+        )
+
+        var cause = error.cause
+        var depth = 0
+        while (cause != null && depth < 5) {
+            Log.e(
+                TAG,
+                "DRM cause[$depth]: ${cause::class.java.simpleName}: ${cause.message ?: "<no message>"}"
+            )
+            cause = cause.cause
+            depth++
+        }
+    }
+
+    private fun safeUrl(url: String?): String = url?.substringBefore('?')?.substringBefore('#') ?: "none"
 
     private fun handleL3Fallback(error: PlaybackException): Boolean {
         if (!WidevinePlaybackLevelResolver.isFallbackAllowed()) return false
