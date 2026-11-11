@@ -44,6 +44,8 @@ import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.annotation.VisibleForTesting
 import com.tpstreams.player.TPStreamsPlayer
 import com.tpstreams.player.TPStreamsSDK
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 
 @UnstableApi
@@ -528,6 +530,37 @@ object DownloadController {
             baseRequest = baseRequest,
             dataSourceFactory = dataSourceFactory
         )
+    }
+
+    internal suspend fun tryRenewOfflineLicense(
+        context: Context,
+        assetId: String,
+        player: TPStreamsPlayer,
+    ): Boolean {
+        val download = DownloadClient.getInstance(context).getDownload(assetId) ?: return false
+        val keySetId = download.request.keySetId ?: return false
+        val remainingSeconds = withContext(Dispatchers.IO) {
+            try {
+                val helper = WidevineDrmSessionManagerProvider.createOfflineLicenseHelper(
+                    licenseUri = "", // Media3's duration query uses the stored key set.
+                    dataSourceFactory = getDataSourceFactory(context),
+                    securityLevel = getStoredDrmSecurityLevel(download.request.data),
+                )
+                try {
+                    val durations = helper.getLicenseDurationRemainingSec(keySetId)
+                    minOf(durations.first, durations.second)
+                } finally {
+                    helper.release()
+                }
+            } catch (error: androidx.media3.exoplayer.drm.DrmSession.DrmSessionException) {
+                Log.w(TAG, "Could not read offline license duration for asset: $assetId", error)
+                null
+            }
+        }
+        if (remainingSeconds == null || remainingSeconds == C.TIME_UNSET || remainingSeconds > 60L) return false
+
+        renewDrmLicense(context, assetId, player)
+        return true
     }
 
     fun renewDrmLicense(
