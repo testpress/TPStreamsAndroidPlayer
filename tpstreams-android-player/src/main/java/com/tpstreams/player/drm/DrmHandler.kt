@@ -63,7 +63,12 @@ internal class DrmHandler(
     fun getNativeLevel(): String? = WidevinePlaybackLevelResolver.getNativeWidevineLevel()
 
     private fun handleExpiredOfflineLicense(error: PlaybackException): Boolean {
-        if (error.errorCode != PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED) return false
+        val shouldRenew =
+            error.errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED ||
+            error.errorCode == PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION ||
+            error.errorCode == PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR
+
+        if (!shouldRenew) return false
         if (!isDownloadedAsset()) return false
 
         Log.d(TAG, "DRM license expired for downloaded asset: $assetId — triggering renewal")
