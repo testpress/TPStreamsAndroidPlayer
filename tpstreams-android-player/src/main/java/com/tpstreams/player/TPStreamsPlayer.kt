@@ -54,6 +54,7 @@ import com.tpstreams.player.util.network.NetworkRecoveryHandler
 import com.tpstreams.player.util.network.isNetworkError
 import io.sentry.Breadcrumb
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -329,7 +330,7 @@ class TPStreamsPlayer internal constructor(
         assetId = assetId,
         isLiveStream = { isLiveStream },
         onRenewOfflineLicense = {
-            DownloadController.renewDrmLicense(context, assetId, this@TPStreamsPlayer)
+            DownloadController.tryRenewOfflineLicense(context, assetId, this@TPStreamsPlayer)
         },
         onL3Fallback = ::addDrmFallbackBreadcrumb,
     )
@@ -715,6 +716,12 @@ class TPStreamsPlayer internal constructor(
             }
             
             override fun onPlayerError(error: PlaybackException) {
+                playerScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    handlePlayerError(error)
+                }
+            }
+
+            private suspend fun handlePlayerError(error: PlaybackException) {
                 // Suppress HLS playlist-stuck errors — raised when a live stream pauses.
                 // The player naturally shows a buffering spinner; playback resumes when the
                 // stream advances again or the user seeks back.
