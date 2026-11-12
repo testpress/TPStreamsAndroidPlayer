@@ -654,6 +654,7 @@ object DownloadController {
                             val downloadIndex = downloadManager.downloadIndex as? DefaultDownloadIndex
                             if (downloadIndex != null) {
                                 downloadIndex.putDownload(newDownload)
+                                DownloadClient.getInstance(context).updateCachedDownload(newDownload)
                                 val newMediaItem = buildMediaItemFromDownload(newDownload)
                                 if (newMediaItem != null) {
                                     player.refreshPlaybackWithDownloadMediaItem(newMediaItem)

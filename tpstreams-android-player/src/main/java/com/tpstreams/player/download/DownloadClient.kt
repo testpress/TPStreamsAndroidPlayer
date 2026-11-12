@@ -72,6 +72,8 @@ class DownloadClient private constructor(private val context: Context) {
 
     fun getDownload(assetId: String): Download? = repository.getDownload(assetId)
 
+    internal fun updateCachedDownload(download: Download) = repository.updateCachedDownload(download)
+
     fun getDownloadRequest(assetId: String): DownloadRequest? = repository.getDownloadRequest(assetId)
 
     fun getAllDownloadItems(): List<DownloadItem> {
@@ -337,6 +339,10 @@ class DownloadClient private constructor(private val context: Context) {
         }
 
         fun getDownload(id: String): Download? = downloads[id]
+
+        fun updateCachedDownload(download: Download) {
+            downloads[download.request.id] = download
+        }
 
         fun getAllDownloads(): List<Download> = downloads.values.toList()
 
