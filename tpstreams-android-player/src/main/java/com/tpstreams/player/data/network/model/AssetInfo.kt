@@ -23,5 +23,6 @@ data class AssetInfo(
     val videoObj: JSONObject?,
     val isLiveStream: Boolean = false,
     val durationSeconds: Double = 0.0,
-    val isAes: Boolean = false
+    val isAes: Boolean = false,
+    val shieldedManifestUrl: String? = null
 )
