@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.controller
 
 import android.os.Build
 import android.util.Log
@@ -7,11 +7,14 @@ import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
+import com.tpstreams.player.R
+import com.tpstreams.player.TPStreamsSDK
+import com.tpstreams.player.TPStreamsPlayerView
+import com.tpstreams.player.ui.DownloadUiActions
 import com.tpstreams.player.download.DownloadPermissionHandler
 import com.tpstreams.player.download.DownloadClient
 import androidx.media3.common.C
 import com.tpstreams.player.download.DownloadConstants
-import com.tpstreams.player.ui.DownloadUiActions
 import com.tpstreams.player.util.DownloadUtils
 
 @UnstableApi

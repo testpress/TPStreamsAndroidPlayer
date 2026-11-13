@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.bottomsheet
 
 import android.os.Bundle
 import android.util.Log
@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.appcompat.widget.AppCompatButton
 import kotlin.math.roundToInt
 import com.tpstreams.player.util.DownloadUtils
+import com.tpstreams.player.R
 
 class DownloadOptionsBottomSheet : BaseBottomSheet() {
 

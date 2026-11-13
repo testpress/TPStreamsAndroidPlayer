@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.bottomsheet
 
 import android.os.Bundle
 import android.util.Log
@@ -13,6 +13,7 @@ import androidx.fragment.app.FragmentManager
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import com.tpstreams.player.R
 
 class PlaybackSpeedBottomSheet : BaseBottomSheet() {
 

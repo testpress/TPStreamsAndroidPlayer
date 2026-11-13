@@ -1,5 +1,7 @@
 package com.tpstreams.player
 
+import com.tpstreams.player.ui.controller.PlayerZoomController
+
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.ViewGroup

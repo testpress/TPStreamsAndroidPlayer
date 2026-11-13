@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.watermark
 
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
@@ -8,6 +8,10 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import com.tpstreams.player.TPStreamsPlayerView
+import com.tpstreams.player.WatermarkAnimation
+import com.tpstreams.player.WatermarkAnimationType
+import com.tpstreams.player.WatermarkConfig
 import kotlin.random.Random
 
 @UnstableApi

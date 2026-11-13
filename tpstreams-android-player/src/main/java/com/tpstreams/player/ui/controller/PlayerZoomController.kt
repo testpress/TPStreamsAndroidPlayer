@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.controller
 
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
@@ -17,6 +17,8 @@ import android.widget.TextView
 import androidx.annotation.VisibleForTesting
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
+import com.tpstreams.player.R
+import com.tpstreams.player.TPStreamsPlayerView
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max

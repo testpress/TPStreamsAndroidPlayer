@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.controller
 
 import android.content.pm.ActivityInfo
 import android.graphics.Color
@@ -11,9 +11,11 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
+import com.tpstreams.player.TPStreamsPlayer
+import com.tpstreams.player.ui.host.FullscreenHost
 
 @UnstableApi
-class FullscreenMode(private val view: TPStreamsPlayerView) {
+internal class FullscreenMode(private val host: FullscreenHost) {
     private var isFullscreen = false
     private var isTransitioning = false
     private var originalParent: ViewGroup? = null
@@ -26,21 +28,21 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     private var backCallback: OnBackPressedCallback? = null
 
     fun enterFullscreen() {
-        val activity = view.getActivity() as? ComponentActivity ?: return
+        val activity = host.getActivity() as? ComponentActivity ?: return
         if (isFullscreen || isTransitioning) return
 
-        val player = view.getPlayer()
+        val player = host.currentPlayer
         (player as? TPStreamsPlayer)?.also {
             it.isFullscreenRequested = true
             it.suppressAutoFullscreenUntilPortrait = false
         }
-        val lifecycleManager = (player as? TPStreamsPlayer)?.lifecycleManager ?: view.lifecycleManager
+        val lifecycleManager = (player as? TPStreamsPlayer)?.lifecycleManager ?: host.lifecycleManager
         val transitionAction = {
             moveToDecorView(activity)
             switchToLandscape(activity)
             hideSystemUI(activity)
             isFullscreen = true
-            view.setFullscreenButtonState(true)
+            host.setFullscreenButtonState(true)
             registerBackPressHandler(activity)
         }
 
@@ -56,6 +58,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     private fun moveToDecorView(activity: ComponentActivity) {
         val decorView = activity.window.decorView as ViewGroup
 
+        val view = host.hostedView
         val parent = view.parent as? ViewGroup
         originalParent = parent
         originalLayoutParams = view.layoutParams
@@ -96,15 +99,15 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     }
 
     fun exitFullscreen(suppressAutoReentry: Boolean = true) {
-        val activity = view.getActivity() as? ComponentActivity ?: return
+        val activity = host.getActivity() as? ComponentActivity ?: return
         if (!isFullscreen || isTransitioning) return
 
-        val player = view.getPlayer()
+        val player = host.currentPlayer
         (player as? TPStreamsPlayer)?.also {
             it.isFullscreenRequested = false
             it.suppressAutoFullscreenUntilPortrait = suppressAutoReentry
         }
-        val lifecycleManager = (player as? TPStreamsPlayer)?.lifecycleManager ?: view.lifecycleManager
+        val lifecycleManager = (player as? TPStreamsPlayer)?.lifecycleManager ?: host.lifecycleManager
         val transitionAction = {
             restoreUI(activity)
         }
@@ -152,7 +155,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
         }
         clearBackPressHandler()
         isFullscreen = false
-        view.setFullscreenButtonState(false)
+        host.setFullscreenButtonState(false)
     }
 
     private fun runTransition(action: () -> Unit) {
@@ -167,6 +170,7 @@ class FullscreenMode(private val view: TPStreamsPlayerView) {
     }
 
     private fun restoreOriginalView(activity: ComponentActivity) {
+        val view = host.hostedView
         val decorView = activity.window.decorView as ViewGroup
         decorView.removeView(view)
         // Restore original background (clears the black set during enterFullscreen)

@@ -1,5 +1,6 @@
 package com.tpstreams.player
 
+import com.tpstreams.player.ui.controller.OrientationListener
 import android.content.Context
 import android.view.OrientationEventListener.ORIENTATION_UNKNOWN
 import org.junit.Assert.assertEquals

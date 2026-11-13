@@ -59,6 +59,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import com.tpstreams.player.analytics.TPStreamsAnalyticsTracker
+import com.tpstreams.player.ui.playback.ResumePlaybackManager
+import com.tpstreams.player.ui.lifecycle.PlayerLifecycleManager
 import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
@@ -92,6 +94,14 @@ class TPStreamsPlayer internal constructor(
     }
 
     internal fun recordPlaybackLog(message: String) = playbackHistory.recordLog(message)
+
+    internal fun onSurfaceAttached() {
+        debugLog("Surface ATTACH")
+    }
+
+    internal fun onSurfaceDetached() {
+        debugLog("Surface DETACH")
+    }
 
     private fun getPlaybackContexts(): Map<String, Map<String, Any>> = mapOf(
         "Player State" to PlayerStateSnapshot.capture(exoPlayer).getContext(),

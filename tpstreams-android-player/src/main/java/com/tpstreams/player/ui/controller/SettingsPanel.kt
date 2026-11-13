@@ -1,6 +1,8 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.controller
 
 import androidx.media3.common.util.UnstableApi
+import com.tpstreams.player.ui.bottomsheet.QualityOptionsBottomSheet
+import com.tpstreams.player.TPStreamsPlayerView
 import com.tpstreams.player.ui.SettingsActions
 
 @UnstableApi
