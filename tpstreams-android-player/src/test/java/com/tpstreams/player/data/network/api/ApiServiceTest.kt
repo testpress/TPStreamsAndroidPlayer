@@ -14,7 +14,7 @@ class ApiServiceTest {
             tpStreamsApi.assetInfoUrl("org", "asset", "token")
         )
         assertEquals(
-            "https://app.tpstreams.com/api/v1/org/assets/asset/drm_license/?access_token=token&download=true&license_duration_seconds=1000",
+            "https://app.tpstreams.com/api/v1/org/assets/asset/drm_license/?access_token=token&download=true&license_duration_seconds=1000&rental_duration_seconds=1000",
             tpStreamsApi.drmLicenseUrl("org", "asset", "token", download = true, licenseDurationSeconds = 1000)
         )
     }

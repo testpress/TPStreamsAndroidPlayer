@@ -749,6 +749,7 @@ object DownloadController {
             .appendQueryParameter("download", "true")
         if (offlineLicenseExpireTime > 0) {
             uriBuilder.appendQueryParameter("license_duration_seconds", offlineLicenseExpireTime.toString())
+            uriBuilder.appendQueryParameter("rental_duration_seconds", offlineLicenseExpireTime.toString())
         }
         return uriBuilder.build().toString()
     }

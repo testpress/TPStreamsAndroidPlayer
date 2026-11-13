@@ -24,12 +24,14 @@ class TPStreamsApiService : BaseApiService() {
         download: Boolean,
         licenseDurationSeconds: Long?
     ): String {
-        val baseUrl = "$BASE_URL/api/v1/$orgId/assets/$assetId/drm_license/"
-        val withToken = if (accessToken.isNotBlank()) "$baseUrl?access_token=$accessToken" else baseUrl
-        if (!download) return withToken
-        val duration = licenseDurationSeconds ?: 0L
-        val separator = if (withToken.contains("?")) "&" else "?"
-        return "$withToken${separator}download=true&license_duration_seconds=$duration"
+        var url = "$BASE_URL/api/v1/$orgId/assets/$assetId/drm_license/?access_token=$accessToken"
+        if (download) {
+            url += "&download=true"
+            if (licenseDurationSeconds != null && licenseDurationSeconds > 0) {
+                url += "&license_duration_seconds=$licenseDurationSeconds&rental_duration_seconds=$licenseDurationSeconds"
+            }
+        }
+        return url
     }
 
     override fun parseAsset(json: JSONObject): AssetInfo {
