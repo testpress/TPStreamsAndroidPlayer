@@ -473,6 +473,7 @@ class TPStreamsPlayer internal constructor(
 
     private fun retryPlayback() {
         if (released) return
+        clearPendingError()
         playerScope.launch {
             try {
                 if (!isPrepared) {
@@ -495,11 +496,17 @@ class TPStreamsPlayer internal constructor(
     private val listeners = CopyOnWriteArraySet<Listener>()
     @Volatile private var appListener: Listener? = null
     @Volatile private var pendingError: PendingPlaybackError? = null
+    private val pendingErrorLock = Any()
 
     fun addListener(listener: Listener) {
         listeners.add(listener)
-        pendingError?.let { error ->
-            listener.onError(error.error, error.message)
+        if (listener is ViewListener) {
+            val error = synchronized(pendingErrorLock) {
+                pendingError.also { pendingError = null }
+            }
+            error?.let {
+                listener.onError(it.error, it.message)
+            }
         }
     }
 
@@ -519,8 +526,16 @@ class TPStreamsPlayer internal constructor(
         }
 
     internal fun notifyError(error: PlaybackError, message: String) {
-        pendingError = PendingPlaybackError(error, message)
+        synchronized(pendingErrorLock) {
+            pendingError = PendingPlaybackError(error, message)
+        }
         listeners.forEach { it.onError(error, message) }
+    }
+
+    private fun clearPendingError() {
+        synchronized(pendingErrorLock) {
+            pendingError = null
+        }
     }
 
     internal fun notifyNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
@@ -694,7 +709,7 @@ class TPStreamsPlayer internal constructor(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
                 if (playbackState == Player.STATE_READY) {
-                    pendingError = null
+                    clearPendingError()
                 }
                 seekToStartAt()
                 if (playbackState == Player.STATE_READY) {
@@ -918,6 +933,7 @@ class TPStreamsPlayer internal constructor(
     override fun release() {
         if (released) return
         released = true
+        clearPendingError()
         lifecycleManager.stopObserving()
         if (sentryLoggerLazy.isInitialized()) {
             sentryLogger.close()
