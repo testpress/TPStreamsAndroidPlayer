@@ -1,6 +1,7 @@
 package com.tpstreams.player.constants
 
 import androidx.media3.common.PlaybackException
+import com.tpstreams.player.util.HTTP_STATUS_UNAUTHORIZED
 import com.tpstreams.player.util.findHttpResponseCode
 import com.tpstreams.player.util.httpStatusUserMessage
 import com.tpstreams.player.util.toPlaybackErrorFromHttpStatus
@@ -30,12 +31,21 @@ enum class PlaybackError {
 class LiveStreamNotStartedException(message: String) : Exception(message)
 class LiveStreamEndedException(message: String) : Exception(message)
 
+internal fun PlaybackException.drmLicenseHttpStatus(
+    responseCode: Int? = findHttpResponseCode(),
+): Int? = responseCode?.takeIf { errorCode == PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED }
+
+internal fun PlaybackException.drmLicenseUnauthorizedStatus(
+    responseCode: Int? = findHttpResponseCode(),
+): Int? = drmLicenseHttpStatus(responseCode)?.takeIf { it == HTTP_STATUS_UNAUTHORIZED }
+
 internal fun PlaybackException.toError(): PlaybackError {
     return when (this.errorCode) {
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> PlaybackError.NETWORK_CONNECTION_FAILED
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> PlaybackError.NETWORK_CONNECTION_TIMEOUT
         PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED -> PlaybackError.DRM_SCHEME_UNSUPPORTED
-        PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED -> PlaybackError.INVALID_ACCESS_TOKEN_FOR_DRM_LICENSE
+        PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ->
+            PlaybackError.INVALID_ACCESS_TOKEN_FOR_DRM_LICENSE
         PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> toBadHttpStatusError()
         else -> PlaybackError.UNSPECIFIED
     }
@@ -53,8 +63,9 @@ internal fun PlaybackException.getErrorMessage(playerId: String): String {
             "The request took too long to process due to a slow or unstable network connection. Please try again.\n Player code: ${this.errorCode}. Player Id: $playerId"
         PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED ->
             "This device doesn't support playback of this video.\n Player code: ${this.errorCode}. Player Id: $playerId"
-        PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED -> 
-            "There was an issue fetching the license key for this video. Please try again later.\n Player code: ${this.errorCode}. Player Id: $playerId"
+        PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ->
+            drmLicenseUnauthorizedStatus()?.httpStatusUserMessage(playerId)
+                ?: "There was an issue fetching the license key for this video. Please try again later.\n Player code: ${this.errorCode}. Player Id: $playerId"
         PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
             findHttpResponseCode()?.httpStatusUserMessage(playerId)
                 ?: "Oops! Something went wrong. Please contact support for assistance and provide details about the issue.\n Player code: ${this.errorCode}. Player Id: $playerId"

@@ -7,6 +7,7 @@ import android.media.MediaDrm
 import android.os.Build
 import android.util.Log
 import androidx.media3.common.PlaybackException
+import com.tpstreams.player.constants.drmLicenseHttpStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -154,10 +155,10 @@ internal object WidevinePlaybackLevelResolver {
     }
 
     fun isDrmFallbackError(error: PlaybackException): Boolean {
+        if (error.drmLicenseHttpStatus() != null) return false
         if (when (error.errorCode) {
                 PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED,
                 PlaybackException.ERROR_CODE_DRM_DEVICE_REVOKED,
-                PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED,
                 PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR,
                 PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION,
                 PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> true

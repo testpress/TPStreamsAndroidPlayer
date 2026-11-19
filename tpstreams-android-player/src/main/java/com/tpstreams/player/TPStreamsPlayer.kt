@@ -26,6 +26,7 @@ import com.tpstreams.player.constants.NetworkDiagnostics
 import com.tpstreams.player.constants.LiveStreamEndedException
 import com.tpstreams.player.constants.LiveStreamNotStartedException
 import com.tpstreams.player.constants.PlaybackError
+import com.tpstreams.player.constants.drmLicenseUnauthorizedStatus
 import com.tpstreams.player.constants.getErrorMessage
 import com.tpstreams.player.constants.toError
 import java.util.concurrent.CopyOnWriteArraySet
@@ -40,6 +41,7 @@ import com.tpstreams.player.token.TokenManager
 import com.tpstreams.player.tracks.ResolutionManager
 import com.tpstreams.player.tracks.TextTrackManager
 import com.tpstreams.player.util.CodecManager
+import com.tpstreams.player.util.DISPLAY_ERROR_ACCESS_DENIED
 import com.tpstreams.player.util.DecoderInfoProvider
 import com.tpstreams.player.util.NetworkErrorResult
 import com.tpstreams.player.util.NetworkDiagnosticsManager
@@ -105,17 +107,21 @@ class TPStreamsPlayer internal constructor(
         contexts: Map<String, Map<String, Any>> = emptyMap(),
     ) {
         val httpResponseCode = error.findHttpResponseCode()
+        val accessDeniedStatus = error.drmLicenseUnauthorizedStatus(httpResponseCode)
+        val displayErrorCode = accessDeniedStatus?.let { DISPLAY_ERROR_ACCESS_DENIED }
         reportError(
             throwable = error,
             category = "Playback",
             errorDomain = "ExoPlayer",
-            name = getReadableErrorName(error),
-            groupingKey = listOf("playback", "exoplayer", error.errorCode.toString()),
+            name = accessDeniedStatus?.let { "$DISPLAY_ERROR_ACCESS_DENIED - DRM license access denied - HTTP $it response" }
+                ?: getReadableErrorName(error),
+            groupingKey = listOf("playback", "exoplayer", (displayErrorCode ?: error.errorCode).toString()),
             tags = buildMap {
                 put("errorCode", error.errorCode.toString())
                 put("errorCodeName", error.errorCodeName)
                 put("causeType", error.cause?.javaClass?.simpleName ?: error.javaClass.simpleName)
                 httpResponseCode?.let { put("httpResponseCode", it.toString()) }
+                displayErrorCode?.let { put("displayErrorCode", it.toString()) }
                 if (error.errorCodeName.contains("DRM", ignoreCase = true) && "rootCause" !in tags) {
                     put("rootCause", error.errorCodeName)
                 }
