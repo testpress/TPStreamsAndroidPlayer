@@ -52,7 +52,7 @@ internal fun PlaybackException.getErrorMessage(playerId: String): String {
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> 
             "The request took too long to process due to a slow or unstable network connection. Please try again.\n Player code: ${this.errorCode}. Player Id: $playerId"
         PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED ->
-            "This device doesn't support playback of this video."
+            "This device doesn't support playback of this video.\nError code: ${this.errorCode} · Player ID: $playerId"
         PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED -> 
             "There was an issue fetching the license key for this video. Please try again later.\n Player code: ${this.errorCode}. Player Id: $playerId"
         PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {

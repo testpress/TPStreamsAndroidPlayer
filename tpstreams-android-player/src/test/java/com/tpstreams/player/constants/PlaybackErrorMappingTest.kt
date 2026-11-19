@@ -18,7 +18,7 @@ class PlaybackErrorMappingTest {
 
         assertEquals(PlaybackError.WIDEVINE_UNSUPPORTED, error.toError())
         assertEquals(
-            "This device doesn't support playback of this video.",
+            "This device doesn't support playback of this video.\nError code: 6001 · Player ID: player-id",
             error.getErrorMessage("player-id"),
         )
     }
