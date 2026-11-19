@@ -494,9 +494,13 @@ class TPStreamsPlayer internal constructor(
 
     private val listeners = CopyOnWriteArraySet<Listener>()
     @Volatile private var appListener: Listener? = null
+    @Volatile private var pendingError: PendingPlaybackError? = null
 
     fun addListener(listener: Listener) {
         listeners.add(listener)
+        pendingError?.let { error ->
+            listener.onError(error.error, error.message)
+        }
     }
 
     fun removeListener(listener: Listener) {
@@ -515,6 +519,7 @@ class TPStreamsPlayer internal constructor(
         }
 
     internal fun notifyError(error: PlaybackError, message: String) {
+        pendingError = PendingPlaybackError(error, message)
         listeners.forEach { it.onError(error, message) }
     }
 
@@ -688,6 +693,9 @@ class TPStreamsPlayer internal constructor(
             
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
+                if (playbackState == Player.STATE_READY) {
+                    pendingError = null
+                }
                 seekToStartAt()
                 if (playbackState == Player.STATE_READY) {
                     if (startAt <= 0 && !isLiveStream) {
@@ -1077,6 +1085,11 @@ class TPStreamsPlayer internal constructor(
                 enableAnalytics)
         }
     }
+
+    private data class PendingPlaybackError(
+        val error: PlaybackError,
+        val message: String,
+    )
 
     
     fun getDownloadDrmLicenseUrl(callback: (String) -> Unit) {
