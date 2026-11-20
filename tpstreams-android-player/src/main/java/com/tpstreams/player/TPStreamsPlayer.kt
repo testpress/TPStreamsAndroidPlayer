@@ -473,6 +473,7 @@ class TPStreamsPlayer internal constructor(
 
     private fun retryPlayback() {
         if (released) return
+        clearActiveError()
         playerScope.launch {
             try {
                 if (!isPrepared) {
@@ -494,9 +495,14 @@ class TPStreamsPlayer internal constructor(
 
     private val listeners = CopyOnWriteArraySet<Listener>()
     @Volatile private var appListener: Listener? = null
+    /** Last playback error, retained until playback recovers so every newly attached view can show it. */
+    @Volatile private var activeError: ActiveError? = null
 
     fun addListener(listener: Listener) {
         listeners.add(listener)
+        if (listener is ViewListener) {
+            activeError?.let { listener.onError(it.error, it.message) }
+        }
     }
 
     fun removeListener(listener: Listener) {
@@ -515,8 +521,11 @@ class TPStreamsPlayer internal constructor(
         }
 
     internal fun notifyError(error: PlaybackError, message: String) {
+        activeError = ActiveError(error, message)
         listeners.forEach { it.onError(error, message) }
     }
+
+    private fun clearActiveError() { activeError = null }
 
     internal fun notifyNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
         listeners.forEach { it.onNetworkError(error, message, diagnostics) }
@@ -658,6 +667,7 @@ class TPStreamsPlayer internal constructor(
                 reason: Int
             ) {
                 if (mediaItem != null) {
+                    clearActiveError()
                     val transitionReason = when (reason) {
                         Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "AUTO"
                         Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> "PLAYLIST_CHANGED"
@@ -688,6 +698,9 @@ class TPStreamsPlayer internal constructor(
             
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
+                if (playbackState == Player.STATE_READY) {
+                    clearActiveError()
+                }
                 seekToStartAt()
                 if (playbackState == Player.STATE_READY) {
                     if (startAt <= 0 && !isLiveStream) {
@@ -796,6 +809,7 @@ class TPStreamsPlayer internal constructor(
 
         TPStreamsSDK.requireOrgId()
         try {
+            clearActiveError()
             mediaLoader.load()
         } catch (error: Throwable) {
             if (sentryLoggerLazy.isInitialized()) {
@@ -910,6 +924,7 @@ class TPStreamsPlayer internal constructor(
     override fun release() {
         if (released) return
         released = true
+        clearActiveError()
         lifecycleManager.stopObserving()
         if (sentryLoggerLazy.isInitialized()) {
             sentryLogger.close()
@@ -1077,6 +1092,11 @@ class TPStreamsPlayer internal constructor(
                 enableAnalytics)
         }
     }
+
+    private data class ActiveError(
+        val error: PlaybackError,
+        val message: String,
+    )
 
     
     fun getDownloadDrmLicenseUrl(callback: (String) -> Unit) {
