@@ -473,7 +473,7 @@ class TPStreamsPlayer internal constructor(
 
     private fun retryPlayback() {
         if (released) return
-        clearPendingError()
+        clearActiveError()
         playerScope.launch {
             try {
                 if (!isPrepared) {
@@ -495,18 +495,13 @@ class TPStreamsPlayer internal constructor(
 
     private val listeners = CopyOnWriteArraySet<Listener>()
     @Volatile private var appListener: Listener? = null
-    @Volatile private var pendingError: PendingPlaybackError? = null
-    private val pendingErrorLock = Any()
+    /** Last playback error, retained until playback recovers so every newly attached view can show it. */
+    @Volatile private var activeError: ActiveError? = null
 
     fun addListener(listener: Listener) {
         listeners.add(listener)
         if (listener is ViewListener) {
-            val error = synchronized(pendingErrorLock) {
-                pendingError.also { pendingError = null }
-            }
-            error?.let {
-                listener.onError(it.error, it.message)
-            }
+            activeError?.let { listener.onError(it.error, it.message) }
         }
     }
 
@@ -526,17 +521,11 @@ class TPStreamsPlayer internal constructor(
         }
 
     internal fun notifyError(error: PlaybackError, message: String) {
-        synchronized(pendingErrorLock) {
-            pendingError = PendingPlaybackError(error, message)
-        }
+        activeError = ActiveError(error, message)
         listeners.forEach { it.onError(error, message) }
     }
 
-    private fun clearPendingError() {
-        synchronized(pendingErrorLock) {
-            pendingError = null
-        }
-    }
+    private fun clearActiveError() { activeError = null }
 
     internal fun notifyNetworkError(error: PlaybackError, message: String, diagnostics: NetworkDiagnostics) {
         listeners.forEach { it.onNetworkError(error, message, diagnostics) }
@@ -678,6 +667,7 @@ class TPStreamsPlayer internal constructor(
                 reason: Int
             ) {
                 if (mediaItem != null) {
+                    clearActiveError()
                     val transitionReason = when (reason) {
                         Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "AUTO"
                         Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> "PLAYLIST_CHANGED"
@@ -709,7 +699,7 @@ class TPStreamsPlayer internal constructor(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
                 if (playbackState == Player.STATE_READY) {
-                    clearPendingError()
+                    clearActiveError()
                 }
                 seekToStartAt()
                 if (playbackState == Player.STATE_READY) {
@@ -819,6 +809,7 @@ class TPStreamsPlayer internal constructor(
 
         TPStreamsSDK.requireOrgId()
         try {
+            clearActiveError()
             mediaLoader.load()
         } catch (error: Throwable) {
             if (sentryLoggerLazy.isInitialized()) {
@@ -933,7 +924,7 @@ class TPStreamsPlayer internal constructor(
     override fun release() {
         if (released) return
         released = true
-        clearPendingError()
+        clearActiveError()
         lifecycleManager.stopObserving()
         if (sentryLoggerLazy.isInitialized()) {
             sentryLogger.close()
@@ -1102,7 +1093,7 @@ class TPStreamsPlayer internal constructor(
         }
     }
 
-    private data class PendingPlaybackError(
+    private data class ActiveError(
         val error: PlaybackError,
         val message: String,
     )

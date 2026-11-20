@@ -16,9 +16,9 @@ class PlaybackErrorMappingTest {
             PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED,
         )
 
-        assertEquals(PlaybackError.WIDEVINE_UNSUPPORTED, error.toError())
+        assertEquals(PlaybackError.DRM_SCHEME_UNSUPPORTED, error.toError())
         assertEquals(
-            "This device doesn't support playback of this video.\nError code: 6001 · Player ID: player-id",
+            "This device doesn't support playback of this video.\n Player code: 6001. Player Id: player-id",
             error.getErrorMessage("player-id"),
         )
     }

@@ -20,7 +20,7 @@ enum class PlaybackError {
     INVALID_ACCESS_TOKEN_FOR_ASSETS,
     EXPIRED_ACCESS_TOKEN_FOR_ASSETS,
     INVALID_ACCESS_TOKEN_FOR_DRM_LICENSE,
-    WIDEVINE_UNSUPPORTED,
+    DRM_SCHEME_UNSUPPORTED,
     SERVER_ERROR,
     LIVE_STREAM_NOT_STARTED,
     LIVE_STREAM_ENDED,
@@ -34,7 +34,7 @@ internal fun PlaybackException.toError(): PlaybackError {
     return when (this.errorCode) {
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> PlaybackError.NETWORK_CONNECTION_FAILED
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> PlaybackError.NETWORK_CONNECTION_TIMEOUT
-        PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED -> PlaybackError.WIDEVINE_UNSUPPORTED
+        PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED -> PlaybackError.DRM_SCHEME_UNSUPPORTED
         PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED -> PlaybackError.INVALID_ACCESS_TOKEN_FOR_DRM_LICENSE
         PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> toBadHttpStatusError()
         else -> PlaybackError.UNSPECIFIED
@@ -52,7 +52,7 @@ internal fun PlaybackException.getErrorMessage(playerId: String): String {
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> 
             "The request took too long to process due to a slow or unstable network connection. Please try again.\n Player code: ${this.errorCode}. Player Id: $playerId"
         PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED ->
-            "This device doesn't support playback of this video.\nError code: ${this.errorCode} · Player ID: $playerId"
+            "This device doesn't support playback of this video.\n Player code: ${this.errorCode}. Player Id: $playerId"
         PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED -> 
             "There was an issue fetching the license key for this video. Please try again later.\n Player code: ${this.errorCode}. Player Id: $playerId"
         PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
