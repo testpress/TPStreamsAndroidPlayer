@@ -35,7 +35,6 @@ class WidevinePlaybackLevelResolverTest {
         val eligibleCodes = listOf(
             PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED,
             PlaybackException.ERROR_CODE_DRM_DEVICE_REVOKED,
-            PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED,
             PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR,
             PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION,
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
@@ -48,5 +47,12 @@ class WidevinePlaybackLevelResolverTest {
 
         val nonDrmError = PlaybackException("IO error", null, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)
         assertFalse(WidevinePlaybackLevelResolver.isDrmFallbackError(nonDrmError))
+
+        val genericLicenseError = PlaybackException(
+            "License acquisition failed",
+            null,
+            PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED,
+        )
+        assertFalse(WidevinePlaybackLevelResolver.isDrmFallbackError(genericLicenseError))
     }
 }
