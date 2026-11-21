@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.bottomsheet
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -9,6 +9,7 @@ import android.widget.TextView
 import androidx.fragment.app.FragmentManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.tpstreams.player.R
 
 class AdvancedResolutionBottomSheet : BaseBottomSheet() {
 

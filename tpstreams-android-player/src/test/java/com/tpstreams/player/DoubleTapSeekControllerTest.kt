@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.MotionEvent
 import androidx.media3.common.util.UnstableApi
 import com.tpstreams.player.ui.DoubleTapSeekOverlayView
+import com.tpstreams.player.ui.controller.DoubleTapSeekController
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

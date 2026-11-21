@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.controller
 
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +10,7 @@ import android.widget.FrameLayout
 import androidx.annotation.VisibleForTesting
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
+import com.tpstreams.player.TPStreamsPlayerView
 import com.tpstreams.player.ui.DoubleTapSeekOverlayView
 import kotlin.math.hypot
 

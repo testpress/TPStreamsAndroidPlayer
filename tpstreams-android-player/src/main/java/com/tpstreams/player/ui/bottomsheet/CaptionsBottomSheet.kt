@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.bottomsheet
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -10,6 +10,8 @@ import android.widget.TextView
 import androidx.fragment.app.FragmentManager
 import android.util.Log
 import java.util.Locale
+import com.tpstreams.player.R
+import com.tpstreams.player.TPStreamsPlayer
 
 class CaptionsBottomSheet : BaseBottomSheet() {
     
