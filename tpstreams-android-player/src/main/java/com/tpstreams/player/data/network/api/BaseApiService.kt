@@ -18,6 +18,15 @@ abstract class BaseApiService {
         return assetInfoUrl(orgId, assetId, accessToken)
     }
 
+    open fun shieldedManifestKeyUrl(
+        orgId: String,
+        assetId: String,
+        accessToken: String,
+        clientPublicKey: String,
+    ): String {
+        throw UnsupportedOperationException("Shielded manifests are not supported by this provider")
+    }
+
     abstract fun parseAsset(json: JSONObject): AssetInfo
 }
 

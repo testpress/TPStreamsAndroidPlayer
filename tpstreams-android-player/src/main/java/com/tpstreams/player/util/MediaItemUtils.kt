@@ -25,7 +25,8 @@ object MediaItemUtils {
         title: String,
         orgId: String,
         assetId: String,
-        accessToken: String
+        accessToken: String,
+        playbackUriOverride: Uri? = null,
     ): MediaItemResult {
         val subtitleConfigurations = mutableListOf<MediaItem.SubtitleConfiguration>()
         val subtitleMetadata = mutableMapOf<String, Boolean>()
@@ -63,7 +64,8 @@ object MediaItemUtils {
             }
         }
 
-        val playbackUri = buildPlaybackUri(assetInfo.mediaUrl, assetInfo.isAes, accessToken)
+        val playbackUri = playbackUriOverride
+            ?: buildPlaybackUri(assetInfo.mediaUrl, assetInfo.isAes, accessToken)
 
         val metadata = MediaMetadata.Builder()
             .setTitle(title)
