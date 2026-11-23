@@ -42,6 +42,8 @@ internal class MediaLoader(
 ) {
 
     @Volatile
+    private var loadedAssetInfo: AssetInfo? = null
+    @Volatile
     var cdnHostname: String? = null
         private set
 
@@ -59,6 +61,7 @@ internal class MediaLoader(
 
             AssetRepository.fetchAssetInfo(assetId, accessToken, object : AssetRepository.AssetCallback {
                 override fun onSuccess(assetInfo: AssetInfo) {
+                    loadedAssetInfo = assetInfo
                     val safeHost = try { Uri.parse(assetInfo.mediaUrl).host } catch (_: Exception) { "unknown" }
                     logDebug("fetchAndPrepare SUCCESS — cdnHost=$safeHost")
                     preparePlayer(assetInfo)
@@ -86,14 +89,34 @@ internal class MediaLoader(
         }
     }
 
-    private fun preparePlayer(assetInfo: AssetInfo) {
+    /** Rebuilds the current DRM media item after the host app supplies a fresh token. */
+    fun retryWithAccessToken(newAccessToken: String): Boolean {
+        val assetInfo = loadedAssetInfo ?: return false
+        val resumePositionMs = exoPlayer.currentPosition
+        val resumePlayWhenReady = exoPlayer.playWhenReady
+        preparePlayer(assetInfo, newAccessToken, resumePositionMs, resumePlayWhenReady)
+        return true
+    }
+
+    private fun preparePlayer(
+        assetInfo: AssetInfo,
+        mediaAccessToken: String = accessToken,
+        resumePositionMs: Long? = null,
+        resumePlayWhenReady: Boolean? = null,
+    ) {
         val orgId = TPStreamsSDK.requireOrgId()
         cdnHostname = try {
             Uri.parse(assetInfo.mediaUrl).host?.takeIf { it.isNotBlank() }
         } catch (_: Exception) { null }
         logDebug("CDN hostname extracted: $cdnHostname")
 
-        val result = MediaItemUtils.buildMediaItem(assetInfo, assetInfo.title, orgId, assetId, accessToken)
+        val result = MediaItemUtils.buildMediaItem(
+            assetInfo,
+            assetInfo.title,
+            orgId,
+            assetId,
+            mediaAccessToken,
+        )
         drmHandler.onLicenseResolved(result.drmLicenseUrl)
         textTrackManager.updateSubtitleMetadata(result.subtitleMetadata)
         mediaUrl = result.mediaItem.localConfiguration?.uri?.toString()
@@ -108,11 +131,21 @@ internal class MediaLoader(
             exoPlayer.setAudioAttributes(audioAttributes, true)
             logDebug("MediaItem SET - ${result.mediaItem.mediaId}")
             exoPlayer.setMediaItem(result.mediaItem)
+            if (resumePositionMs != null) {
+                exoPlayer.seekTo(resumePositionMs)
+                exoPlayer.playWhenReady = resumePlayWhenReady == true
+            }
             logDebug("Player PREPARE")
             exoPlayer.prepare()
             onMediaPrepared()
 
-            if (shouldPlayOnPrepared()) {
+            if (resumePlayWhenReady != null) {
+                if (resumePlayWhenReady) {
+                    exoPlayer.play()
+                } else {
+                    exoPlayer.pause()
+                }
+            } else if (shouldPlayOnPrepared()) {
                 exoPlayer.play()
             }
         }
