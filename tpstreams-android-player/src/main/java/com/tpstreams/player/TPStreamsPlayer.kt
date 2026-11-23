@@ -303,6 +303,7 @@ class TPStreamsPlayer internal constructor(
     internal var onLiveStreamStatusChanged: ((Boolean) -> Unit)? = null
     
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var drmLicenseRefreshAttempted = false
     private val networkRecoveryHandler = NetworkRecoveryHandler(context)
     private val sentryLoggerLazy = lazy {
         SentryLogger.create(context = context, assetId = assetId)
@@ -473,6 +474,7 @@ class TPStreamsPlayer internal constructor(
 
     fun retry() {
         if (released) return
+        drmLicenseRefreshAttempted = false
         networkDiagnosticsManager.onManualRetry()
         retryPlayback()
     }
@@ -497,6 +499,20 @@ class TPStreamsPlayer internal constructor(
                 Log.e("TPStreamsPlayer", "Error resuming playback", e)
             }
         }
+    }
+
+    private suspend fun tryRefreshOnlineDrmLicense(error: PlaybackException): Boolean {
+        if (drmLicenseRefreshAttempted || drmHandler.isDownloadedAsset()) return false
+        if (error.errorCode != PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED) return false
+        if (error.drmLicenseUnauthorizedStatus() == null) return false
+
+        drmLicenseRefreshAttempted = true
+        val freshToken = tokenManager.getTokenForRequest(forceRefresh = true)
+        if (freshToken.isNullOrBlank()) {
+            return false
+        }
+
+        return mediaLoader.retryWithAccessToken(freshToken)
     }
 
     private val listeners = CopyOnWriteArraySet<Listener>()
@@ -705,6 +721,7 @@ class TPStreamsPlayer internal constructor(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d("TPStreamsPlayer", "Player state changed: state=$playbackState, playWhenReady=${exoPlayer.playWhenReady}")
                 if (playbackState == Player.STATE_READY) {
+                    drmLicenseRefreshAttempted = false
                     clearActiveError()
                 }
                 seekToStartAt()
@@ -750,6 +767,7 @@ class TPStreamsPlayer internal constructor(
                 // Covers expired offline licenses, L1→L3 fallback, and license acquisition
                 // failures. Returns true when the error has been handled and playback will
                 // resume (either via renewal or retry), so we stop further processing.
+                if (tryRefreshOnlineDrmLicense(error)) return
                 if (drmHandler.handleError(error)) return
 
                 if (isLiveStream && error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS && error.isLiveStreamEndHttpError()) {
@@ -816,6 +834,7 @@ class TPStreamsPlayer internal constructor(
         TPStreamsSDK.requireOrgId()
         try {
             clearActiveError()
+            drmLicenseRefreshAttempted = false
             mediaLoader.load()
         } catch (error: Throwable) {
             if (sentryLoggerLazy.isInitialized()) {

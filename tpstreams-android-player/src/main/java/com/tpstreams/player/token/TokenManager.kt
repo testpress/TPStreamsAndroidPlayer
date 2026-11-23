@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -19,15 +20,18 @@ import kotlin.coroutines.resume
  */
 internal class TokenManager(
     private val assetId: String,
-    private val accessToken: String,
+    accessToken: String,
     private val offlineLicenseExpireTime: Long,
     private val httpClient: OkHttpClient = sharedHttpClient,
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val listenerProvider: () -> TPStreamsPlayer.Listener?,
 ) {
 
+    @Volatile
+    private var currentAccessToken = accessToken
+
     suspend fun isTokenValid(targetAssetId: String = assetId): Boolean = withContext(Dispatchers.IO) {
-        if (accessToken.isEmpty() && TPStreamsSDK.getAuthHeaders().isEmpty()) {
+        if (currentAccessToken.isEmpty() && TPStreamsSDK.getAuthHeaders().isEmpty()) {
             Log.d(TAG, "No current token available")
             return@withContext false
         }
@@ -38,7 +42,7 @@ internal class TokenManager(
         }
 
         try {
-            val assetApiUrl = TPStreamsSDK.apiService.tokenValidationUrl(orgId, targetAssetId, accessToken)
+            val assetApiUrl = TPStreamsSDK.apiService.tokenValidationUrl(orgId, targetAssetId, currentAccessToken)
             val requestBuilder = Request.Builder()
                 .url(assetApiUrl)
                 .head()
@@ -63,19 +67,39 @@ internal class TokenManager(
             return@withContext ""
         }
 
-        suspendCancellableCoroutine { continuation ->
-            listener.onAccessTokenExpired(targetAssetId) { newToken ->
-                if (continuation.isActive) {
-                    if (newToken.isNotEmpty()) {
-                        Log.d(TAG, "Received fresh token")
-                        continuation.resume(newToken)
-                    } else {
-                        Log.e(TAG, "Failed to get fresh token (empty response)")
-                        continuation.resume("")
+        withTimeoutOrNull(TOKEN_REFRESH_TIMEOUT_MS) {
+            suspendCancellableCoroutine { continuation ->
+                listener.onAccessTokenExpired(targetAssetId) { newToken ->
+                    if (continuation.isActive) {
+                        if (newToken.isNotEmpty()) {
+                            Log.d(TAG, "Received fresh token")
+                            currentAccessToken = newToken
+                            continuation.resume(newToken)
+                        } else {
+                            Log.e(TAG, "Failed to get fresh token (empty response)")
+                            continuation.resume("")
+                        }
                     }
                 }
             }
+        } ?: run {
+            Log.e(TAG, "Timed out waiting for a fresh access token")
+            ""
         }
+    }
+
+    /** Returns the current token when valid, otherwise requests one from the host app. */
+    suspend fun getTokenForRequest(
+        targetAssetId: String = assetId,
+        forceRefresh: Boolean = false,
+    ): String? {
+        if (!forceRefresh && isTokenValid(targetAssetId)) {
+            Log.d(TAG, "Token is valid, using current token")
+            return currentAccessToken
+        }
+
+        Log.d(TAG, "Requesting a fresh token")
+        return fetchFreshToken(targetAssetId).takeIf(String::isNotEmpty)
     }
 
     suspend fun getDownloadDrmLicenseUrl(): String = withContext(Dispatchers.IO) {
@@ -84,16 +108,7 @@ internal class TokenManager(
             return@withContext ""
         }
 
-        val valid = isTokenValid(assetId)
-        val tokenToUse = if (valid) {
-            Log.d(TAG, "Token is valid, using current token")
-            accessToken
-        } else {
-            Log.d(TAG, "Token expired, getting fresh token")
-            val fresh = fetchFreshToken(assetId)
-            if (fresh.isEmpty()) return@withContext ""
-            fresh
-        }
+        val tokenToUse = getTokenForRequest() ?: return@withContext ""
 
         val licenseUrl = TPStreamsSDK.apiService.drmLicenseUrl(
             orgId = orgId,
@@ -135,6 +150,7 @@ internal class TokenManager(
 
     companion object {
         private const val TAG = "TokenManager"
+        private const val TOKEN_REFRESH_TIMEOUT_MS = 10_000L
 
         private val sharedHttpClient: OkHttpClient by lazy {
             OkHttpClient.Builder()

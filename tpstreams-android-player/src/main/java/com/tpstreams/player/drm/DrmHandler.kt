@@ -143,7 +143,7 @@ internal class DrmHandler(
             .build()
     }
 
-    private fun isDownloadedAsset(): Boolean = try {
+    fun isDownloadedAsset(): Boolean = try {
         DownloadClient.getInstance(context).getDownload(assetId) != null
     } catch (_: Exception) {
         false
