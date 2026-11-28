@@ -1,9 +1,10 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.lifecycle
 
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.media3.common.Player
+import com.tpstreams.player.TPStreamsPlayer
 
 /**
  * Manages player lifecycle events to ensure proper playback state during

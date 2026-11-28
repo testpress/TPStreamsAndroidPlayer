@@ -1,4 +1,4 @@
-package com.tpstreams.player
+package com.tpstreams.player.ui.bottomsheet
 
 import android.os.Bundle
 import android.util.Log
@@ -9,6 +9,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.FragmentManager
+import com.tpstreams.player.R
 
 class PlayerSettingsBottomSheet : BaseBottomSheet() {
 

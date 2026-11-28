@@ -1,13 +1,13 @@
 package com.tpstreams.player.ui
 
 import androidx.media3.common.util.UnstableApi
-import com.tpstreams.player.AdvancedResolutionBottomSheet
-import com.tpstreams.player.CaptionsBottomSheet
-import com.tpstreams.player.DownloadActionBottomSheet
-import com.tpstreams.player.DownloadOptionsBottomSheet
-import com.tpstreams.player.PlaybackSpeedBottomSheet
-import com.tpstreams.player.PlayerSettingsBottomSheet
-import com.tpstreams.player.QualityOptionsBottomSheet
+import com.tpstreams.player.ui.bottomsheet.AdvancedResolutionBottomSheet
+import com.tpstreams.player.ui.bottomsheet.CaptionsBottomSheet
+import com.tpstreams.player.ui.bottomsheet.DownloadActionBottomSheet
+import com.tpstreams.player.ui.bottomsheet.DownloadOptionsBottomSheet
+import com.tpstreams.player.ui.bottomsheet.PlaybackSpeedBottomSheet
+import com.tpstreams.player.ui.bottomsheet.PlayerSettingsBottomSheet
+import com.tpstreams.player.ui.bottomsheet.QualityOptionsBottomSheet
 import com.tpstreams.player.TPStreamsPlayer
 
 /**

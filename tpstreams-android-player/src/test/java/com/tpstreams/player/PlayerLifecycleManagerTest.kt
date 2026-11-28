@@ -1,5 +1,6 @@
 package com.tpstreams.player
 
+import com.tpstreams.player.ui.lifecycle.PlayerLifecycleManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.media3.common.Player
